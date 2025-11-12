@@ -50,28 +50,70 @@ See [Planning/README.md](Planning/README.md) for comprehensive project plan, tim
 
 ## Quick Start
 
-> Note: Setup automation is under development in Phase 1. Instructions will be finalized once Phase 1 is complete.
-
 ### Prerequisites
-- Ubuntu 22.04 LTS
-- NVIDIA GPU (for simulation and vision models)
-- ROS 2 Humble
-- 20+ GB free disk space
+- Ubuntu 22.04 or 24.04 LTS
+- 16+ GB RAM
+- 50+ GB free disk space
+- NVIDIA GPU with driver >=525.x (recommended but not required for SITL)
+- Internet connection for initial setup
 
-### Initial Setup (Planned)
+### Initial Setup
 ```bash
 # Clone repository
 git clone https://github.com/[org]/LLMDrone.git
 cd LLMDrone
 
-# Run automated setup
-make boot
+# Check system requirements
+make check
 
-# Launch simulation
+# Run automated setup (installs dependencies and clones PX4 v1.14.0)
+make setup
+
+# Source environment variables
+source setup/env.sh
+
+# Launch PX4 SITL + Gazebo simulation
 make sim
 ```
 
-Full setup documentation will be available in `docs/runbooks/` after Phase 1.
+The simulation will open Gazebo with a quadrotor. You can control it via the PX4 console:
+```bash
+# In the PX4 console (pxh>):
+commander takeoff
+commander land
+```
+
+### Makefile Commands
+
+Run `make help` to see all available commands:
+- `make check` - Validate system requirements
+- `make setup` - Full automated setup
+- `make sim` - Launch PX4 SITL + Gazebo
+- `make clean` - Clean build artifacts
+- `make clean-all` - Remove all dependencies (full reset)
+
+### Troubleshooting
+
+**Gazebo doesn't open or crashes:**
+- Ensure NVIDIA drivers are installed: `nvidia-smi`
+- Try headless mode: `make sim-headless`
+- Check GPU requirements: `make check`
+
+**PX4 fails to build:**
+- Ensure all dependencies installed: `make bootstrap`
+- Check disk space: `df -h`
+- Clean and rebuild: `make clean && make sim`
+
+**Setup scripts fail:**
+- Check internet connectivity and proxy settings
+- Re-run with clean state: `make clean-all && make setup`
+
+**Simulation is slow or laggy:**
+- Close unnecessary applications to free RAM
+- Reduce Gazebo graphics quality in GUI settings
+- Use headless mode: `make sim-headless`
+
+For more details, see [CLAUDE.md](CLAUDE.md) development guidelines.
 
 ## Development Phases
 
@@ -105,4 +147,4 @@ This is a research project under active development. For contribution guidelines
 
 ---
 
-**Status**: Phase 1 in progress | **Last Updated**: 2025-11-10
+**Status**: Phase 1 in progress | **Last Updated**: 2025-11-12

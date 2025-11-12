@@ -1,0 +1,62 @@
+# External dependencies (managed by setup scripts)
+.deps/
+PX4-Autopilot/
+
+# Build artifacts
+build/
+install/
+log/
+*.egg-info/
+dist/
+
+# ROS 2
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# PX4 logs
+*.ulg
+*.log
+*.csv
+
+# Gazebo
+.gazebo/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Setup state tracking
+.setup_state/
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+llm/notebooks/.ipynb_checkpoints/
+
+# LLM weights and credentials (never commit these)
+*.pth
+*.ckpt
+*.safetensors
+*.bin
+credentials.json
+.env
+
+# Temporary files
+*.tmp
+*.bak
+*.backup

@@ -60,3 +60,9 @@ credentials.json
 *.tmp
 *.bak
 *.backup
+
+# Docker (images stored in Docker daemon, not repo)
+# Only ignore potential build artifacts/logs if created
+docker-compose.override.yml
+.docker/
+*.dockerignore.local

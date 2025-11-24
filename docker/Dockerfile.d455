@@ -1,0 +1,32 @@
+# Minimal Docker container for Intel RealSense D455
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install dependencies and RealSense SDK
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    apt-transport-https \
+    ca-certificates \
+    curl \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add Intel RealSense repository
+RUN mkdir -p /etc/apt/keyrings \
+    && curl -sSf https://librealsense.intel.com/Debian/librealsense.pgp | tee /etc/apt/keyrings/librealsense.pgp > /dev/null \
+    && echo "deb [signed-by=/etc/apt/keyrings/librealsense.pgp] https://librealsense.intel.com/Debian/apt-repo `lsb_release -cs` main" | \
+    tee /etc/apt/sources.list.d/librealsense.list
+
+# Install librealsense2 runtime and tools
+RUN apt-get update && apt-get install -y \
+    librealsense2-utils \
+    librealsense2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify installation
+RUN rs-enumerate-devices --version
+
+WORKDIR /workspace
+
+CMD ["bash"]

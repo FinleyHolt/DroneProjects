@@ -1,0 +1,53 @@
+# Minimal Docker container for Intel RealSense T265 (deprecated/EOL)
+# Uses librealsense v2.50.0 - last validated release supporting T265
+# Reference: https://github.com/IntelRealSense/librealsense/releases/tag/v2.50.0
+
+FROM ubuntu:20.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies for librealsense 2.50.0
+RUN apt-get update && apt-get install -y \
+    git \
+    cmake \
+    build-essential \
+    libssl-dev \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    pkg-config \
+    libgtk-3-dev \
+    libglfw3-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone librealsense v2.50.0 (last version supporting T265)
+WORKDIR /opt
+RUN git clone --depth 1 --branch v2.50.0 https://github.com/IntelRealSense/librealsense.git
+
+# Build and install librealsense from source
+WORKDIR /opt/librealsense
+RUN mkdir build && cd build \
+    && cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DFORCE_RSUSB_BACKEND=false \
+        -DBUILD_EXAMPLES=true \
+        -DBUILD_GRAPHICAL_EXAMPLES=true \
+    && make -j$(nproc) \
+    && make install
+
+# Configure library path
+RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/librealsense.conf \
+    && ldconfig
+
+# Set up udev rules (though container runs privileged)
+RUN cp /opt/librealsense/config/99-realsense-libusb.rules /etc/udev/rules.d/
+
+# Verify installation
+RUN rs-enumerate-devices --version
+
+WORKDIR /workspace
+
+# Note: T265 requires firmware upload on each connect, ensure USB access
+CMD ["bash"]

@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  drone:
+    build:
+      context: ../..
+      dockerfile: home-test-drone/docker/Dockerfile
+    image: hometestdrone:latest
+    container_name: hometestdrone
+
+    # Use host network for ROS 2 DDS discovery and MAVLink communication
+    network_mode: host
+
+    # Required for USB device access (RealSense cameras, Pixhawk serial)
+    privileged: true
+
+    # Mount USB devices
+    devices:
+      - /dev/bus/usb:/dev/bus/usb  # All USB devices
+
+    # Mount volumes
+    volumes:
+      # Mount ROS 2 workspace for development (edits on host reflect in container)
+      - ../ros2_ws:/workspace/ros2_ws
+
+      # Mount config files
+      - ../config:/workspace/config
+
+      # Mount mission files
+      - ../missions:/workspace/missions
+
+      # Shared memory for efficient inter-process communication
+      - /dev/shm:/dev/shm
+
+      # X11 forwarding for GUI tools (rviz2, rqt)
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${HOME}/.Xauthority:/root/.Xauthority:rw
+
+    # Environment variables
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
+      # MAVSDK connection (adjust based on your Pixhawk connection)
+      # For USB: /dev/ttyACM0, for UART: /dev/ttyTHS0 (Jetson), for UDP: udp://:14540
+      - MAVSDK_SYSTEM_ADDRESS=serial:///dev/ttyACM0:921600
+
+      # Camera settings
+      - REALSENSE_T265_ENABLE=true
+      - REALSENSE_D455_ENABLE=true
+
+    # Keep container running
+    stdin_open: true
+    tty: true
+
+    # Auto-restart on crash (useful for field testing)
+    restart: unless-stopped
+
+    # Healthcheck (verify ROS 2 is running)
+    healthcheck:
+      test: ["CMD", "ros2", "node", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits (adjust based on Jetson Orin Nano capabilities)
+    # Uncomment and tune for production deployment
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 6G
+    #     reservations:
+    #       memory: 2G
+
+# Optional: separate container for simulation/testing
+  # simulation:
+  #   build:
+  #     context: ../..
+  #     dockerfile: home-test-drone/docker/Dockerfile.simulation
+  #   profiles: ["simulation"]
+  #   network_mode: host
+  #   volumes:
+  #     - ../ros2_ws:/workspace/ros2_ws

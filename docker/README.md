@@ -29,10 +29,10 @@ The T265 tracking camera was deprecated by Intel and requires an older version o
 From repository root:
 ```bash
 # D455 depth camera
-docker build -f docker/Dockerfile.d455 -t realsense-d455 .
+sudo docker build -f docker/Dockerfile.d455 -t realsense-d455 .
 
 # T265 tracking camera (builds from source, takes 5-10 min)
-docker build -f docker/Dockerfile.t265 -t realsense-t265 .
+sudo docker build -f docker/Dockerfile.t265 -t realsense-t265 .
 ```
 
 ## Running Containers

@@ -1,0 +1,54 @@
+# PX4 Parameters for Home Test Drone (Pixhawk 6C)
+# Configured for indoor flight with vision-based position estimation
+
+# Vision Position Fusion
+EKF2_AID_MASK 24                # Enable vision position + yaw
+EKF2_HGT_MODE 3                 # Vision height mode
+EKF2_EV_DELAY 0                 # Vision delay compensation (ms)
+EKF2_EV_POS_X 0.0               # Vision sensor X offset (meters)
+EKF2_EV_POS_Y 0.0               # Vision sensor Y offset (meters)
+EKF2_EV_POS_Z 0.0               # Vision sensor Z offset (meters)
+
+# Position Control - Conservative for Indoor
+MPC_XY_VEL_MAX 1.0              # Max horizontal velocity (m/s)
+MPC_Z_VEL_MAX_UP 0.5            # Max ascent velocity (m/s)
+MPC_Z_VEL_MAX_DN 0.5            # Max descent velocity (m/s)
+MPC_XY_CRUISE 0.5               # Cruise speed (m/s)
+MPC_TKO_SPEED 0.5               # Takeoff speed (m/s)
+MPC_LAND_SPEED 0.3              # Landing speed (m/s)
+
+# Position Controller Gains - Tuned for Smooth Indoor Flight
+MPC_XY_P 0.8                    # Horizontal position proportional gain
+MPC_Z_P 0.8                     # Vertical position proportional gain
+MPC_XY_VEL_P_ACC 1.5            # Horizontal velocity P gain
+MPC_XY_VEL_I_ACC 0.4            # Horizontal velocity I gain
+MPC_XY_VEL_D_ACC 0.2            # Horizontal velocity D gain
+
+# Offboard Control
+COM_OBL_ACT 1                   # Return mode on offboard signal loss
+COM_OBL_RC_ACT 0                # Don't require RC for offboard
+COM_OF_LOSS_T 1.0               # Offboard loss timeout (seconds)
+COM_RC_OVERRIDE 0               # RC override behavior
+
+# Failsafe Configuration
+COM_LOW_BAT_ACT 2               # Return on low battery
+COM_RC_LOSS_T 0.5               # RC loss timeout (seconds)
+
+# Battery Settings (adjust for your specific battery)
+BAT_CRIT_THR 0.15               # Critical battery threshold (15%)
+BAT_LOW_THR 0.25                # Low battery threshold (25%)
+BAT_EMERGEN_THR 0.10            # Emergency threshold (10%)
+
+# Geofence (disabled by default, configure in mission files)
+GF_ACTION 2                     # RTL on geofence breach
+GF_MAX_HOR_DIST 10.0            # Max horizontal distance (meters)
+GF_MAX_VER_DIST 5.0             # Max vertical distance (meters)
+
+# Rate Controller - Default values, tune if needed
+MC_ROLLRATE_P 0.15
+MC_PITCHRATE_P 0.15
+MC_YAWRATE_P 0.2
+
+# Logging
+SDLOG_MODE 1                    # Log from boot until disarm
+SDLOG_PROFILE 3                 # Extended logging for analysis

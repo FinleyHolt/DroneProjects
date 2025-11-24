@@ -1,0 +1,58 @@
+<!-- Explore and Map Behavior Tree
+     Autonomous single-room exploration with SLAM mapping
+     Uses frontier exploration and obstacle avoidance
+-->
+<root main_tree_to_execute="ExploreAndMap">
+  <BehaviorTree ID="ExploreAndMap">
+    <Sequence name="MainSequence">
+
+      <!-- Pre-flight checks -->
+      <Sequence name="PreFlightChecks">
+        <Action ID="CheckBatteryLevel" min_voltage="14.8" />
+        <Action ID="CheckTrackingQuality" min_quality="0.8" />
+        <Action ID="CheckSLAMReady" />
+      </Sequence>
+
+      <!-- Main exploration loop -->
+      <Fallback name="ExplorationLoop">
+        <Sequence name="ExploreUntilComplete">
+
+          <!-- Repeat until map is complete or timeout -->
+          <ReactiveSequence name="MapUntilDone">
+
+            <!-- Check mission should continue -->
+            <Inverter>
+              <Fallback name="AbortConditions">
+                <Condition ID="IsBatteryLow" threshold="25" />
+                <Condition ID="IsTrackingLost" />
+                <Condition ID="IsTimeoutReached" />
+              </Fallback>
+            </Inverter>
+
+            <!-- Exploration behavior -->
+            <Fallback name="ExplorationBehavior">
+
+              <!-- Find and navigate to frontier -->
+              <Sequence name="NavigateToFrontier">
+                <Action ID="FindNearestFrontier" output="{frontier_goal}" />
+                <Action ID="PlanPath" goal="{frontier_goal}" output="{path}" />
+                <Action ID="FollowPath" path="{path}" />
+              </Sequence>
+
+              <!-- No frontiers left, exploration complete -->
+              <ForceSuccess>
+                <Action ID="LogMessage" message="Exploration complete, no frontiers remaining" />
+              </ForceSuccess>
+            </Fallback>
+
+          </ReactiveSequence>
+
+        </Sequence>
+
+        <!-- Fallback: return home on any failure -->
+        <Action ID="ReturnToLaunch" />
+      </Fallback>
+
+    </Sequence>
+  </BehaviorTree>
+</root>

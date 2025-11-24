@@ -1,0 +1,176 @@
+# Home Test Drone - Full Autonomy Stack
+# Integrates T265, D455, ROS 2 Humble, MAVSDK, RTAB-Map, and BehaviorTree.CPP
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ROS_DISTRO=humble
+
+# Set up locale for ROS 2
+RUN apt-get update && apt-get install -y \
+    locales \
+    && locale-gen en_US.UTF-8 \
+    && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
+# Install basic dependencies and build tools
+RUN apt-get update && apt-get install -y \
+    git \
+    cmake \
+    build-essential \
+    curl \
+    wget \
+    gnupg2 \
+    lsb-release \
+    ca-certificates \
+    software-properties-common \
+    usbutils \
+    udev \
+    && rm -rf /var/lib/apt/lists/*
+
+#==============================================================================
+# ROS 2 Humble Installation
+#==============================================================================
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" \
+    | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-ros-base \
+    ros-${ROS_DISTRO}-sensor-msgs \
+    ros-${ROS_DISTRO}-geometry-msgs \
+    ros-${ROS_DISTRO}-nav-msgs \
+    ros-${ROS_DISTRO}-tf2-ros \
+    ros-${ROS_DISTRO}-cv-bridge \
+    ros-${ROS_DISTRO}-image-transport \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    python3-vcstool \
+    && rm -rf /var/lib/apt/lists/*
+
+#==============================================================================
+# librealsense2 for T265 (v2.50.0 - built from source)
+#==============================================================================
+RUN apt-get update && apt-get install -y \
+    libssl-dev \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    pkg-config \
+    libgtk-3-dev \
+    libglfw3-dev \
+    libgl1-mesa-dev \
+    libglu1-mesa-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN git clone --depth 1 --branch v2.50.0 https://github.com/IntelRealSense/librealsense.git librealsense-t265
+
+WORKDIR /opt/librealsense-t265
+RUN mkdir build && cd build \
+    && cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DFORCE_RSUSB_BACKEND=false \
+        -DBUILD_EXAMPLES=true \
+        -DBUILD_GRAPHICAL_EXAMPLES=false \
+        -DBUILD_PYTHON_BINDINGS=false \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig
+
+# Set up udev rules for RealSense
+RUN cp /opt/librealsense-t265/config/99-realsense-libusb.rules /etc/udev/rules.d/
+
+#==============================================================================
+# RealSense ROS 2 Wrapper (for both T265 and D455)
+#==============================================================================
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-librealsense2* \
+    ros-${ROS_DISTRO}-realsense2-camera \
+    ros-${ROS_DISTRO}-realsense2-description \
+    && rm -rf /var/lib/apt/lists/*
+
+#==============================================================================
+# RTAB-Map SLAM
+#==============================================================================
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-rtabmap \
+    ros-${ROS_DISTRO}-rtabmap-ros \
+    && rm -rf /var/lib/apt/lists/*
+
+#==============================================================================
+# BehaviorTree.CPP
+#==============================================================================
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-behaviortree-cpp-v3 \
+    libzmq3-dev \
+    libdw-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+#==============================================================================
+# MAVSDK
+#==============================================================================
+RUN apt-get update && apt-get install -y \
+    libcurl4-openssl-dev \
+    libtinyxml2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN git clone --recurse-submodules https://github.com/mavlink/MAVSDK.git \
+    && cd MAVSDK \
+    && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -Bbuild/default -H. \
+    && cmake --build build/default -j"$(nproc)" \
+    && cmake --build build/default --target install \
+    && ldconfig
+
+#==============================================================================
+# Additional ROS 2 packages for navigation and perception
+#==============================================================================
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-vision-msgs \
+    ros-${ROS_DISTRO}-diagnostic-updater \
+    ros-${ROS_DISTRO}-robot-localization \
+    ros-${ROS_DISTRO}-compressed-image-transport \
+    && rm -rf /var/lib/apt/lists/*
+
+#==============================================================================
+# Python dependencies
+#==============================================================================
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-numpy \
+    python3-opencv \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir \
+    transforms3d \
+    pyserial \
+    pymavlink
+
+#==============================================================================
+# Set up workspace
+#==============================================================================
+WORKDIR /workspace
+
+# Create ROS 2 workspace structure
+RUN mkdir -p /workspace/ros2_ws/src
+
+# Source ROS 2 in bashrc
+RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc \
+    && echo "if [ -f /workspace/ros2_ws/install/setup.bash ]; then" >> /root/.bashrc \
+    && echo "  source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc \
+    && echo "fi" >> /root/.bashrc
+
+# Set ROS domain ID (isolate from other ROS systems)
+ENV ROS_DOMAIN_ID=42
+
+# Verify installations
+RUN echo "=== Verifying installations ===" \
+    && rs-enumerate-devices --version || echo "RealSense CLI tools installed" \
+    && ldconfig -p | grep realsense || echo "librealsense in cache" \
+    && ldconfig -p | grep mavsdk || echo "MAVSDK in cache" \
+    && echo "ROS 2 version: $ROS_DISTRO"
+
+CMD ["bash"]

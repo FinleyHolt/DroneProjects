@@ -1,0 +1,49 @@
+# Single Room Exploration Mission
+# Autonomous exploration and mapping of a single room using VIO and SLAM
+
+mission:
+  name: "Single Room Exploration"
+  type: "autonomous_slam"
+  duration_limit_seconds: 300  # 5 minute max
+
+  # Safety boundaries (relative to takeoff position, in meters)
+  geofence:
+    x_min: -3.0
+    x_max: 3.0
+    y_min: -3.0
+    y_max: 3.0
+    z_min: 0.5
+    z_max: 2.0
+
+  # Mission phases
+  phases:
+    - name: "takeoff"
+      altitude: 1.0  # meters
+      timeout: 15
+
+    - name: "position_hold"
+      duration: 5  # seconds, stabilize before exploration
+
+    - name: "autonomous_exploration"
+      behavior_tree: "explore_and_map.xml"
+      exploration_radius: 2.5  # meters from start
+      mapping_enabled: true
+      obstacle_avoidance: true
+
+    - name: "return_to_home"
+      timeout: 30
+
+    - name: "land"
+      timeout: 15
+
+  # Abort conditions
+  abort_on:
+    - low_battery: 25  # percent
+    - tracking_quality_lost: true
+    - manual_override: true
+
+  # SLAM parameters
+  slam:
+    update_rate_hz: 5
+    min_feature_quality: 0.3
+    loop_closure_enabled: true

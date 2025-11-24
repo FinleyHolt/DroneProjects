@@ -1,0 +1,43 @@
+{
+  "mission_name": "Simple Square Pattern",
+  "description": "Basic GPS waypoint mission in square pattern for outdoor testing",
+  "takeoff_altitude": 10.0,
+  "waypoints": [
+    {
+      "id": 1,
+      "lat": 0.0,
+      "lon": 0.0,
+      "alt": 10.0,
+      "description": "Starting point"
+    },
+    {
+      "id": 2,
+      "lat": 0.0001,
+      "lon": 0.0,
+      "alt": 10.0,
+      "description": "North edge"
+    },
+    {
+      "id": 3,
+      "lat": 0.0001,
+      "lon": 0.0001,
+      "alt": 10.0,
+      "description": "Northeast corner"
+    },
+    {
+      "id": 4,
+      "lat": 0.0,
+      "lon": 0.0001,
+      "alt": 10.0,
+      "description": "East edge"
+    },
+    {
+      "id": 5,
+      "lat": 0.0,
+      "lon": 0.0,
+      "alt": 10.0,
+      "description": "Return to start"
+    }
+  ],
+  "landing_mode": "return_to_launch"
+}

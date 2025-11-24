@@ -1,0 +1,67 @@
+# T265 Tracking Camera Configuration
+# Visual-Inertial Odometry for GPS-denied navigation
+
+camera:
+  serial_number: ""  # Leave empty to auto-detect, or specify specific device
+
+  # Publishing settings
+  publish_odom_tf: true
+
+  # Frame IDs (must match URDF/robot description)
+  base_frame_id: "base_link"
+  odom_frame_id: "odom"
+  pose_frame_id: "t265_pose_frame"
+
+  # Topic names
+  odom_topic: "/t265/odom/sample"
+  pose_topic: "/t265/pose"
+
+  # Tracking confidence thresholds
+  min_confidence: 0.3  # Below this, warn but continue
+  failsafe_confidence: 0.1  # Below this, trigger failsafe
+
+# Vision data publishing to PX4
+vision_pose:
+  enabled: true
+  frame_rate: 30  # Hz, publish rate to PX4
+
+  # MAVLink connection for VISION_POSITION_ESTIMATE
+  mavlink:
+    connection_url: "serial:///dev/ttyACM0:921600"
+    system_id: 1
+    component_id: 1
+
+  # Coordinate frame transformations (NED for PX4)
+  # T265 uses ROS convention (FLU), PX4 uses NED
+  transform:
+    # Rotation from T265 frame to PX4 frame
+    # T265: Forward = +X, Left = +Y, Up = +Z
+    # PX4: North = +X, East = +Y, Down = +Z
+    apply_rotation: true
+    rotation_type: "ROS_to_NED"
+
+# Sensor intrinsics (read-only, from factory calibration)
+# These are reported by the device, listed here for reference
+intrinsics:
+  fisheye1:
+    width: 848
+    height: 800
+    fps: 30
+  fisheye2:
+    width: 848
+    height: 800
+    fps: 30
+  gyro:
+    fps: 200
+  accel:
+    fps: 62.5
+
+# Optional: Static transform from base_link to camera
+# Measure physical offset from flight controller to T265
+static_transform:
+  x: 0.05  # meters forward from FC
+  y: 0.0   # meters left from FC
+  z: -0.02 # meters up from FC
+  roll: 0.0
+  pitch: 0.0
+  yaw: 0.0

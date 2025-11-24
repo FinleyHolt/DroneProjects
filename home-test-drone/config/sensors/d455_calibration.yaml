@@ -1,0 +1,85 @@
+# D455 Depth Camera Configuration
+# RGB-D camera for obstacle detection and 3D mapping
+
+camera:
+  serial_number: ""  # Leave empty to auto-detect
+
+  # Enable streams
+  enable_depth: true
+  enable_color: true
+  enable_infra1: false  # Not needed for SLAM
+  enable_infra2: false
+  enable_gyro: true
+  enable_accel: true
+
+  # Stream configuration
+  depth:
+    width: 640
+    height: 480
+    fps: 30
+    format: "Z16"  # 16-bit depth
+
+  color:
+    width: 640
+    height: 480
+    fps: 30
+    format: "RGB8"
+
+  # Frame IDs
+  base_frame_id: "d455_link"
+  depth_frame_id: "d455_depth_frame"
+  color_frame_id: "d455_color_frame"
+
+  # Depth processing
+  depth_module:
+    # Filtering
+    decimation_filter: true
+    decimation_magnitude: 2
+
+    spatial_filter: true
+    spatial_magnitude: 2
+    spatial_smooth_alpha: 0.5
+    spatial_smooth_delta: 20
+
+    temporal_filter: true
+    temporal_smooth_alpha: 0.4
+    temporal_smooth_delta: 20
+
+    hole_filling_filter: true
+    hole_filling_mode: 1  # Farest from around
+
+  # Align depth to color frame for SLAM
+  align_depth: true
+  align_to: "color"
+
+  # Clipping distances (meters)
+  clip_distance:
+    min: 0.3  # Minimum reliable depth
+    max: 6.0  # Maximum for indoor use
+
+# Topic remapping for RTAB-Map
+topics:
+  rgb_image: "/d455/color/image_raw"
+  rgb_camera_info: "/d455/color/camera_info"
+  depth_image: "/d455/aligned_depth_to_color/image_raw"
+  depth_camera_info: "/d455/aligned_depth_to_color/camera_info"
+
+# Static transform from base_link to camera
+static_transform:
+  x: 0.08  # meters forward from FC
+  y: 0.0   # centered
+  z: -0.03 # slightly below FC
+  roll: 0.0
+  pitch: 0.0  # Adjust if camera is tilted
+  yaw: 0.0
+
+# Obstacle detection (for perception pipeline)
+obstacle_detection:
+  enabled: true
+  min_distance: 0.5  # meters, trigger avoidance
+  detection_zones:
+    front:
+      horizontal_fov: 87  # degrees
+      vertical_fov: 58
+    sides:
+      horizontal_fov: 30  # degrees each side

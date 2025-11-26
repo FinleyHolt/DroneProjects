@@ -1,7 +1,12 @@
-# Home Test Drone - Full Autonomy Stack
-# Integrates T265, D455, ROS 2 Humble, MAVSDK, RTAB-Map, and BehaviorTree.CPP
+# Test Drone - Flight Test Configuration
+# Real hardware: T265 visual odometry + D455 depth camera
+# Platforms: NVIDIA Jetson (ARM64) and Ubuntu laptop (x86_64)
+# Includes: ROS 2 Humble, RealSense SDK, MAVSDK, RTAB-Map, BehaviorTree.CPP
 
 FROM ubuntu:22.04
+
+# Detect architecture for platform-specific optimizations
+ARG TARGETARCH
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=humble
@@ -76,6 +81,7 @@ RUN mkdir build && cd build \
         -DBUILD_EXAMPLES=true \
         -DBUILD_GRAPHICAL_EXAMPLES=false \
         -DBUILD_PYTHON_BINDINGS=false \
+        -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
     && make -j"$(nproc)" \
     && make install \
     && ldconfig
@@ -168,9 +174,14 @@ ENV ROS_DOMAIN_ID=42
 
 # Verify installations
 RUN echo "=== Verifying installations ===" \
+    && echo "Architecture: $(uname -m)" \
     && rs-enumerate-devices --version || echo "RealSense CLI tools installed" \
     && ldconfig -p | grep realsense || echo "librealsense in cache" \
     && ldconfig -p | grep mavsdk || echo "MAVSDK in cache" \
     && echo "ROS 2 version: $ROS_DISTRO"
+
+# Platform-specific notes
+# Jetson (ARM64): Optimized for NVIDIA Jetson Orin/Xavier
+# x86_64: Works on Ubuntu laptops with or without GPU
 
 CMD ["bash"]

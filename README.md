@@ -48,6 +48,24 @@ See [Planning/README.md](Planning/README.md) for comprehensive project plan, tim
 - **[AGENTS.md](AGENTS.md)**: Developer guidelines, coding standards, and contribution workflow
 - **[Project_scope.md](Project_scope.md)**: Original project proposal and research objectives
 
+## Repository Structure
+
+LLMDrone is organized into **self-contained platform projects** with shared autonomy components:
+
+- **[test-drone/](test-drone/)** - Primary development platform (custom quadcopter, 8GB GPU)
+  - Hardware: T265 visual odometry + D455 depth camera
+  - Purpose: Experimentation, sensor testing, behavior tree development
+  - Status: Active development
+
+- **[flyby/](flyby/)** - Production flyby mission (16GB GPU, different sensors)
+  - Purpose: Autonomous flyby with obstacle avoidance
+  - Status: Hardware not yet accessible (several months out)
+  - Strategy: Will share autonomy components developed on test-drone
+
+- **Shared Resources**: `llm/`, `docs/`, `.deps/` (PX4, Gazebo)
+
+See [CLAUDE.md](CLAUDE.md) for detailed architecture and package organization.
+
 ## Quick Start
 
 ### Prerequisites
@@ -57,40 +75,37 @@ See [Planning/README.md](Planning/README.md) for comprehensive project plan, tim
 - NVIDIA GPU with driver >=525.x (recommended but not required for SITL)
 - Internet connection for initial setup
 
-### Initial Setup
+### Initial Setup (test-drone)
+
 ```bash
 # Clone repository
 git clone https://github.com/[org]/LLMDrone.git
 cd LLMDrone
 
-# Check system requirements
-make check
+# Install PX4 and dependencies
+bash setup/clone_px4.sh
+bash setup/bootstrap.sh
 
-# Run automated setup (installs dependencies and clones PX4 v1.14.0)
-make setup
+# Navigate to test-drone platform
+cd test-drone
 
-# Source environment variables
-source setup/env.sh
+# Build workspace
+cd ros2_ws
+colcon build --symlink-install
 
-# Launch PX4 SITL + Gazebo simulation
-make sim
+# Launch simulation (or use Docker - see test-drone/README.md)
+source install/setup.bash
+ros2 launch test_drone_bringup simulation.launch.py
 ```
 
-The simulation will open Gazebo with a quadrotor. You can control it via the PX4 console:
-```bash
-# In the PX4 console (pxh>):
-commander takeoff
-commander land
-```
+For detailed test-drone setup and usage, see [test-drone/README.md](test-drone/README.md).
 
-### Makefile Commands
+### Makefile Commands (Legacy)
 
-Run `make help` to see all available commands:
+Some top-level Makefile commands are still available:
 - `make check` - Validate system requirements
-- `make setup` - Full automated setup
-- `make sim` - Launch PX4 SITL + Gazebo
-- `make clean` - Clean build artifacts
-- `make clean-all` - Remove all dependencies (full reset)
+- `make setup` - Install PX4 dependencies
+- `make sim` - Launch PX4 SITL + Gazebo (standalone)
 
 ### Troubleshooting
 

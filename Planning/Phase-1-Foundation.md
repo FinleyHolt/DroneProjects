@@ -47,20 +47,30 @@ These decisions guide the repository structure and setup approach:
   - Build artifacts (`build/`, `install/`, `log/`)
   - IDE files (`.vscode/`, `.idea/`)
   - Logs (`*.log`, `*.ulg`)
-- [ ] Initialize minimal directory structure:
+- [x] Initialize directory structure (updated to platform-based organization):
 ```
 LLMDrone/
-├─ .gitignore
-├─ Makefile
-├─ setup/
-│  ├─ bootstrap.sh           # system dependencies
-│  ├─ clone_px4.sh           # fetch PX4 into .deps/
-│  └─ env.sh                 # environment variables
-└─ .deps/                    # (git-ignored)
-   └─ PX4-Autopilot/         # cloned by setup script
+├── test-drone/              # Primary development platform
+│   ├── ros2_ws/
+│   ├── docker/
+│   ├── simulation/
+│   ├── config/
+│   └── scripts/
+├── flyby/                   # Production mission (future)
+│   ├── ros2_ws/
+│   ├── docker/
+│   ├── simulation/
+│   └── config/
+├── setup/                   # Shared setup scripts
+│   ├── bootstrap.sh
+│   ├── clone_px4.sh
+│   └── env.sh
+├── llm/                     # Shared LLM resources
+└── .deps/                   # (git-ignored) PX4-Autopilot
 ```
-- [ ] Don't create folders we don't need yet (no premature structure)
-- [ ] Focus only on what Phase 1 requires
+- [x] Platform-specific code isolated in respective directories
+- [x] Shared components (autonomy_core, behavior_trees, etc.) developed in test-drone
+- [x] Current focus: test-drone development
 
 **Deliverable**: Minimal working structure, not full scaffolding
 

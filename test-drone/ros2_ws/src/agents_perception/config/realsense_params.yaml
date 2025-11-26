@@ -1,0 +1,75 @@
+# RealSense camera parameters for LLMDrone
+# Optimized for autonomous drone operations in outdoor environments
+
+# T265 Tracking Camera Configuration
+t265:
+  ros__parameters:
+    # Odometry settings
+    odom_frame_id: "t265_odom_frame"
+    base_frame_id: "t265_link"
+
+    # Fisheye camera settings
+    fisheye_width: 848
+    fisheye_height: 800
+    fisheye_fps: 30
+
+    # IMU settings
+    gyro_fps: 200
+    accel_fps: 62
+
+    # Pose confidence thresholds
+    pose_confidence_threshold: 0.3
+
+    # TF publishing
+    publish_odom_tf: true
+
+# D455 Depth Camera Configuration
+d455:
+  ros__parameters:
+    # Frame IDs
+    camera_name: "d455"
+    base_frame_id: "d455_link"
+
+    # RGB Camera
+    rgb_camera:
+      width: 640
+      height: 480
+      fps: 30
+      enable_auto_exposure: true
+
+    # Depth Module
+    depth_module:
+      width: 640
+      height: 480
+      fps: 30
+      visual_preset: 1  # High Accuracy preset
+
+    # Depth processing
+    decimation_filter:
+      enable: false
+    spatial_filter:
+      enable: true
+      smooth_alpha: 0.5
+      smooth_delta: 20
+    temporal_filter:
+      enable: true
+      smooth_alpha: 0.4
+      smooth_delta: 20
+    hole_filling_filter:
+      enable: true
+      mode: 1  # Farest from around
+
+    # Point cloud
+    pointcloud:
+      enable: true
+      ordered_pc: false
+      filter_magnitude: 2
+
+    # Alignment
+    align_depth:
+      enable: true
+
+    # IMU (if needed for fusion)
+    enable_gyro: true
+    enable_accel: true
+    unite_imu_method: 2  # Copy

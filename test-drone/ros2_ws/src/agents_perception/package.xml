@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>agents_perception</name>
+  <version>0.1.0</version>
+  <description>
+    Perception pipeline for LLMDrone using Intel RealSense cameras (T265 tracking, D455 depth).
+    Provides sensor fusion, object detection, and vision-based navigation.
+  </description>
+
+  <maintainer email="finley@example.com">Finley</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_python</buildtool_depend>
+
+  <!-- RealSense dependencies -->
+  <depend>realsense2_camera</depend>
+  <depend>realsense2_description</depend>
+
+  <!-- ROS 2 core dependencies -->
+  <depend>rclcpp</depend>
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+
+  <!-- Vision and perception -->
+  <depend>cv_bridge</depend>
+  <depend>image_transport</depend>
+  <depend>vision_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_geometry_msgs</depend>
+
+  <!-- Custom LLMDrone interfaces -->
+  <depend>agents_interface</depend>
+
+  <!-- Testing -->
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

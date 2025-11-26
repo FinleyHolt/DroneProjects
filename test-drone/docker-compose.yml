@@ -1,0 +1,100 @@
+# Test Drone Docker Compose Configuration
+# Two configurations: simulation (Gazebo + PX4 SITL) and flight-test (real hardware)
+#
+# Usage:
+#   Simulation: docker compose up simulation
+#   Real hardware: docker compose up flight-test
+
+services:
+  # ===========================================================================
+  # Simulation: PX4 SITL + Gazebo with simulated sensors
+  # ===========================================================================
+  simulation:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.simulation
+    image: test-drone:simulation
+    container_name: test-drone-simulation
+    hostname: test-drone-sim
+
+    # NVIDIA GPU support (optional but recommended)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, graphics, compute, utility]
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - ROS_DOMAIN_ID=42
+      - PX4_HOME_LAT=37.7749
+      - PX4_HOME_LON=-122.4194
+      - PX4_HOME_ALT=0.0
+
+    volumes:
+      # Mount X11 for Gazebo GUI
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Mount workspace for development
+      - ../ros2_ws:/workspace/ros2_ws
+      # Mount simulation assets
+      - ../simulation:/workspace/simulation
+      # Mount config
+      - ../config:/workspace/config
+
+    # Host network for ROS 2 DDS discovery
+    network_mode: host
+
+    stdin_open: true
+    tty: true
+
+    working_dir: /workspace
+    command: bash
+
+  # ===========================================================================
+  # Flight Test: Real T265 + D455 hardware
+  # Supports: NVIDIA Jetson (ARM64) and Ubuntu laptop (x86_64)
+  # ===========================================================================
+  flight-test:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.flight_test
+      platforms:
+        - linux/amd64  # Ubuntu laptop
+        - linux/arm64  # Jetson
+    image: test-drone:flight-test
+    container_name: test-drone-flight-test
+    hostname: test-drone-flight
+
+    # USB device passthrough for cameras and flight controller
+    devices:
+      - /dev/bus/usb:/dev/bus/usb  # RealSense cameras
+      - /dev/ttyACM0:/dev/ttyACM0  # PX4 flight controller (adjust if needed)
+
+    # Privileged for hardware access
+    privileged: true
+
+    environment:
+      - ROS_DOMAIN_ID=42
+      - REALSENSE_SDK_PATH=/opt/realsense
+
+    volumes:
+      # Mount workspace
+      - ../ros2_ws:/workspace/ros2_ws
+      # Mount config
+      - ../config:/workspace/config
+      # Mount udev for hotplug
+      - /run/udev:/run/udev:ro
+
+    # Host network for ROS 2 DDS
+    network_mode: host
+
+    stdin_open: true
+    tty: true
+
+    working_dir: /workspace
+    command: bash

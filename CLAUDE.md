@@ -34,7 +34,10 @@ Development assumes:
 
 ## Build, Setup, and Development Commands
 
-### Initial Setup
+### Initial Setup (test-drone)
+
+The primary development platform is `test-drone/`. Start here:
+
 ```bash
 # Install PX4 + Gazebo SITL toolchain (fresh Ubuntu LTS)
 bash setup/clone_px4.sh
@@ -45,34 +48,34 @@ bash .deps/PX4-Autopilot/Tools/setup/ubuntu.sh --no-nuttx
 # Install ROS 2 tools and pip dependencies
 bash setup/bootstrap.sh
 
-# Source environment variables
-source setup/env.sh
-# or
-source env/px4_sitl.env
+# Navigate to test-drone project
+cd test-drone
 ```
 
-### Building and Running
+### Building and Running test-drone
 
 ```bash
-# Build PX4 and launch Gazebo SITL (default vehicle)
-make -C .deps/PX4-Autopilot px4_sitl gazebo
+# Using Docker (recommended)
+cd test-drone
+docker compose up
 
-# Build all ROS 2 packages with fast iteration symlinks
-cd ros2_ws && colcon build --symlink-install
+# OR building locally
+cd test-drone/ros2_ws
+colcon build --symlink-install
 
-# Launch autonomy stack against running simulator
-source ros2_ws/install/setup.bash
-ros2 launch agents bringup.launch.py
+# Launch simulation
+source install/setup.bash
+ros2 launch test_drone_bringup simulation.launch.py
 
-# Run SITL smoke tests headless
-make -C .deps/PX4-Autopilot px4_sitl gazebo_headless test
+# Launch on real hardware
+ros2 launch test_drone_bringup real_hardware.launch.py
 ```
 
 ### Testing
 
 ```bash
 # Run tests for specific ROS 2 package
-cd ros2_ws
+cd test-drone/ros2_ws
 colcon test --packages-select <pkg>
 
 # Run all ROS 2 tests
@@ -82,30 +85,90 @@ colcon test
 colcon test-result --verbose
 ```
 
-## Directory Structure
+### Working with flyby (future)
+
+When flyby hardware becomes available:
+
+```bash
+cd flyby/ros2_ws/src
+
+# Link shared packages from test-drone
+ln -s ../../../test-drone/ros2_ws/src/autonomy_core ./
+ln -s ../../../test-drone/ros2_ws/src/behavior_trees ./
+ln -s ../../../test-drone/ros2_ws/src/px4_interface ./
+ln -s ../../../test-drone/ros2_ws/src/perception_pipeline ./
+
+# Build flyby workspace
+cd ..
+colcon build --symlink-install
+```
+
+## Repository Structure
+
+The repository is organized into **self-contained platform projects** with shared autonomy components:
 
 ```
-px4-config/          # Custom PX4 parameter files, mixers per drone variant
-  llm_drone_v1/      # Specific drone configuration with params, mixer, tuning notes
-sim/
-  worlds/            # Custom Gazebo worlds (e.g., cityscape.world)
-  models/            # Custom Gazebo models with meshes (managed via Git LFS)
-  scripts/           # World generation helpers
-ros2_ws/
-  src/
-    agents_control/       # Offboard controllers, planners
-    agents_interface/     # Custom ROS messages/services
-    agents_llm_bridge/    # LLM orchestration nodes
-    agents_sim_tools/     # SITL utilities, loggers
-llm/
-  prompts/           # Grounding instructions (e.g., safety_sops.md)
-  configs/           # Model + tool settings (llm_drone.yaml)
-  notebooks/         # Jupyter prototyping (large files via Git LFS)
-scripts/             # High-level wrappers (run_sim.sh sources env + launches)
-tests/               # Integration and unit tests
-  integration/
-  unit/
+LLMDrone/
+├── test-drone/              # Development platform (8GB GPU, custom quadcopter)
+│   ├── ros2_ws/             # Complete ROS 2 workspace for test-drone
+│   │   └── src/
+│   │       ├── test_drone_bringup/      # Hardware-specific launch files
+│   │       ├── test_drone_sensors/      # T265, D455, experimental sensors
+│   │       ├── autonomy_core/           # SHARED: Core autonomy logic
+│   │       ├── behavior_trees/          # SHARED: BehaviorTree.CPP mission logic
+│   │       ├── perception_pipeline/     # SHARED: Vision models
+│   │       └── px4_interface/           # SHARED: MAVSDK/MAVLink bridge
+│   ├── docker/              # Test-drone container configs
+│   ├── simulation/          # Gazebo worlds/models for test-drone
+│   ├── launch/              # Top-level launch files
+│   ├── config/              # PX4 params, sensor calibration
+│   └── README.md
+│
+├── flyby/                   # Production flyby mission (16GB GPU, different sensors)
+│   ├── ros2_ws/             # Flyby-specific workspace
+│   │   └── src/
+│   │       ├── flyby_bringup/           # Mission-specific launch files
+│   │       ├── flyby_sensors/           # Flyby sensor suite drivers
+│   │       ├── flyby_mission/           # Flyby mission logic
+│   │       ├── autonomy_core/           # Symlink to test-drone version
+│   │       ├── behavior_trees/          # Symlink to test-drone version
+│   │       ├── perception_pipeline/     # Symlink or optimized version
+│   │       └── px4_interface/           # Symlink to test-drone version
+│   ├── docker/              # Deployment container (optimized)
+│   ├── simulation/          # Flyby scenario worlds
+│   ├── launch/
+│   ├── config/
+│   ├── deployment/          # Preflight checks, field configs
+│   └── README.md
+│
+├── llm/                     # Shared LLM integration (future)
+│   ├── prompts/
+│   ├── configs/
+│   └── notebooks/
+│
+├── docs/                    # Project-wide documentation
+└── .deps/                   # External dependencies (PX4, Gazebo)
 ```
+
+### Directory Organization Philosophy
+
+1. **Platform Projects** (`test-drone/`, `flyby/`):
+   - Each is a **complete, self-contained** drone project
+   - Has its own ROS 2 workspace with all needed packages
+   - Hardware-specific packages live only in that platform
+   - Can be independently built, tested, and deployed
+
+2. **Shared Components**:
+   - Core autonomy packages developed in `test-drone/ros2_ws/src/`
+   - Shared to `flyby/` via symlinks when ready for production
+   - Packages prefixed with platform name (e.g., `test_drone_*`) are NOT shared
+   - Generic packages (e.g., `autonomy_core`, `px4_interface`) ARE shared
+
+3. **Development Workflow**:
+   - Active development happens in `test-drone/` (accessible hardware)
+   - Shared packages are designed to be platform-agnostic
+   - When flyby hardware becomes available, link shared packages
+   - Platform-specific code stays isolated in respective projects
 
 ## Code Style and Conventions
 
@@ -118,22 +181,53 @@ tests/               # Integration and unit tests
 
 ## ROS 2 Package Organization
 
-Packages under `ros2_ws/src/` follow standard ROS 2 structure aligned with project objectives:
-- `agents_control/`: Offboard flight controllers, trajectory planners, waypoint navigation
-- `agents_interface/`: Custom message/service definitions (mission tasks, reasoning results, perception outputs)
-- `agents_llm_bridge/`: LLM reasoning engine integration, natural-language parsing, task decomposition, dynamic replanning
-- `agents_perception/`: Onboard vision models (object detection, segmentation), sensor fusion, anomaly detection
-- `agents_mavsdk_bridge/`: MAVSDK integration for MAVLink telemetry and flight commands
-- `agents_sim_tools/`: SITL utilities, logging, mission replay, evaluation metrics
+### test-drone Packages
+
+Packages in `test-drone/ros2_ws/src/` are organized by shareability:
+
+**Platform-Specific (NOT shared)**:
+- `test_drone_bringup/`: Launch files, hardware bring-up configurations
+- `test_drone_sensors/`: T265, D455, and experimental sensor drivers/wrappers
+
+**Shared Autonomy Components** (designed to be platform-agnostic):
+- `autonomy_core/`: Core mission planning, waypoint navigation, state machines
+- `behavior_trees/`: BehaviorTree.CPP mission logic, BT node definitions
+- `perception_pipeline/`: Vision models (object detection, segmentation), inference nodes
+- `px4_interface/`: MAVSDK/MAVLink bridge, flight command abstraction
+
+**Supporting Packages**:
+- `agents_interface/`: Custom message/service definitions (standard across platforms)
+- `agents_llm_bridge/`: LLM reasoning integration (future)
+
+### flyby Packages
+
+Packages in `flyby/ros2_ws/src/`:
+
+**Flyby-Specific**:
+- `flyby_bringup/`: Mission-specific launch configurations
+- `flyby_sensors/`: Flyby sensor suite drivers
+- `flyby_mission/`: Mission-specific logic (route planning, target recognition)
+
+**Symlinked from test-drone**:
+- `autonomy_core/` → `../../../test-drone/ros2_ws/src/autonomy_core`
+- `behavior_trees/` → `../../../test-drone/ros2_ws/src/behavior_trees`
+- `px4_interface/` → `../../../test-drone/ros2_ws/src/px4_interface`
+- `perception_pipeline/` → May be symlinked or copied/optimized for 16GB GPU
+
+### Package Naming Convention
+
+- Packages prefixed with platform name (e.g., `test_drone_*`, `flyby_*`) are platform-specific
+- Generic names (e.g., `autonomy_core`, `px4_interface`) indicate shared components
+- Design shared packages to be hardware-agnostic (depend only on standard ROS 2 message types)
 
 ## PX4 Configuration Management
 
-Each drone variant gets a folder under `px4-config/` containing:
-- `params.params`: QGroundControl-exported parameter file
-- `mixer.main.mix`: Actuator mixer configuration
-- `README.md`: Rationale and tuning notes
+Each platform project contains its own PX4 configuration in `<platform>/config/`:
+- `px4_params.params`: QGroundControl-exported parameter file
+- `sensor_calibration.yaml`: Sensor-specific calibration data
+- `README.md`: Platform-specific tuning notes and rationale
 
-Load custom parameters when launching SITL by referencing these files.
+Load custom parameters when launching SITL by referencing these files in launch configurations.
 
 ## Environment Variables
 
@@ -179,6 +273,22 @@ Key variables set by `setup/env.sh` or `env/px4_sitl.env`:
 - Simulation and live-flight demonstrations of autonomous mission execution from natural-language tasking
 - Publishable research paper on reasoning-enabled autonomy framework design and evaluation
 
+## Development Platforms
+
+### test-drone (Primary Development Platform)
+- **Hardware**: Custom quadcopter with T265 visual odometry, D455 depth camera
+- **Compute**: 8GB GPU memory
+- **Purpose**: Experimentation, sensor testing, behavior tree development
+- **Status**: Active development
+- **Location**: Available for immediate testing
+
+### flyby (Production Mission Platform)
+- **Hardware**: Quadcopter with PX4 autopilot, different sensor suite than test-drone
+- **Compute**: 16GB GPU memory (can run heavier models)
+- **Purpose**: Autonomous flyby mission with obstacle avoidance
+- **Status**: Hardware not yet accessible (several months)
+- **Strategy**: Shared autonomy components developed on test-drone will be linked when ready
+
 ## Phase-Aware Development
 
 Project follows phased approach (see Planning/ directory for detailed phase plans):
@@ -188,5 +298,7 @@ Project follows phased approach (see Planning/ directory for detailed phase plan
 - **Phase 4**: Perception pipeline, vision models, sensor fusion
 - **Phase 5**: Mission planning and adaptive replanning
 - **Phase 6**: Simulation validation, edge deployment, live-flight testing
+
+**Current Focus**: Development on test-drone platform. All shared autonomy components are designed to be platform-agnostic for future use on flyby.
 
 When adding features, align with current phase objectives. Reference `Planning/README.md` for project overview and detailed phase plans in `Planning/Phase-N.md` files.

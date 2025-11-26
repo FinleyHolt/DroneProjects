@@ -9,7 +9,15 @@ log/
 *.egg-info/
 dist/
 
-# ROS 2
+# ROS 2 build artifacts (platform workspaces)
+test-drone/ros2_ws/build/
+test-drone/ros2_ws/install/
+test-drone/ros2_ws/log/
+flyby/ros2_ws/build/
+flyby/ros2_ws/install/
+flyby/ros2_ws/log/
+
+# Legacy top-level workspace
 ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/

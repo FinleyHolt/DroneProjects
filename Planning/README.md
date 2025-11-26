@@ -13,12 +13,31 @@ Develop a reasoning-enabled autonomy framework that converts natural-language mi
 **Target Environment**: Tactical operations with intermittent or unavailable control links
 **Technical Foundation**: Locally hosted LLM with Mixture-of-Experts architecture on NVIDIA Jetson edge compute
 
+## Development Platforms
+
+### test-drone (Primary Development Platform)
+- **Hardware**: Custom quadcopter with T265 visual odometry, D455 depth camera
+- **Compute**: 8GB GPU memory
+- **Purpose**: Experimentation, sensor testing, behavior tree development
+- **Status**: Active development
+- **Directory**: `test-drone/`
+
+### flyby (Production Mission Platform)
+- **Hardware**: Quadcopter with PX4 autopilot, different sensor suite
+- **Compute**: 16GB GPU memory
+- **Purpose**: Autonomous flyby mission with obstacle avoidance
+- **Status**: Hardware not yet accessible (several months)
+- **Directory**: `flyby/`
+- **Strategy**: Shared autonomy components developed on test-drone will be linked when ready
+
 ## Development Objectives
 
 1. **Natural-Language Mission Parsing**: Translate intent (e.g., "Survey NAI 3 and identify vehicle movement") into structured sub-tasks with dynamic plan updates
 2. **Modular Containerized Stack**: ROS 2-based architecture integrating reasoning, perception, and control via MAVSDK bridges
 3. **Onboard Sensor Integration**: Vision models for task verification, vehicle detection, anomaly detection, and local replanning
 4. **Validation Pipeline**: Prove reasoning reliability, latency, and mission robustness in PX4-SITL + Gazebo before live-flight testing
+
+**Current Focus**: Development on test-drone platform. Shared autonomy packages (`autonomy_core`, `behavior_trees`, `px4_interface`, `perception_pipeline`) are designed to be platform-agnostic for future deployment on flyby.
 
 ## Project Deliverables
 

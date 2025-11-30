@@ -1,11 +1,12 @@
 # Test Drone - Simulation Configuration
-# Gazebo + PX4 SITL with simulated T265 and D455 sensors
-# Includes: ROS 2 Humble, Gazebo, PX4 SITL, MAVSDK, BehaviorTree.CPP
+# Gazebo Harmonic + PX4 SITL with simulated T265 and D455 sensors
+# Includes: ROS 2 Humble, Gazebo Harmonic, PX4 SITL, MAVSDK, BehaviorTree.CPP
 
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ROS_DISTRO=humble
+ENV XDG_RUNTIME_DIR=/tmp/runtime-root
 
 # Set up locale for ROS 2
 RUN apt-get update && apt-get install -y \
@@ -28,7 +29,13 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     ca-certificates \
     software-properties-common \
+    ccache \
     && rm -rf /var/lib/apt/lists/*
+
+# Enable ccache for faster rebuilds
+ENV PATH=/usr/lib/ccache:$PATH
+ENV CCACHE_DIR=/tmp/ccache
+ENV CCACHE_MAXSIZE=5G
 
 #==============================================================================
 # ROS 2 Humble Installation
@@ -45,19 +52,20 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-tf2-ros \
     ros-${ROS_DISTRO}-cv-bridge \
     ros-${ROS_DISTRO}-image-transport \
-    ros-${ROS_DISTRO}-gazebo-ros-pkgs \
-    ros-${ROS_DISTRO}-gazebo-ros2-control \
     python3-colcon-common-extensions \
     python3-rosdep \
     python3-vcstool \
     && rm -rf /var/lib/apt/lists/*
 
 #==============================================================================
-# Gazebo Classic (Gazebo 11 for Ubuntu 22.04)
+# Gazebo Harmonic (PX4 v1.16+ recommended)
 #==============================================================================
+RUN wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+    | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+
 RUN apt-get update && apt-get install -y \
-    gazebo \
-    libgazebo-dev \
+    gz-harmonic \
     && rm -rf /var/lib/apt/lists/*
 
 #==============================================================================
@@ -81,7 +89,9 @@ RUN pip3 install --no-cache-dir \
     packaging \
     toml \
     numpy \
-    empy
+    empy \
+    future \
+    lxml
 
 #==============================================================================
 # MAVSDK
@@ -117,6 +127,33 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 #==============================================================================
+# Build ros_gz (ROS 2 Gazebo Harmonic bridge) from source
+#==============================================================================
+ENV GZ_VERSION=harmonic
+
+# Initialize rosdep
+RUN rosdep init && rosdep update
+
+# Install additional ROS packages needed by ros_gz
+RUN apt-get update && apt-get install -y \
+    ros-${ROS_DISTRO}-xacro \
+    ros-${ROS_DISTRO}-actuator-msgs \
+    ros-${ROS_DISTRO}-gps-msgs \
+    ros-${ROS_DISTRO}-vision-msgs \
+    ros-${ROS_DISTRO}-launch-testing \
+    ros-${ROS_DISTRO}-launch-testing-ament-cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/ros_gz_ws
+RUN git clone https://github.com/gazebosim/ros_gz.git -b humble src/ros_gz \
+    && . /opt/ros/${ROS_DISTRO}/setup.sh \
+    && colcon build --parallel-workers $(nproc) --cmake-args -DBUILD_TESTING=OFF --packages-up-to \
+       ros_gz_bridge ros_gz_image ros_gz_sim
+
+# Source ros_gz in bashrc
+RUN echo "source /opt/ros_gz_ws/install/setup.bash" >> /root/.bashrc
+
+#==============================================================================
 # Additional ROS 2 packages for navigation and perception
 #==============================================================================
 RUN apt-get update && apt-get install -y \
@@ -140,18 +177,62 @@ RUN pip3 install --no-cache-dir \
     pymavlink
 
 #==============================================================================
-# Clone and build PX4-Autopilot
+# QGroundControl
+#==============================================================================
+RUN apt-get update && apt-get install -y \
+    libfuse2 \
+    fuse \
+    libxcb-xinerama0 \
+    libxcb-cursor0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-shape0 \
+    libxcb-xfixes0 \
+    libxkbcommon-x11-0 \
+    libxkbcommon0 \
+    libpulse-mainloop-glib0 \
+    libpulse0 \
+    libasound2 \
+    libgstreamer1.0-0 \
+    libgstreamer-plugins-base1.0-0 \
+    libgstreamer-gl1.0-0 \
+    libgl1-mesa-glx \
+    libopengl0 \
+    libdbus-1-3 \
+    libsdl2-2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download QGroundControl (v5.0.8 - latest stable)
+WORKDIR /opt
+RUN wget https://github.com/mavlink/qgroundcontrol/releases/download/v5.0.8/QGroundControl-x86_64.AppImage -O QGroundControl.AppImage \
+    && chmod +x QGroundControl.AppImage \
+    && ./QGroundControl.AppImage --appimage-extract \
+    && chmod +x /opt/squashfs-root/AppRun
+
+# Create non-root user for QGC (QGC refuses to run as root)
+RUN useradd -m -s /bin/bash qgcuser \
+    && chown -R qgcuser:qgcuser /opt/squashfs-root
+
+# Remove modemmanager to prevent serial port interference (common issue in containerized environments)
+RUN apt-get update && apt-get purge -y modemmanager && rm -rf /var/lib/apt/lists/* || true
+
+#==============================================================================
+# Clone and build PX4-Autopilot (v1.16+ for Gazebo Harmonic support)
 #==============================================================================
 WORKDIR /opt
-RUN git clone --depth 1 --branch v1.14.0 https://github.com/PX4/PX4-Autopilot.git --recursive
+RUN git clone --depth 1 --branch main https://github.com/PX4/PX4-Autopilot.git --recursive --jobs $(nproc)
 
 WORKDIR /opt/PX4-Autopilot
-RUN DONT_RUN=1 make px4_sitl gazebo-classic
+# NOTE: PX4 SITL build removed from Docker image build
+# Build manually inside container using /opt/build_px4_sitl.sh
 
 # Set PX4 environment variables
 ENV PX4_ROOT=/opt/PX4-Autopilot
-ENV GAZEBO_MODEL_PATH=$PX4_ROOT/Tools/simulation/gazebo-classic/sitl_gazebo-classic/models
-ENV GAZEBO_PLUGIN_PATH=$PX4_ROOT/build/px4_sitl_default/build_gazebo-classic
+# Add our custom models and worlds to Gazebo resource path (prepend so they override defaults)
+ENV GZ_SIM_RESOURCE_PATH=/workspace/simulation/models:/workspace/simulation/worlds:$PX4_ROOT/Tools/simulation/gz/models:$PX4_ROOT/Tools/simulation/gz/worlds
 
 #==============================================================================
 # Set up workspace
@@ -163,7 +244,6 @@ RUN mkdir -p /workspace/ros2_ws/src
 
 # Source ROS 2 and Gazebo in bashrc
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc \
-    && echo "source /usr/share/gazebo/setup.sh" >> /root/.bashrc \
     && echo "if [ -f /workspace/ros2_ws/install/setup.bash ]; then" >> /root/.bashrc \
     && echo "  source /workspace/ros2_ws/install/setup.bash" >> /root/.bashrc \
     && echo "fi" >> /root/.bashrc
@@ -173,10 +253,10 @@ ENV ROS_DOMAIN_ID=42
 
 # Verify installations
 RUN echo "=== Verifying installations ===" \
-    && gazebo --version \
+    && gz sim --version \
     && ldconfig -p | grep mavsdk || echo "MAVSDK in cache" \
     && echo "ROS 2 version: $ROS_DISTRO" \
     && echo "PX4 location: $PX4_ROOT"
 
-# Default command to launch PX4 SITL
-CMD ["bash", "-c", "cd /opt/PX4-Autopilot && make px4_sitl gazebo-classic"]
+# Default command: drop into bash shell for manual build/development
+CMD ["bash"]

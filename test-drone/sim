@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Test Drone Simulation Launcher
+# Usage: ./sim [build|up|down|shell]
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Enable X11 access for GUI
+setup_x11() {
+    if command -v xhost >/dev/null 2>&1; then
+        xhost +local:docker >/dev/null 2>&1 || true
+    fi
+    export DISPLAY="${DISPLAY:-:0}"
+}
+
+# Commands
+case "${1:-up}" in
+    build)
+        echo "Building simulation image..."
+        docker compose -f docker/docker-compose.yml build simulation
+        ;;
+
+    up)
+        setup_x11
+        echo "Starting simulation (PX4 SITL + Gazebo + QGroundControl)..."
+        docker compose -f docker/docker-compose.yml up simulation
+        ;;
+
+    down)
+        echo "Stopping simulation..."
+        docker compose -f docker/docker-compose.yml down simulation
+        ;;
+
+    shell)
+        echo "Entering simulation container..."
+        docker exec -it test-drone-simulation bash
+        ;;
+
+    *)
+        echo "Usage: ./sim [build|up|down|shell]"
+        echo ""
+        echo "Commands:"
+        echo "  build  - Build the simulation Docker image"
+        echo "  up     - Start simulation (default)"
+        echo "  down   - Stop simulation"
+        echo "  shell  - Open shell in running container"
+        exit 1
+        ;;
+esac

@@ -1,108 +1,275 @@
-# Test Drone Docker Configurations
+# Test Drone Docker Environment
 
-This directory contains Docker configurations for test-drone development and deployment.
-
-## Overview
-
-Two Docker environments:
-- **Dockerfile.simulation** - Gazebo + PX4 SITL for simulation
-- **Dockerfile.flight_test** - Real hardware with T265 + D455 sensors
+Complete Docker setup for test-drone development and simulation.
 
 ## Quick Start
 
-### Simulation
 ```bash
 cd test-drone
-docker compose up simulation
+
+# Build the Docker image
+./sim build
+
+# Start simulation (PX4 SITL + Gazebo + QGroundControl)
+./sim
+
+# First run will take 5-10 minutes to build PX4
+# Subsequent runs are instant
 ```
 
-This launches:
-- PX4 SITL (Software-in-the-Loop)
-- Gazebo with simulated quadcopter
-- Simulated T265 (visual odometry) and D455 (depth camera)
-- ROS 2 Humble
-- MAVSDK for flight control
-- BehaviorTree.CPP for mission logic
+That's it! The `./sim` script handles everything automatically.
 
-### Flight Test (Real Hardware)
+**See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if you encounter issues.**
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [Commands](#commands)
+- [Architecture](#architecture)
+- [Build Optimization](#build-optimization)
+- [Development Workflow](#development-workflow)
+- [Environment Variables](#environment-variables)
+- [Volumes](#volumes)
+
+---
+
+## Overview
+
+Two Docker environments are provided:
+
+### 1. Simulation (`Dockerfile.simulation`)
+- **Purpose**: PX4 SITL + Gazebo for development and testing
+- **Includes**: ROS 2 Humble, Gazebo Harmonic, PX4, MAVSDK, QGroundControl
+- **Platform**: x86_64 only
+- **GPU**: Optional NVIDIA GPU support for better Gazebo performance
+
+### 2. Flight Test (`Dockerfile.flight_test`)
+- **Purpose**: Real hardware testing with Intel RealSense cameras
+- **Includes**: ROS 2 Humble, librealsense2, MAVSDK
+- **Platforms**: x86_64 (laptop) and ARM64 (Jetson Orin/Xavier)
+- **Hardware**: T265 (visual odometry) + D455 (depth camera) + PX4 flight controller
+
+---
+
+## Prerequisites
+
+### For Simulation
+
+**Required:**
+- Docker and Docker Compose
+- X11 display server (for GUI)
+- 8GB+ RAM, 16GB recommended
+- 4+ CPU cores
+
+**Optional:**
+- NVIDIA GPU with drivers installed
+- 16GB+ RAM for faster builds
+
+**Setup X11 access:**
 ```bash
-cd test-drone
-docker compose up flight-test
+xhost +local:docker
+export DISPLAY=:0  # Or your display number
 ```
 
-This supports:
-- **Platforms**: NVIDIA Jetson (ARM64) and Ubuntu laptop (x86_64)
-- **Sensors**: Intel RealSense T265 + D455
-- **Flight Controller**: PX4 via serial (typically `/dev/ttyACM0`)
+### For Flight Test
 
-## Architecture Support
+**Required:**
+- Ubuntu laptop (x86_64) or NVIDIA Jetson (ARM64)
+- Intel RealSense T265 + D455 cameras
+- PX4 flight controller connected via USB serial
+- USB 3.0 ports
 
-### Dockerfile.flight_test
-- **x86_64**: Ubuntu laptop development
-- **ARM64**: NVIDIA Jetson Orin/Xavier deployment
-- Multi-platform build automatically detects architecture
+**Permissions:**
+```bash
+# Add user to dialout group for serial access
+sudo usermod -a -G dialout $USER
+# Re-login required
+```
 
-### Dockerfile.simulation
-- **x86_64 only**: Simulation with Gazebo Classic
-- GPU-accelerated (optional but recommended)
+---
 
-## Environment Details
+## Commands
 
-### Simulation Container
-- **Base**: Ubuntu 22.04
-- **ROS 2**: Humble
-- **Simulator**: Gazebo Classic 11
-- **PX4**: v1.14.0 built from source
-- **Autonomy**: MAVSDK, BehaviorTree.CPP, RTAB-Map
+All commands run from `test-drone/` directory.
 
-### Flight Test Container
-- **Base**: Ubuntu 22.04
-- **ROS 2**: Humble
-- **Sensors**: librealsense2 v2.50.0 (for T265 compatibility)
-- **Autonomy**: MAVSDK, BehaviorTree.CPP, RTAB-Map
-- **Hardware Access**: Privileged mode for USB devices
+### Using `./sim` Script (Recommended)
 
-## Usage
+```bash
+./sim          # Start simulation (default)
+./sim build    # Build Docker image
+./sim down     # Stop simulation
+./sim shell    # Open shell in running container
+```
 
-### Build Containers
+### Manual Docker Compose Commands
+
 ```bash
 # Simulation
-docker compose build simulation
-
-# Flight test (current platform)
-docker compose build flight-test
-
-# Flight test for specific platform
-docker buildx build --platform linux/arm64 -f Dockerfile.flight_test -t test-drone:flight-test-arm64 ../..
-```
-
-### Interactive Shell
-```bash
-# Simulation
-docker compose run --rm simulation bash
+docker compose -f docker/docker-compose.yml up simulation
+docker compose -f docker/docker-compose.yml build simulation
+docker compose -f docker/docker-compose.yml down
 
 # Flight test
-docker compose run --rm flight-test bash
+docker compose -f docker/docker-compose.yml up flight-test
+docker compose -f docker/docker-compose.yml build flight-test
 ```
 
-### Development Workflow
+### Interactive Shells
 
-**Simulation**:
-1. `docker compose up simulation` - Start container
-2. Inside container: `cd /opt/PX4-Autopilot && make px4_sitl gazebo-classic`
-3. In another terminal: Build and launch ROS 2 workspace
+```bash
+# Enter running simulation container
+docker exec -it test-drone-simulation bash
+
+# Or start fresh container
+docker compose run --rm simulation bash
+```
+
+---
+
+## Architecture
+
+### Simulation Container
+
+**Base:** Ubuntu 22.04
+
+**Key Components:**
+- **ROS 2 Humble** - Robot Operating System
+- **Gazebo Harmonic** - 3D simulation environment
+- **PX4 Autopilot** - Flight control software (built on first run)
+- **MAVSDK** - MAVLink library for flight control
+- **QGroundControl** - Ground control station GUI
+- **BehaviorTree.CPP** - Mission planning framework
+- **RTAB-Map** - SLAM library
+
+**Why PX4 builds on first run:**
+- Keeps Docker image size smaller (saves ~2GB)
+- Faster Docker build times (12-18 min vs 60+ min)
+- Allows PX4 source changes without rebuilding entire image
+- Uses ccache for fast incremental rebuilds
+
+### Flight Test Container
+
+**Base:** Ubuntu 22.04
+
+**Key Components:**
+- **ROS 2 Humble**
+- **librealsense2 v2.50.0** - Built from source for T265 compatibility
+- **MAVSDK**
+- **BehaviorTree.CPP**
+- **RTAB-Map**
+
+**Multi-platform Support:**
+- Automatically detects x86_64 or ARM64 architecture
+- Single Dockerfile works on both laptop and Jetson
+
+---
+
+## Build Optimization
+
+The Docker image build is optimized for speed and developer experience.
+
+### Performance Features
+
+1. **Compiler Cache (ccache)**
+   - 5GB cache in `/tmp/ccache`
+   - Speeds up rebuilds by 10-100x
+   - Only recompiles changed files
+
+2. **Parallel Builds**
+   - All builds use `$(nproc)` cores
+   - MAVSDK: ~8x faster
+   - ros_gz: ~6x faster
+   - PX4: ~12x faster (when built manually)
+
+3. **Parallel Git Operations**
+   - PX4 submodules clone with `--jobs $(nproc)`
+   - Reduces clone time from ~5min to ~1min
+
+### Expected Build Times
+
+**System**: 16+ cores, 64GB RAM
+
+| Build Stage | Time (Optimized) |
+|-------------|------------------|
+| Docker image build | 12-18 min |
+| PX4 build (first run inside container) | 5-8 min |
+| **Total first-time setup** | **17-26 min** |
+
+**Subsequent runs:** Instant (PX4 already built)
+
+### Build PX4 Manually (Inside Container)
+
+If you need to rebuild PX4:
+
+```bash
+docker exec -it test-drone-simulation bash
+
+# Inside container:
+/opt/build_px4_sitl.sh
+
+# Or limit parallel jobs (if low RAM):
+PX4_BUILD_JOBS=4 /opt/build_px4_sitl.sh
+
+# Or clean rebuild:
+cd /opt/PX4-Autopilot
+make clean
+/opt/build_px4_sitl.sh
+```
+
+---
+
+## Development Workflow
+
+### Simulation Development
+
+1. **Start simulation:**
    ```bash
-   docker exec -it test-drone-simulation bash
-   cd /workspace/ros2_ws
-   colcon build --symlink-install
-   source install/setup.bash
-   ros2 launch test_drone_bringup simulation.launch.py
+   cd test-drone
+   ./sim
    ```
 
-**Flight Test**:
-1. Connect hardware (T265, D455, PX4 flight controller)
-2. `docker compose up flight-test` - Start container
-3. Inside container:
+2. **Develop ROS 2 packages:**
+   ```bash
+   # In another terminal
+   docker exec -it test-drone-simulation bash
+   cd /workspace/ros2_ws
+
+   # Build your packages
+   colcon build --symlink-install --packages-select my_package
+
+   # Source and run
+   source install/setup.bash
+   ros2 launch my_package my_launch.py
+   ```
+
+3. **Iterate:**
+   - Edit code on host (files mounted from `test-drone/ros2_ws/`)
+   - Rebuild inside container
+   - Test in simulation
+
+### Flight Test Development
+
+1. **Connect hardware:**
+   - T265 and D455 cameras via USB 3.0
+   - PX4 flight controller via USB serial
+
+2. **Start container:**
+   ```bash
+   cd test-drone
+   docker compose up flight-test
+   ```
+
+3. **Verify sensors:**
+   ```bash
+   # Inside container
+   rs-enumerate-devices  # Should show T265 and D455
+   ls /dev/ttyACM*       # Should show flight controller
+   ```
+
+4. **Build and launch:**
    ```bash
    cd /workspace/ros2_ws
    colcon build --symlink-install
@@ -110,93 +277,108 @@ docker compose run --rm flight-test bash
    ros2 launch test_drone_bringup real_hardware.launch.py
    ```
 
-## Hardware Requirements
-
-### Simulation
-- **CPU**: 4+ cores recommended
-- **RAM**: 8GB minimum, 16GB recommended
-- **GPU**: NVIDIA GPU optional but recommended for Gazebo
-- **Display**: X11 forwarded for Gazebo GUI
-
-### Flight Test
-- **Platform**: Ubuntu laptop (x86_64) or NVIDIA Jetson (ARM64)
-- **USB**: Multiple USB 3.0 ports for cameras
-- **Serial**: USB serial for PX4 flight controller
-- **Permissions**: udev rules for RealSense (configured in Dockerfile)
-
-## Volumes
-
-### Simulation
-- `/workspace/ros2_ws` - ROS 2 workspace (mounted from host)
-- `/workspace/simulation` - Gazebo worlds/models
-- `/workspace/config` - PX4 parameters
-
-### Flight Test
-- `/workspace/ros2_ws` - ROS 2 workspace (mounted from host)
-- `/workspace/config` - Sensor calibration, PX4 parameters
-- `/run/udev` - Hotplug events (read-only from host)
+---
 
 ## Environment Variables
 
-### Common
-- `ROS_DOMAIN_ID=42` - Isolates ROS 2 DDS traffic
-- `ROS_DISTRO=humble` - ROS 2 distribution
+### Common (Both Containers)
 
-### Simulation
-- `PX4_HOME_LAT` - Home latitude (default: SF)
-- `PX4_HOME_LON` - Home longitude
-- `PX4_HOME_ALT` - Home altitude
-- `DISPLAY` - X11 display for Gazebo GUI
-
-### Flight Test
-- `REALSENSE_SDK_PATH=/opt/realsense` - RealSense installation path
-
-## Troubleshooting
-
-### Simulation Issues
-
-**Gazebo won't start**:
 ```bash
-# Check X11 forwarding
-xhost +local:docker
-# Verify GPU support
-nvidia-smi
+ROS_DOMAIN_ID=42        # Isolates ROS 2 DDS traffic
+ROS_DISTRO=humble       # ROS 2 distribution
 ```
 
-**PX4 build fails**:
+### Simulation Only
+
 ```bash
-# Clean build
-docker compose run --rm simulation bash
-cd /opt/PX4-Autopilot
-make clean
-make px4_sitl gazebo-classic
+DISPLAY=:0              # X11 display for GUIs
+PX4_HOME_LAT=37.7749    # Home latitude (San Francisco)
+PX4_HOME_LON=-122.4194  # Home longitude
+PX4_HOME_ALT=0.0        # Home altitude (meters)
+QT_X11_NO_MITSHM=1      # Qt compatibility fix
+NVIDIA_VISIBLE_DEVICES=all         # GPU access (if enabled)
+NVIDIA_DRIVER_CAPABILITIES=all     # GPU capabilities
 ```
 
-### Flight Test Issues
+### Flight Test Only
 
-**Cameras not detected**:
 ```bash
-# Inside container
-rs-enumerate-devices
-# Should show T265 and D455
-
-# If not found, check USB permissions on host
-lsusb | grep Intel
+REALSENSE_SDK_PATH=/opt/realsense  # RealSense install path
 ```
 
-**Permission denied for serial port**:
+---
+
+## Volumes
+
+### Simulation Container Mounts
+
+| Host Path | Container Path | Purpose |
+|-----------|----------------|---------|
+| `test-drone/ros2_ws/` | `/workspace/ros2_ws` | ROS 2 workspace (development) |
+| `test-drone/simulation/` | `/workspace/simulation` | Gazebo models/worlds |
+| `test-drone/config/` | `/workspace/config` | PX4 parameters, calibration |
+| `test-drone/scripts/` | `/opt/*.sh` | Helper scripts |
+| `/tmp/.X11-unix` | `/tmp/.X11-unix` | X11 socket for GUI |
+
+### Flight Test Container Mounts
+
+| Host Path | Container Path | Purpose |
+|-----------|----------------|---------|
+| `test-drone/ros2_ws/` | `/workspace/ros2_ws` | ROS 2 workspace |
+| `test-drone/config/` | `/workspace/config` | Sensor calibration, params |
+| `/dev/bus/usb` | `/dev/bus/usb` | USB devices (cameras) |
+| `/dev/ttyACM0` | `/dev/ttyACM0` | Flight controller serial |
+| `/run/udev` | `/run/udev` | Hotplug events (read-only) |
+
+**Note:** Files are mounted as volumes, so changes on host appear immediately in container (and vice versa).
+
+---
+
+## GPU Support (Optional)
+
+For better Gazebo performance, enable NVIDIA GPU support:
+
+### 1. Install nvidia-docker2
+
 ```bash
-# On host, add user to dialout group
-sudo usermod -a -G dialout $USER
-# Re-login required
+sudo apt-get install -y nvidia-docker2
+sudo systemctl restart docker
 ```
 
-**T265 not working with D455**:
-The T265 requires librealsense2 v2.50.0, which is built from source in the container. The D455 uses the ROS 2 wrapper which supports both.
+### 2. Uncomment GPU config in `docker-compose.yml`
+
+```yaml
+simulation:
+  # Uncomment this section:
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu, graphics, compute, utility]
+```
+
+### 3. Verify GPU access
+
+```bash
+docker exec -it test-drone-simulation nvidia-smi
+```
+
+---
+
+## Next Steps
+
+- **Having issues?** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- **Custom Gazebo models:** See [../simulation/README.md](../simulation/README.md)
+- **ROS 2 packages:** See [../ros2_ws/src/](../ros2_ws/src/)
+- **PX4 documentation:** https://docs.px4.io/
+
+---
 
 ## Notes
 
-- **T265 EOL**: Intel discontinued T265. Container builds v2.50.0 from source for compatibility.
-- **Multi-platform**: Flight test container supports both x86_64 and ARM64 (Jetson).
-- **GPU**: Simulation benefits from GPU but can run on CPU-only.
-- **Network**: Host network mode used for ROS 2 DDS discovery between containers.
+- **Network Mode**: Host networking used for ROS 2 DDS discovery
+- **T265 EOL**: Intel discontinued T265; we build librealsense v2.50.0 from source
+- **Multi-platform**: Flight test supports both x86_64 and ARM64 (Jetson)
+- **Security**: The container runs in privileged mode for hardware access (flight test only)

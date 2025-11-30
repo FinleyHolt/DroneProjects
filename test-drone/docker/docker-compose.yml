@@ -1,85 +1,111 @@
-version: '3.8'
-
 services:
-  drone:
+  # ===========================================================================
+  # Simulation: PX4 SITL + Gazebo with simulated sensors
+  # ===========================================================================
+  simulation:
     build:
-      context: ../..
-      dockerfile: home-test-drone/docker/Dockerfile
-    image: hometestdrone:latest
-    container_name: hometestdrone
+      context: ..
+      dockerfile: docker/Dockerfile.simulation
+    image: test-drone:simulation
+    container_name: test-drone-simulation
+    hostname: test-drone-sim
 
-    # Use host network for ROS 2 DDS discovery and MAVLink communication
-    network_mode: host
+    # Uncomment for NVIDIA GPU support (optional but recommended)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu, graphics, compute, utility]
 
-    # Required for USB device access (RealSense cameras, Pixhawk serial)
-    privileged: true
-
-    # Mount USB devices
-    devices:
-      - /dev/bus/usb:/dev/bus/usb  # All USB devices
-
-    # Mount volumes
-    volumes:
-      # Mount ROS 2 workspace for development (edits on host reflect in container)
-      - ../ros2_ws:/workspace/ros2_ws
-
-      # Mount config files
-      - ../config:/workspace/config
-
-      # Mount mission files
-      - ../missions:/workspace/missions
-
-      # Shared memory for efficient inter-process communication
-      - /dev/shm:/dev/shm
-
-      # X11 forwarding for GUI tools (rviz2, rqt)
-      - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ${HOME}/.Xauthority:/root/.Xauthority:rw
-
-    # Environment variables
     environment:
       - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
       - ROS_DOMAIN_ID=42
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - PX4_HOME_LAT=37.7749
+      - PX4_HOME_LON=-122.4194
+      - PX4_HOME_ALT=0.0
+      # Set HEADLESS=1 to run without GUI (faster, useful for testing)
+      # - HEADLESS=1
 
-      # MAVSDK connection (adjust based on your Pixhawk connection)
-      # For USB: /dev/ttyACM0, for UART: /dev/ttyTHS0 (Jetson), for UDP: udp://:14540
-      - MAVSDK_SYSTEM_ADDRESS=serial:///dev/ttyACM0:921600
+    volumes:
+      # Mount X11 for Gazebo GUI
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Mount workspace for development
+      - ../ros2_ws:/workspace/ros2_ws
+      # Mount simulation assets
+      - ../simulation:/workspace/simulation
+      # Mount config
+      - ../config:/workspace/config
+      # Mount scripts
+      - ../scripts/build_px4_sitl.sh:/opt/build_px4_sitl.sh:ro
+      - ../scripts/start_simulation.sh:/opt/start_simulation.sh:ro
+      # Persistent volumes (survive container restart)
+      - px4_build:/opt/PX4-Autopilot/build
+      - qgc_config:/home/qgcuser/.config
+      - ccache:/tmp/ccache
 
-      # Camera settings
-      - REALSENSE_T265_ENABLE=true
-      - REALSENSE_D455_ENABLE=true
+    # Host network for ROS 2 DDS discovery
+    network_mode: host
 
-    # Keep container running
     stdin_open: true
     tty: true
 
-    # Auto-restart on crash (useful for field testing)
-    restart: unless-stopped
+    working_dir: /workspace
+    command: /opt/start_simulation.sh
 
-    # Healthcheck (verify ROS 2 is running)
-    healthcheck:
-      test: ["CMD", "ros2", "node", "list"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+  # ===========================================================================
+  # Flight Test: Real T265 + D455 hardware
+  # Supports: NVIDIA Jetson (ARM64) and Ubuntu laptop (x86_64)
+  # ===========================================================================
+  flight-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.flight_test
+      platforms:
+        - linux/amd64  # Ubuntu laptop
+        - linux/arm64  # Jetson
+    image: test-drone:flight-test
+    container_name: test-drone-flight-test
+    hostname: test-drone-flight
 
-    # Resource limits (adjust based on Jetson Orin Nano capabilities)
-    # Uncomment and tune for production deployment
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 6G
-    #     reservations:
-    #       memory: 2G
+    # USB device passthrough for cameras and flight controller
+    devices:
+      - /dev/bus/usb:/dev/bus/usb  # RealSense cameras
+      - /dev/ttyACM0:/dev/ttyACM0  # PX4 flight controller (adjust if needed)
 
-# Optional: separate container for simulation/testing
-  # simulation:
-  #   build:
-  #     context: ../..
-  #     dockerfile: home-test-drone/docker/Dockerfile.simulation
-  #   profiles: ["simulation"]
-  #   network_mode: host
-  #   volumes:
-  #     - ../ros2_ws:/workspace/ros2_ws
+    # Privileged for hardware access
+    privileged: true
+
+    environment:
+      - ROS_DOMAIN_ID=42
+      - REALSENSE_SDK_PATH=/opt/realsense
+
+    volumes:
+      # Mount workspace
+      - ../ros2_ws:/workspace/ros2_ws
+      # Mount config
+      - ../config:/workspace/config
+      # Mount udev for hotplug
+      - /run/udev:/run/udev:ro
+
+    # Host network for ROS 2 DDS
+    network_mode: host
+
+    stdin_open: true
+    tty: true
+
+    working_dir: /workspace
+    command: bash
+
+# Named volumes for persistent data
+volumes:
+  px4_build:
+    name: test-drone-px4-build
+  qgc_config:
+    name: test-drone-qgc-config
+  ccache:
+    name: test-drone-ccache

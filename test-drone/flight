@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Test Drone Flight Hardware Launcher
+# Usage: ./flight [build|up|down|shell]
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# Commands
+case "${1:-up}" in
+    build)
+        echo "Building flight-test image..."
+        docker compose -f docker/docker-compose.yml build flight-test
+        ;;
+
+    up)
+        echo "Starting flight-test container (real hardware)..."
+        docker compose -f docker/docker-compose.yml up -d flight-test
+        docker exec -it test-drone-flight-test bash
+        ;;
+
+    down)
+        echo "Stopping flight-test container..."
+        docker compose -f docker/docker-compose.yml down flight-test
+        ;;
+
+    shell)
+        echo "Entering flight-test container..."
+        docker exec -it test-drone-flight-test bash
+        ;;
+
+    *)
+        echo "Usage: ./flight [build|up|down|shell]"
+        echo ""
+        echo "Commands:"
+        echo "  build  - Build the flight-test Docker image"
+        echo "  up     - Start flight-test container and enter shell (default)"
+        echo "  down   - Stop flight-test container"
+        echo "  shell  - Open shell in running container"
+        exit 1
+        ;;
+esac

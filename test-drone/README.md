@@ -1,271 +1,259 @@
-# Home Test Drone Platform
+# Test Drone
 
-Indoor autonomous flight testing platform for developing and validating autonomy behaviors before deployment to mission-specific drones.
+Development platform for LLMDrone autonomy stack with simulated T265 + D455 sensors.
 
-## Hardware Configuration
+## Quick Start
 
-### Flight Controller
-- **Model**: Pixhawk 6C
-- **Firmware**: PX4 (latest stable)
-- **Connection**: USB/UART to companion computer
+```bash
+cd test-drone
 
-### Companion Computer
-- **Model**: NVIDIA Jetson Orin Nano Super
-- **RAM**: 8GB
-- **Storage**: NVMe SSD recommended
-- **GPU**: Integrated NVIDIA GPU for vision processing
+# Build Docker image (first time only)
+./sim build
 
-### Sensors
+# Launch simulation (PX4 SITL + Gazebo + QGroundControl)
+./sim
 
-#### T265 Tracking Camera
-- **Purpose**: Visual-inertial odometry (VIO) for GPS-denied navigation
-- **Features**:
-  - Dual fisheye cameras
-  - Built-in IMU
-  - Onboard SLAM processing
-  - 6-DOF pose estimation at 200Hz
-- **Status**: Deprecated/EOL hardware (requires librealsense v2.50.0)
+# Stop with Ctrl+C
+```
 
-#### D455 Depth Camera
-- **Purpose**: Obstacle detection and 3D mapping
-- **Features**:
-  - Stereo depth camera
-  - RGB camera
-  - IMU
-  - Up to 90 FPS depth stream
-- **Range**: 0.4m - 6m (optimal indoor range)
+**That's it!** First run takes 5-10 minutes to build PX4, then subsequent runs are instant.
 
-## Mission Objectives
+**Troubleshooting?** See [docker/TROUBLESHOOTING.md](docker/TROUBLESHOOTING.md)
 
-This platform follows a progressive autonomy development path:
+---
 
-### Phase 1: GPS Waypoint Navigation ✓ (Current)
-- Offboard control via MAVSDK
-- Outdoor GPS waypoint following
-- Basic mission execution
-- Telemetry logging and analysis
+## What You Get
 
-### Phase 2: Indoor VIO Flight (In Progress)
-- T265-based position estimation
-- Replace GPS with visual-inertial odometry
-- Controlled indoor hovering and position hold
-- Manual waypoint navigation in GPS-denied environment
+When you run `./sim`, three windows open automatically:
 
-### Phase 3: Autonomous Indoor SLAM Flight (Next)
-- Real-time 3D mapping with D455
-- RTAB-Map SLAM integration
-- Behavior tree mission execution
-- Autonomous exploration and navigation
-- Obstacle detection and avoidance
+1. **QGroundControl** - Ground control station for mission planning and telemetry
+2. **Gazebo Harmonic** - 3D physics simulator with x500 quadcopter
+3. **PX4 Console** - Autopilot command line (in your terminal)
 
-### Phase 4: Advanced Behaviors
-- Dynamic replanning
-- Object detection and tracking
-- Multi-room autonomous exploration
-- Return-to-home in GPS-denied environments
+---
 
-## Software Stack
+## Commands
 
-### Containerized Environment
-- **Base**: Ubuntu 20.04 (ROS 2 Humble compatible)
-- **ROS 2**: Humble Hawksbill
-- **Flight Control**: MAVSDK (C++ library for MAVLink communication)
-- **SLAM**: RTAB-Map (RGB-D and visual SLAM)
-- **Behavior Trees**: BehaviorTree.CPP
-- **Sensors**: librealsense2 (v2.50.0 for T265, current for D455)
+| Command | Description |
+|---------|-------------|
+| `./sim` | Start simulation (default) |
+| `./sim build` | Build Docker image |
+| `./sim down` | Stop simulation |
+| `./sim shell` | Open shell in running container |
 
-### ROS 2 Package Organization
+---
 
-Platform-specific packages in `home-test-drone/ros2_ws/src/`:
+## Development Workflow
 
-- **`hometestdrone_control/`**: Offboard flight controllers, trajectory planning
-- **`hometestdrone_behaviors/`**: Behavior tree definitions and executors
-- **`hometestdrone_slam/`**: RTAB-Map configuration and launch files
-- **`hometestdrone_perception/`**: Vision processing, obstacle detection
-- **`hometestdrone_bringup/`**: System launch files and orchestration
+### 1. Start Simulation
 
-Shared packages from main repo `ros2_ws/`:
-- `agents_interface/`: Common message/service definitions
-- `agents_mavsdk_bridge/`: MAVSDK integration
+```bash
+./sim
+```
+
+### 2. Develop ROS 2 Packages
+
+In another terminal:
+
+```bash
+./sim shell
+
+# Inside container:
+cd /workspace/ros2_ws
+colcon build --symlink-install --packages-select my_package
+source install/setup.bash
+ros2 launch my_package my_launch.py
+```
+
+### 3. Test in Simulation
+
+Your ROS 2 nodes run alongside PX4 and can:
+- Subscribe to sensor data (simulated T265, D455)
+- Send MAVLink commands via MAVSDK
+- Plan missions with BehaviorTree.CPP
+- Test autonomy algorithms
+
+### 4. Iterate
+
+- Edit code on your host machine (`test-drone/ros2_ws/`)
+- Changes appear immediately in container (volume mount)
+- Rebuild and test without restarting simulation
+
+---
+
+## Real Hardware (T265 + D455 + PX4)
+
+Coming soon - hardware not yet accessible. When available:
+
+```bash
+# Build flight test image
+docker compose -f docker/docker-compose.yml build flight-test
+
+# Launch with hardware access
+docker compose -f docker/docker-compose.yml up flight-test
+
+# Inside container:
+cd /workspace/ros2_ws
+colcon build --symlink-install
+source install/setup.bash
+ros2 launch test_drone_bringup real_hardware.launch.py
+```
+
+---
 
 ## Directory Structure
 
 ```
-home-test-drone/
-├── README.md                    # This file
+test-drone/
+├── sim                      # Simulation launcher (./sim)
 ├── docker/
-│   ├── Dockerfile              # Full autonomy stack container
-│   └── docker-compose.yml      # Container orchestration
-├── config/
-│   ├── px4/
-│   │   └── params.params       # Pixhawk 6C parameter file
-│   └── sensors/
-│       ├── t265_calibration.yaml
-│       └── d455_calibration.yaml
-├── missions/
-│   ├── gps_waypoints/
-│   │   ├── simple_square.plan
-│   │   └── hover_test.plan
-│   └── indoor_slam/
-│       ├── single_room_explore.yaml
-│       └── multi_room_map.yaml
-└── ros2_ws/
-    └── src/
-        ├── hometestdrone_control/
-        ├── hometestdrone_behaviors/
-        ├── hometestdrone_slam/
-        ├── hometestdrone_perception/
-        └── hometestdrone_bringup/
+│   ├── Dockerfile.simulation      # Simulation container
+│   ├── Dockerfile.flight_test     # Real hardware container
+│   ├── docker-compose.yml         # Container orchestration
+│   ├── README.md                  # Detailed Docker guide
+│   └── TROUBLESHOOTING.md         # Problem-solving
+├── ros2_ws/                 # ROS 2 workspace (mounted to container)
+│   └── src/                 # Your ROS 2 packages go here
+├── simulation/              # Gazebo models/worlds (mounted)
+├── config/                  # PX4 params, calibration (mounted)
+└── scripts/                 # Helper scripts (mounted)
+    ├── build_px4_sitl.sh          # Build PX4 inside container
+    └── start_simulation.sh        # Launch sim components
 ```
 
-## Quick Start
+**Mounted directories** sync between host and container - edit on host, run in container.
 
-### Build Container
+---
+
+## Common Tasks
+
+### Rebuild PX4 (if needed)
+
 ```bash
-cd home-test-drone/docker
-sudo docker-compose build
+./sim shell
+cd /opt/PX4-Autopilot
+make clean
+/opt/build_px4_sitl.sh
+
+# Or limit CPU usage:
+PX4_BUILD_JOBS=4 /opt/build_px4_sitl.sh
 ```
 
-### Run Autonomy Stack
+### Test Basic Flight
+
+In the PX4 console (terminal running `./sim`):
+
 ```bash
-# Launch full stack (sensors + ROS 2 + MAVSDK)
-sudo docker-compose up
-
-# Or run interactively
-sudo docker-compose run --rm drone bash
+pxh> commander takeoff    # Arm and takeoff
+pxh> commander land       # Land
+pxh> mavlink status       # Check connections
 ```
 
-### Build ROS 2 Packages
-```bash
-# Inside container
-cd /workspace/ros2_ws
-colcon build --symlink-install
-source install/setup.bash
-```
+### Plan a Mission
 
-### Launch System
-```bash
-# GPS waypoint mission
-ros2 launch hometestdrone_bringup gps_mission.launch.py
+Use QGroundControl (GUI window):
+1. Click "Plan" tab
+2. Add waypoints on map
+3. Upload to vehicle
+4. Switch to "Fly" tab and start mission
 
-# Indoor VIO flight
-ros2 launch hometestdrone_bringup indoor_vio.launch.py
+---
 
-# Indoor SLAM mission
-ros2 launch hometestdrone_bringup indoor_slam.launch.py
-```
+## Requirements
 
-## Development Workflow
+- **OS**: Ubuntu 22.04 LTS (or compatible)
+- **Docker**: Docker + Docker Compose v2
+- **RAM**: 8GB minimum, 16GB recommended
+- **Disk**: ~15GB for Docker image + builds
+- **CPU**: 4+ cores recommended
+- **Display**: X11 server for GUI windows
 
-1. **Develop**: Edit code on host machine in `home-test-drone/ros2_ws/src/`
-2. **Mount**: Code mounted into container via docker-compose volumes
-3. **Build**: `colcon build --symlink-install` for fast iteration
-4. **Test**: Launch nodes and test behaviors indoors (tethered initially)
-5. **Fly**: Untethered autonomous flight after behavior validation
+**Optional:**
+- NVIDIA GPU with drivers (better Gazebo performance)
 
-## Safety Considerations
+---
 
-### Indoor Flight Precautions
-- Clear minimum 3m x 3m x 2m flight space
-- Soft barriers around perimeter
-- Emergency stop controller paired and tested
-- Propeller guards installed
-- Start with tethered/handheld tests
+## Network & Ports
 
-### Behavior Tree Safety Nodes
-- Battery voltage monitoring
-- Position estimate quality checks
-- Obstacle proximity thresholds
-- Communication loss handling
-- Geofence enforcement (virtual boundaries)
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 14550 | UDP | MAVLink to QGroundControl |
+| 14540 | UDP | MAVLink onboard (MAVSDK) |
+| 8888 | UDP | UXRCE-DDS (ROS 2 ↔ PX4 bridge) |
 
-## PX4 Configuration
+**ROS Domain ID**: 42 (isolated from other ROS systems)
 
-### Key Parameters for Indoor Flight
+**Network Mode**: Host networking (for ROS 2 DDS discovery)
 
-See `config/px4/params.params` for full configuration. Critical parameters:
-
-```
-# Use vision-based position estimation
-EKF2_AID_MASK = 24  # Enable vision position + yaw
-EKF2_HGT_MODE = 3   # Vision height mode
-
-# Offboard control settings
-COM_OBL_ACT = 1     # Return mode on offboard loss
-COM_OBL_RC_ACT = 0  # Don't require RC for offboard
-```
-
-### Tuning Notes
-- Lower rate limits for indoor flight (smooth, predictable motion)
-- Conservative position controller gains
-- Shorter failsafe timeouts (faster emergency response)
-
-## RTAB-Map SLAM Configuration
-
-RTAB-Map chosen for:
-- Excellent RealSense camera integration (T265 + D455)
-- Visual-inertial SLAM using T265 odometry
-- 3D mapping with D455 depth data
-- Loop closure detection for drift correction
-- Proven performance on Jetson platforms
-
-Configuration in `ros2_ws/src/hometestdrone_slam/config/rtabmap.yaml`
+---
 
 ## Troubleshooting
 
-### Cameras Not Detected
+### GUI Windows Don't Appear
+
 ```bash
-# Inside container, check USB devices
-lsusb | grep Intel
+# Enable X11 access
+xhost +local:docker
 
-# Check RealSense devices
-rs-enumerate-devices
+# Verify display
+echo $DISPLAY  # Should show :0 or :1
 
-# Verify permissions (host machine)
-sudo usermod -aG plugdev $USER
+# Restart simulation
+./sim down
+./sim
 ```
 
-### ROS 2 Nodes Not Discovering
-```bash
-# Check ROS domain
-echo $ROS_DOMAIN_ID
+### First Run is Slow
 
-# Verify network mode in docker-compose.yml (should be 'host')
+**This is normal!** First `./sim` run builds PX4 SITL (5-10 minutes). You'll see:
+
+```
+==========================================
+ FIRST RUN: Building PX4 SITL
+==========================================
+This will take 5-10 minutes on first run.
+Subsequent runs will be instant.
 ```
 
-### MAVSDK Connection Issues
-```bash
-# Test connection to Pixhawk
-ros2 topic echo /fmu/out/vehicle_status
+Subsequent runs skip the build and launch immediately.
 
-# Check serial connection (adjust device)
-ls -l /dev/ttyACM* /dev/ttyUSB*
-```
+### Common Warnings (Safe to Ignore)
 
-### Jetson Performance Issues
-```bash
-# Enable max performance mode
-sudo nvpmodel -m 0
-sudo jetson_clocks
+- `libdebuginfod.so.1: cannot open shared object file` - Missing debug symbols
+- `Serial permissions error` - No real serial hardware in simulation
+- `No connection to the GCS` - Wait 5-10 seconds for QGC to connect
 
-# Monitor resources
-sudo tegrastats
-```
+### More Help
+
+See [docker/TROUBLESHOOTING.md](docker/TROUBLESHOOTING.md) for comprehensive debugging.
+
+---
+
+## Documentation
+
+- **[docker/README.md](docker/README.md)** - Comprehensive Docker guide
+- **[docker/TROUBLESHOOTING.md](docker/TROUBLESHOOTING.md)** - Problem-solving reference
+- **[../CLAUDE.md](../CLAUDE.md)** - Project overview and architecture
+- **[TODO.md](TODO.md)** - Development tracking
+
+---
+
+## Platform Details
+
+- **OS**: Ubuntu 22.04
+- **ROS**: ROS 2 Humble
+- **Simulator**: Gazebo Harmonic
+- **Autopilot**: PX4 main branch
+- **Autonomy**: MAVSDK, BehaviorTree.CPP, RTAB-Map
+
+---
 
 ## Next Steps
 
-- [ ] Validate GPS waypoint missions outdoors
-- [ ] Integrate T265 VIO with PX4 EKF2
-- [ ] Test indoor position hold with VIO
-- [ ] Configure RTAB-Map for D455 + T265
-- [ ] Develop behavior tree for room exploration
-- [ ] Implement obstacle avoidance behaviors
-- [ ] Create mission validation test suite
+1. **Test flight**: Run `commander takeoff` in PX4 console
+2. **Plan mission**: Create waypoints in QGroundControl
+3. **Develop autonomy**: Create ROS 2 packages in `ros2_ws/src/`
+4. **Custom models**: Add Gazebo models in `simulation/models/`
+5. **Read architecture**: See [../CLAUDE.md](../CLAUDE.md) for project context
 
-## References
-
-- [PX4 Vision Position Estimation](https://docs.px4.io/main/en/ros/external_position_estimation.html)
-- [RTAB-Map ROS 2 Integration](http://wiki.ros.org/rtabmap_ros)
-- [MAVSDK Documentation](https://mavsdk.mavlink.io/)
-- [RealSense ROS 2 Wrapper](https://github.com/IntelRealSense/realsense-ros)
-- [BehaviorTree.CPP](https://www.behaviortree.dev/)
+**Questions?** Check [docker/README.md](docker/README.md) for detailed information or [docker/TROUBLESHOOTING.md](docker/TROUBLESHOOTING.md) for common issues.

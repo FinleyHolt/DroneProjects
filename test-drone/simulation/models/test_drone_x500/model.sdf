@@ -1,14 +1,14 @@
 <?xml version="1.0"?>
 <sdf version="1.9">
   <model name="test_drone_x500">
+    <!-- Include base x500 quadcopter with all standard sensors -->
     <include merge="true">
-      <!-- Base PX4 x500 quadcopter model -->
       <uri>model://x500</uri>
     </include>
 
-    <!-- T265 Visual Odometry Camera (Front-facing) -->
+    <!-- T265 Visual Odometry Camera Link -->
     <link name="t265_link">
-      <pose relative_to="base_link">0.15 0 0 0 0 0</pose>
+      <pose relative_to="base_link">0.12 0 0.05 0 0 0</pose>
       <inertial>
         <mass>0.055</mass>
         <inertia>
@@ -17,6 +17,8 @@
           <izz>0.000001</izz>
         </inertia>
       </inertial>
+
+      <!-- T265 Camera Housing Visual -->
       <visual name="t265_visual">
         <geometry>
           <box>
@@ -26,8 +28,10 @@
         <material>
           <ambient>0.2 0.2 0.2 1</ambient>
           <diffuse>0.3 0.3 0.3 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
         </material>
       </visual>
+
       <collision name="t265_collision">
         <geometry>
           <box>
@@ -36,29 +40,13 @@
         </geometry>
       </collision>
 
-      <!-- T265 Odometry Sensor (6DOF pose tracking) -->
-      <sensor name="t265_odometry" type="navsat">
-        <always_on>1</always_on>
-        <update_rate>200</update_rate>
-        <topic>t265/odom</topic>
-        <gz_frame_id>t265_link</gz_frame_id>
-
-        <!-- Odometry plugin - provides ground truth pose -->
-        <plugin filename="gz-sim-odometry-publisher-system"
-                name="gz::sim::systems::OdometryPublisher">
-          <odom_frame>odom</odom_frame>
-          <robot_base_frame>base_link</robot_base_frame>
-          <odom_publish_frequency>200</odom_publish_frequency>
-        </plugin>
-      </sensor>
-
-      <!-- T265 Fisheye Cameras (for VSLAM visualization) -->
+      <!-- T265 Left Fisheye Camera -->
       <sensor name="t265_fisheye_left" type="camera">
         <pose>0 0.032 0 0 0 0</pose>
         <always_on>1</always_on>
         <update_rate>30</update_rate>
         <visualize>false</visualize>
-        <topic>t265/fisheye1/image_raw</topic>
+        <topic>/t265/fisheye1/image_raw</topic>
         <camera>
           <horizontal_fov>1.5708</horizontal_fov>
           <image>
@@ -80,12 +68,13 @@
         </camera>
       </sensor>
 
+      <!-- T265 Right Fisheye Camera -->
       <sensor name="t265_fisheye_right" type="camera">
         <pose>0 -0.032 0 0 0 0</pose>
         <always_on>1</always_on>
         <update_rate>30</update_rate>
         <visualize>false</visualize>
-        <topic>t265/fisheye2/image_raw</topic>
+        <topic>/t265/fisheye2/image_raw</topic>
         <camera>
           <horizontal_fov>1.5708</horizontal_fov>
           <image>
@@ -97,7 +86,63 @@
             <near>0.1</near>
             <far>100</far>
           </clip>
+          <distortion>
+            <k1>-0.007419134024530649</k1>
+            <k2>0.04135806485414505</k2>
+            <k3>-0.03877656906843185</k3>
+            <p1>0.0</p1>
+            <p2>0.0</p2>
+          </distortion>
         </camera>
+      </sensor>
+
+      <!-- T265 IMU (for pose tracking) -->
+      <sensor name="t265_imu" type="imu">
+        <always_on>1</always_on>
+        <update_rate>200</update_rate>
+        <topic>/t265/imu</topic>
+        <imu>
+          <angular_velocity>
+            <x>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.009</stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.009</stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.009</stddev>
+              </noise>
+            </z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.017</stddev>
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.017</stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.017</stddev>
+              </noise>
+            </z>
+          </linear_acceleration>
+        </imu>
       </sensor>
     </link>
 
@@ -106,9 +151,9 @@
       <child>t265_link</child>
     </joint>
 
-    <!-- D455 Depth Camera (Front-facing, below T265) -->
+    <!-- D455 Depth Camera Link -->
     <link name="d455_link">
-      <pose relative_to="base_link">0.15 0 -0.05 0 0 0</pose>
+      <pose relative_to="base_link">0.12 0 -0.03 0 0 0</pose>
       <inertial>
         <mass>0.095</mass>
         <inertia>
@@ -117,6 +162,8 @@
           <izz>0.000001</izz>
         </inertia>
       </inertial>
+
+      <!-- D455 Camera Housing Visual -->
       <visual name="d455_visual">
         <geometry>
           <box>
@@ -126,8 +173,10 @@
         <material>
           <ambient>0.1 0.1 0.1 1</ambient>
           <diffuse>0.2 0.2 0.2 1</diffuse>
+          <specular>0.1 0.1 0.1 1</specular>
         </material>
       </visual>
+
       <collision name="d455_collision">
         <geometry>
           <box>
@@ -142,18 +191,23 @@
         <always_on>1</always_on>
         <update_rate>30</update_rate>
         <visualize>true</visualize>
-        <topic>d455/color/image_raw</topic>
+        <topic>/d455/color/image_raw</topic>
         <camera>
-          <horizontal_fov>1.5009831567151233</horizontal_fov>
+          <horizontal_fov>1.211</horizontal_fov>
           <image>
-            <width>640</width>
-            <height>480</height>
+            <width>1280</width>
+            <height>720</height>
             <format>RGB_INT8</format>
           </image>
           <clip>
             <near>0.1</near>
             <far>100</far>
           </clip>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.007</stddev>
+          </noise>
         </camera>
       </sensor>
 
@@ -162,34 +216,39 @@
         <pose>0 0.01 0 0 0 0</pose>
         <always_on>1</always_on>
         <update_rate>30</update_rate>
-        <visualize>true</visualize>
-        <topic>d455/depth</topic>
+        <visualize>false</visualize>
+        <topic>/d455/depth</topic>
         <camera>
-          <horizontal_fov>1.5009831567151233</horizontal_fov>
+          <horizontal_fov>1.211</horizontal_fov>
           <image>
-            <width>640</width>
-            <height>480</height>
+            <width>1280</width>
+            <height>720</height>
             <format>R_FLOAT32</format>
           </image>
           <clip>
-            <near>0.3</near>
+            <near>0.28</near>
             <far>10.0</far>
           </clip>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
         </camera>
       </sensor>
 
-      <!-- D455 IR Stereo Cameras (for depth computation) -->
+      <!-- D455 Left Infrared Camera -->
       <sensor name="d455_infra1" type="camera">
         <pose>0 0.025 0 0 0 0</pose>
         <always_on>1</always_on>
         <update_rate>30</update_rate>
         <visualize>false</visualize>
-        <topic>d455/infra1/image_raw</topic>
+        <topic>/d455/infra1/image_raw</topic>
         <camera>
-          <horizontal_fov>1.5009831567151233</horizontal_fov>
+          <horizontal_fov>1.211</horizontal_fov>
           <image>
-            <width>640</width>
-            <height>480</height>
+            <width>1280</width>
+            <height>720</height>
             <format>L8</format>
           </image>
           <clip>
@@ -199,17 +258,18 @@
         </camera>
       </sensor>
 
+      <!-- D455 Right Infrared Camera -->
       <sensor name="d455_infra2" type="camera">
         <pose>0 -0.025 0 0 0 0</pose>
         <always_on>1</always_on>
         <update_rate>30</update_rate>
         <visualize>false</visualize>
-        <topic>d455/infra2/image_raw</topic>
+        <topic>/d455/infra2/image_raw</topic>
         <camera>
-          <horizontal_fov>1.5009831567151233</horizontal_fov>
+          <horizontal_fov>1.211</horizontal_fov>
           <image>
-            <width>640</width>
-            <height>480</height>
+            <width>1280</width>
+            <height>720</height>
             <format>L8</format>
           </image>
           <clip>
@@ -225,12 +285,13 @@
       <child>d455_link</child>
     </joint>
 
-    <!-- Plugins for sensor data publishing -->
+    <!-- Odometry Publisher Plugin for T265-style pose tracking -->
     <plugin filename="gz-sim-odometry-publisher-system"
             name="gz::sim::systems::OdometryPublisher">
       <odom_frame>odom</odom_frame>
-      <robot_base_frame>base_link</robot_base_frame>
+      <robot_base_frame>t265_link</robot_base_frame>
       <odom_publish_frequency>200</odom_publish_frequency>
+      <odom_topic>/t265/odom</odom_topic>
     </plugin>
 
   </model>

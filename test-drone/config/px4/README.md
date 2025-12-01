@@ -1,5 +1,32 @@
 # PX4 Configuration for Home Test Drone
 
+## Airframe File
+
+The custom airframe file `4007_gz_test_drone_x500` defines the test-drone quadcopter configuration for PX4 SITL simulation. This file must be copied to PX4's airframe directory to enable the custom model.
+
+**Installation:**
+```bash
+# Copy airframe file to PX4 directory (inside container or on host)
+cp /workspace/config/px4/4007_gz_test_drone_x500 \
+   /opt/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes/
+
+# Rebuild PX4 to register the new airframe
+cd /opt/PX4-Autopilot
+make clean
+make px4_sitl_default
+```
+
+**Usage:**
+```bash
+# Launch with custom model
+make px4_sitl gz_test_drone_x500
+
+# Launch with custom world
+PX4_GZ_WORLD=test_drone make px4_sitl gz_test_drone_x500
+```
+
+The airframe file sets `PX4_SIM_MODEL=test_drone_x500` which tells PX4 to spawn the custom model from `Tools/simulation/gz/models/test_drone_x500/` instead of the default x500.
+
 ## Loading Parameters
 
 ### Via QGroundControl

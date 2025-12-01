@@ -60,11 +60,61 @@ else
     echo "  Warning: Custom worlds directory not found at $CUSTOM_WORLDS_DIR"
 fi
 
+# Symlink custom model files from /workspace/simulation/models to PX4's models directory
+echo
+echo "=== Symlinking custom models ==="
+CUSTOM_MODELS_DIR="/workspace/simulation/models"
+PX4_MODELS_DIR="$PX4_DIR/Tools/simulation/gz/models"
+
+if [ -d "$CUSTOM_MODELS_DIR" ]; then
+    for model_dir in "$CUSTOM_MODELS_DIR"/*; do
+        if [ -d "$model_dir" ]; then
+            model_name=$(basename "$model_dir")
+            target_link="$PX4_MODELS_DIR/$model_name"
+
+            # Remove existing symlink or directory if it exists
+            if [ -e "$target_link" ] || [ -L "$target_link" ]; then
+                rm -rf "$target_link"
+            fi
+
+            # Create symlink
+            ln -s "$model_dir" "$target_link"
+            echo "  Linked: $model_name -> $model_dir"
+        fi
+    done
+else
+    echo "  Warning: Custom models directory not found at $CUSTOM_MODELS_DIR"
+fi
+
+# Copy custom airframe files from /workspace/config/px4 to PX4's airframes directory
+echo
+echo "=== Installing custom airframe files ==="
+CUSTOM_AIRFRAMES_DIR="/workspace/config/px4"
+PX4_AIRFRAMES_DIR="$PX4_DIR/ROMFS/px4fmu_common/init.d-posix/airframes"
+
+if [ -d "$CUSTOM_AIRFRAMES_DIR" ]; then
+    # Find all files matching airframe pattern (4-digit number followed by _gz_)
+    for airframe_file in "$CUSTOM_AIRFRAMES_DIR"/[0-9][0-9][0-9][0-9]_gz_*; do
+        if [ -f "$airframe_file" ]; then
+            airframe_name=$(basename "$airframe_file")
+            target_file="$PX4_AIRFRAMES_DIR/$airframe_name"
+
+            # Copy airframe file (overwrite if exists)
+            cp "$airframe_file" "$target_file"
+            chmod +x "$target_file"
+            echo "  Installed: $airframe_name"
+        fi
+    done
+else
+    echo "  Warning: Custom airframes directory not found at $CUSTOM_AIRFRAMES_DIR"
+fi
+
 echo
 echo "=== PX4 SITL build complete ==="
 echo "You can now run:"
 echo "  cd /opt/PX4-Autopilot"
-echo "  make px4_sitl gz_x500"
+echo "  make px4_sitl gz_test_drone_x500  # Custom drone with T265+D455"
+echo "  make px4_sitl gz_x500              # Default x500"
 echo
 echo "Available custom worlds:"
 ls -1 "$PX4_WORLDS_DIR"/*.sdf 2>/dev/null | xargs -n1 basename | sed 's/.sdf$//' | sed 's/^/  - /'

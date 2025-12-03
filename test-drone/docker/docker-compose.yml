@@ -28,6 +28,7 @@ services:
       - PX4_HOME_LAT=37.7749
       - PX4_HOME_LON=-122.4194
       - PX4_HOME_ALT=0.0
+      - WORLD_NAME=${WORLD_NAME:-outdoor_forest}
       # Set HEADLESS=1 to run without GUI (faster, useful for testing)
       # - HEADLESS=1
 

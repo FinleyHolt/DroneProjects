@@ -2,10 +2,13 @@
 set -euo pipefail
 
 # Test Drone Simulation Launcher
-# Usage: ./sim [build|up|down|shell]
+# Usage: ./sim [build|up|down|shell] [indoor|outdoor]
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
+
+# Default world environment
+WORLD_ENV="${2:-outdoor}"
 
 # Enable X11 access for GUI
 setup_x11() {
@@ -24,7 +27,25 @@ case "${1:-up}" in
 
     up)
         setup_x11
-        echo "Starting simulation (PX4 SITL + Gazebo + QGroundControl)..."
+
+        # Set world based on environment argument
+        case "$WORLD_ENV" in
+            indoor)
+                export WORLD_NAME="indoor_hallway"
+                echo "Starting simulation with INDOOR hallway world (SLAM testing)..."
+                ;;
+            outdoor)
+                export WORLD_NAME="outdoor_forest"
+                echo "Starting simulation with OUTDOOR forest world..."
+                ;;
+            *)
+                echo "Error: Invalid environment '$WORLD_ENV'"
+                echo "Usage: ./sim up [indoor|outdoor]"
+                exit 1
+                ;;
+        esac
+
+        echo "World: $WORLD_NAME"
         docker compose -f docker/docker-compose.yml up simulation
         ;;
 
@@ -39,13 +60,17 @@ case "${1:-up}" in
         ;;
 
     *)
-        echo "Usage: ./sim [build|up|down|shell]"
+        echo "Usage: ./sim [build|up|down|shell] [indoor|outdoor]"
         echo ""
         echo "Commands:"
-        echo "  build  - Build the simulation Docker image"
-        echo "  up     - Start simulation (default)"
-        echo "  down   - Stop simulation"
-        echo "  shell  - Open shell in running container"
+        echo "  build         - Build the simulation Docker image"
+        echo "  up [env]      - Start simulation (default: outdoor)"
+        echo "  down          - Stop simulation"
+        echo "  shell         - Open shell in running container"
+        echo ""
+        echo "Environments:"
+        echo "  indoor        - L-shaped hallway for SLAM testing"
+        echo "  outdoor       - Forest environment with trees and obstacles"
         exit 1
         ;;
 esac

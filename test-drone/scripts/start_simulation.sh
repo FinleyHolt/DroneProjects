@@ -74,9 +74,53 @@ else
         done
     fi
 
-    # Note: Custom airframe files are no longer used.
-    # Using standard PX4 x500 airframe instead.
-    # Custom airframe archived in config/px4/archived/ for future reference.
+    # Ensure custom airframe files are installed (in case they were added after build)
+    CUSTOM_AIRFRAMES_DIR="/workspace/config/px4"
+    PX4_ROMFS_AIRFRAMES="/opt/PX4-Autopilot/ROMFS/px4fmu_common/init.d-posix/airframes"
+    PX4_BUILD_AIRFRAMES="/opt/PX4-Autopilot/build/px4_sitl_default/rootfs/etc/init.d-posix/airframes"
+    NEED_RECONFIGURE=0
+
+    if [ -d "$CUSTOM_AIRFRAMES_DIR" ]; then
+        # Create build airframes directory if it doesn't exist
+        mkdir -p "$PX4_BUILD_AIRFRAMES"
+
+        for airframe_file in "$CUSTOM_AIRFRAMES_DIR"/[0-9][0-9][0-9][0-9]_gz_*; do
+            if [ -f "$airframe_file" ]; then
+                airframe_name=$(basename "$airframe_file")
+
+                # Copy to ROMFS (source location)
+                if [ -d "$PX4_ROMFS_AIRFRAMES" ]; then
+                    target_romfs="$PX4_ROMFS_AIRFRAMES/$airframe_name"
+                    if [ ! -f "$target_romfs" ] || [ "$airframe_file" -nt "$target_romfs" ]; then
+                        cp "$airframe_file" "$target_romfs"
+                        chmod +x "$target_romfs"
+                        NEED_RECONFIGURE=1
+                    fi
+                fi
+
+                # Copy to build rootfs (where PX4 actually looks)
+                target_build="$PX4_BUILD_AIRFRAMES/$airframe_name"
+                if [ ! -f "$target_build" ] || [ "$airframe_file" -nt "$target_build" ]; then
+                    cp "$airframe_file" "$target_build"
+                    chmod +x "$target_build"
+                    echo "Installed custom airframe: $airframe_name"
+                    NEED_RECONFIGURE=1
+                fi
+            fi
+        done
+    fi
+
+    # If airframe was updated, reconfigure CMake to create custom targets
+    if [ "$NEED_RECONFIGURE" -eq 1 ]; then
+        echo "Airframe updated, reconfiguring PX4 to create custom targets..."
+        cd /opt/PX4-Autopilot
+        # Remove CMake cache to force reconfiguration
+        rm -rf build/px4_sitl_default/CMakeCache.txt build/px4_sitl_default/CMakeFiles
+        # Reconfigure (creates custom make targets based on airframe files)
+        make px4_sitl_default
+        echo "Reconfiguration complete"
+        echo
+    fi
 fi
 
 # Step 2: Initialize QGroundControl config directory if first run
@@ -150,9 +194,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Launch PX4 SITL with standard x500 airframe and custom forest world
+# Launch PX4 SITL with custom test_drone_x500 model and custom forest world
 # Use test_drone world (outdoor forest environment with trees, boulders, and bushes)
-# Use standard x500 model (no custom sensors in simulation)
+# Use test_drone_x500 model (x500 with T265 and D455 sensors)
 cd /opt/PX4-Autopilot
 
 # Clean parameter cache to ensure airframe defaults are loaded
@@ -165,7 +209,10 @@ if [ -f "$PARAM_FILE" ]; then
     echo "Cached parameters removed"
 fi
 
-echo "Launching: PX4_GZ_WORLD=test_drone make px4_sitl gz_x500"
+# Use WORLD_NAME environment variable if set, otherwise default to outdoor_forest
+WORLD_NAME="${WORLD_NAME:-outdoor_forest}"
+
+echo "Launching: PX4_GZ_WORLD=$WORLD_NAME make px4_sitl gz_test_drone_x500"
 echo
 
-PX4_GZ_WORLD=test_drone make px4_sitl gz_x500
+PX4_GZ_WORLD="$WORLD_NAME" make px4_sitl gz_test_drone_x500

@@ -27,7 +27,7 @@ cd test-drone
 When you run `./sim`, three windows open automatically:
 
 1. **QGroundControl** - Ground control station for mission planning and telemetry
-2. **Gazebo Harmonic** - 3D physics simulator with x500 quadcopter
+2. **Gazebo Harmonic** - 3D physics simulator with standard PX4 x500 quadcopter
 3. **PX4 Console** - Autopilot command line (in your terminal)
 
 ---
@@ -68,10 +68,12 @@ ros2 launch my_package my_launch.py
 ### 3. Test in Simulation
 
 Your ROS 2 nodes run alongside PX4 and can:
-- Subscribe to sensor data (simulated T265, D455)
+- Subscribe to sensor data (standard x500 sensors: IMU, GPS, magnetometer, barometer)
 - Send MAVLink commands via MAVSDK
 - Plan missions with BehaviorTree.CPP
 - Test autonomy algorithms
+
+**Note**: Previously used custom T265 and D455 sensor models have been archived. Using standard PX4 x500 airframe for simplicity.
 
 ### 4. Iterate
 

@@ -1,12 +1,26 @@
-<?xml version="1.0"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <sdf version="1.9">
   <world name="test_drone_world">
 
     <!-- Physics -->
-    <physics name="1ms" type="ignore">
-      <max_step_size>0.001</max_step_size>
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
       <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
     </physics>
+
+    <!-- Environmental Physics (Required for sensors) -->
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+
+    <!-- Scene Configuration -->
+    <scene>
+      <grid>false</grid>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+      <shadows>true</shadows>
+    </scene>
 
     <!-- Plugins -->
     <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>

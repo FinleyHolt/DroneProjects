@@ -1,165 +1,157 @@
-# LLMDrone
+# Drone Projects
 
-Reasoning-enabled autonomy framework for small unmanned aerial systems (sUAS) enabling natural-language mission tasking and autonomous execution in communications-denied environments.
+Personal drone autonomy development projects targeting various hardware platforms. Each folder represents a specific drone build with its own compute, sensors, and mission objectives.
 
-## Overview
+## Portfolio Overview
 
-LLMDrone integrates locally hosted Large Language Models (LLM) with drone autonomy software to enable tactical operators to task drones using natural language. The system runs entirely on edge compute (NVIDIA Jetson) without requiring external connectivity, making it suitable for contested or communications-denied operational environments.
+This repository showcases autonomous drone development work focused on edge AI, computer vision, and embedded systems integration. All projects run ROS 2 for autonomy software, MAVSDK for flight control, and PX4 autopilot.
 
-**Example Mission**: *"Survey Named Area of Interest (NAI) 3 and identify vehicle movement before returning home."*
+**Developer**: Finley Holt
+**Focus Areas**: Edge AI for drones, Visual SLAM, Autonomous navigation, Embedded systems
 
-The onboard reasoning engine parses this command, plans the mission, executes autonomous flight, detects vehicles using onboard vision, and returns home—all without human intervention or network connectivity.
+## Hardware Platforms
 
-## Project Context
+### project-drone/
+**Hardware**: Custom-built 7-inch FPV quadcopter with 3D-printed components
+**Sensors**:
+- Intel RealSense T265 (Visual Odometry)
+- Intel RealSense D455 (Depth Camera)
+- FPV system for manual flight testing
 
-- **Organization**: Marine Corps Tactical Systems Support Activity (MCTSSA), Digital Solutions Branch
-- **Purpose**: Support Force Design 2030 with distributed, resilient sUAS operations
-- **Lead**: 2ndLt Finley Holt
-- **Supervisor**: Shaun Monera, MCTSSA Digital Solutions Branch
+**Compute**: NVIDIA Jetson Orin Nano Super (8GB, 67 TOPS)
+**Purpose**: Personal autonomy development platform - built from ground up for testing autonomous navigation algorithms
+**Status**: Hardware complete, sensors verified, active algorithm development
 
-## Key Features
+**Key Features**:
+- Full simulation-to-flight workflow (PX4 SITL + Gazebo + ROS 2 + MAVSDK)
+- Indoor navigation and mapping
+- Visual odometry-based localization (T265)
+- Obstacle avoidance using depth sensing (D455)
+- BehaviorTree.CPP for mission logic
+- Docker-based development environment
+- Capable of running generative AI models (vision transformers, LLMs, VLMs)
 
-- **Natural-Language Tasking**: Convert tactical mission commands to executable flight plans
-- **Edge Autonomy**: All reasoning and planning runs locally on NVIDIA Jetson (no cloud dependency)
-- **Adaptive Replanning**: Dynamic mission adjustment based on obstacles, failures, or perception feedback
-- **Onboard Perception**: Computer vision for object detection, tracking, and geospatial tagging
-- **Safety-Critical Design**: Multi-layer constraints (geofencing, battery management, collision avoidance)
-
-## Technology Stack
-
-- **Edge Compute**: NVIDIA Jetson Orin or Thor
-- **LLM**: Mixture-of-Experts architecture for efficient on-device inference
-- **Middleware**: ROS 2 Humble
-- **Flight Control**: MAVSDK + PX4 autopilot
-- **Simulation**: Gazebo + PX4 SITL
-- **Perception**: YOLOv8/RT-DETR for object detection
-- **Development**: Ubuntu 22.04 LTS, Python 3.10+, C++
-
-## Project Status
-
-**Current Phase**: Phase 1 - Foundation (Repository setup and PX4 SITL integration)
-
-See [Planning/README.md](Planning/README.md) for comprehensive project plan, timeline, and detailed phase breakdowns.
-
-## Documentation
-
-- **[Planning/README.md](Planning/README.md)**: Comprehensive project plan with 6-phase roadmap (18-24 week timeline)
-- **[CLAUDE.md](CLAUDE.md)**: Guidance for Claude Code AI assistant when working in this repository
-- **[AGENTS.md](AGENTS.md)**: Developer guidelines, coding standards, and contribution workflow
-- **[Project_scope.md](Project_scope.md)**: Original project proposal and research objectives
-
-## Repository Structure
-
-LLMDrone is organized into **self-contained platform projects** with shared autonomy components:
-
-- **[test-drone/](test-drone/)** - Primary development platform (custom quadcopter, 8GB GPU)
-  - Hardware: T265 visual odometry + D455 depth camera
-  - Purpose: Experimentation, sensor testing, behavior tree development
-  - Status: Active development
-
-- **[flyby/](flyby/)** - Production flyby mission (16GB GPU, different sensors)
-  - Purpose: Autonomous flyby with obstacle avoidance
-  - Status: Hardware not yet accessible (several months out)
-  - Strategy: Will share autonomy components developed on test-drone
-
-- **Shared Resources**: `llm/`, `docs/`, `.deps/` (PX4, Gazebo)
-
-See [CLAUDE.md](CLAUDE.md) for detailed architecture and package organization.
-
-## Quick Start
-
-### Prerequisites
-- Ubuntu 22.04 or 24.04 LTS
-- 16+ GB RAM
-- 50+ GB free disk space
-- NVIDIA GPU with driver >=525.x (recommended but not required for SITL)
-- Internet connection for initial setup
-
-### Initial Setup (test-drone)
-
-```bash
-# Clone repository
-git clone https://github.com/[org]/LLMDrone.git
-cd LLMDrone
-
-# Install PX4 and dependencies
-bash setup/clone_px4.sh
-bash setup/bootstrap.sh
-
-# Navigate to test-drone platform
-cd test-drone
-
-# Build workspace
-cd ros2_ws
-colcon build --symlink-install
-
-# Launch simulation (or use Docker - see test-drone/README.md)
-source install/setup.bash
-ros2 launch test_drone_bringup simulation.launch.py
-```
-
-For detailed test-drone setup and usage, see [test-drone/README.md](test-drone/README.md).
-
-### Makefile Commands (Legacy)
-
-Some top-level Makefile commands are still available:
-- `make check` - Validate system requirements
-- `make setup` - Install PX4 dependencies
-- `make sim` - Launch PX4 SITL + Gazebo (standalone)
-
-### Troubleshooting
-
-**Gazebo doesn't open or crashes:**
-- Ensure NVIDIA drivers are installed: `nvidia-smi`
-- Try headless mode: `make sim-headless`
-- Check GPU requirements: `make check`
-
-**PX4 fails to build:**
-- Ensure all dependencies installed: `make bootstrap`
-- Check disk space: `df -h`
-- Clean and rebuild: `make clean && make sim`
-
-**Setup scripts fail:**
-- Check internet connectivity and proxy settings
-- Re-run with clean state: `make clean-all && make setup`
-
-**Simulation is slow or laggy:**
-- Close unnecessary applications to free RAM
-- Reduce Gazebo graphics quality in GUI settings
-- Use headless mode: `make sim-headless`
-
-For more details, see [CLAUDE.md](CLAUDE.md) development guidelines.
-
-## Development Phases
-
-1. **Phase 1 - Foundation** (2-3 weeks): PX4 SITL, repository structure, automation scripts
-2. **Phase 2 - Integration** (2-3 weeks): ROS 2 workspace, MAVSDK bridge, offboard control
-3. **Phase 3 - Reasoning** (4-5 weeks): LLM integration, natural-language parsing
-4. **Phase 4 - Perception** (3-4 weeks): Vision pipeline, object detection, sensor fusion
-5. **Phase 5 - Planning** (4-5 weeks): Mission planning, adaptive replanning, safety constraints
-6. **Phase 6 - Validation** (3-4 weeks): Simulation testing, edge deployment, live-flight demos
-
-See detailed phase plans in [Planning/](Planning/) directory.
-
-## Project Deliverables
-
-1. Edge-deployable reasoning module and containerized software stack
-2. Simulation and live-flight demonstrations of natural-language autonomous missions
-3. Publishable research paper on reasoning-enabled autonomy framework
-
-## Contributing
-
-This is a research project under active development. For contribution guidelines, see [AGENTS.md](AGENTS.md).
-
-## License
-
-[To be determined]
-
-## Contact
-
-**Project Lead**: 2ndLt Finley Holt
-**Organization**: MCTSSA Digital Solutions Branch
+See [project-drone/README.md](project-drone/README.md) for setup and usage.
 
 ---
 
-**Status**: Phase 1 in progress | **Last Updated**: 2025-11-12
+### flyby-f11/
+**Hardware**: [Flyby Robotics F-11](https://www.flybyrobotics.com/) developer platform
+**Sensors**: TBD based on mission requirements
+**Compute**: NVIDIA Jetson Orin NX 16GB (50 TOPS)
+**Purpose**: Advanced autonomy platform with high payload capacity and processing power
+**Status**: Development planning (hardware access via MCTSSA)
+
+**Platform Specifications**:
+- 3 kg (6.6 lbs) payload capacity with 12 mounting hardpoints
+- Up to 50 minutes flight time with hot-swappable batteries
+- NVIDIA Jetson Orin NX 16GB onboard (50 trillion ops/sec)
+- Fully open flight controller and GPU for custom development
+- NDAA-compliant supply chain
+
+**Planned Capabilities**:
+- Mission-intent interpretation and autonomous execution
+- Advanced perception and object detection
+- Real-time path planning and obstacle avoidance
+- Multi-sensor fusion
+- Communications-denied operations
+
+See [flyby-f11/README.md](flyby-f11/README.md) for mission details and development roadmap.
+
+---
+
+## Technology Stack
+
+**Flight Control**:
+- PX4 Autopilot (firmware)
+- MAVSDK (MAVLink interface)
+- Gazebo (simulation environment)
+
+**Autonomy Software**:
+- ROS 2 Humble (middleware)
+- BehaviorTree.CPP (mission logic)
+- RTAB-Map / ORB-SLAM3 (Visual SLAM)
+
+**Computer Vision**:
+- Intel RealSense SDK
+- OpenCV
+- YOLOv8 / RT-DETR (object detection)
+
+**Development**:
+- Ubuntu 22.04 LTS
+- Docker (containerized deployments)
+- Python 3.10+, C++17
+
+## Repository Structure
+
+```
+DroneProjects/
+├── project-drone/          # Jetson Orin Nano Super development platform
+│   ├── ros2_ws/           # ROS 2 workspace
+│   ├── docker/            # Container configurations
+│   ├── simulation/        # Gazebo worlds and models
+│   ├── config/            # PX4 params and sensor calibration
+│   └── README.md
+│
+├── flyby-f11/             # Flyby F-11 production platform
+│   ├── ros2_ws/           # ROS 2 workspace (will link shared packages)
+│   ├── docker/            # Deployment containers
+│   ├── config/            # Mission-specific configurations
+│   └── README.md
+│
+├── AGENTS.md              # Development guidelines
+└── CLAUDE.md              # AI assistant guidance
+```
+
+## Quick Start
+
+Each drone project is self-contained and uses Docker for consistent development environments:
+
+```bash
+# Clone repository
+git clone https://github.com/finleyholt/DroneProjects.git
+cd DroneProjects
+
+# Navigate to specific platform
+cd project-drone  # or flyby-f11
+
+# Launch with Docker (recommended)
+docker compose up
+
+# OR build locally
+cd ros2_ws
+colcon build --symlink-install
+source install/setup.bash
+ros2 launch <platform>_bringup simulation.launch.py
+```
+
+See individual platform README files for detailed setup instructions.
+
+## Development Approach
+
+**Modular Design**: Core autonomy packages are designed to be hardware-agnostic and can be shared between platforms via symlinks or git submodules.
+
+**Simulation First**: All features are validated in Gazebo simulation before hardware deployment.
+
+**Containerized Workflows**: Docker ensures consistent development and deployment environments across different host systems.
+
+**Edge-First**: All processing runs locally on embedded compute - no cloud dependency required.
+
+## Documentation
+
+- **[AGENTS.md](AGENTS.md)**: Developer guidelines, coding standards, and best practices
+- **[CLAUDE.md](CLAUDE.md)**: Project structure and guidance for Claude Code AI assistant
+- **Platform READMEs**: Specific setup and usage for each drone build
+
+## Current Status
+
+**Active Development**: project-drone (7-inch FPV quadcopter with Jetson Orin Nano Super 8GB)
+- Custom-built airframe with 3D-printed components
+- Full simulation-to-flight workflow (PX4 SITL, Gazebo, ROS 2, MAVSDK, Docker)
+- Sensors verified working, ready for algorithm development
+
+**Planning**: flyby-f11 (development via MCTSSA collaboration)
+
+---
+
+**Last Updated**: 2025-12-08

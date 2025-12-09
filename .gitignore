@@ -48,6 +48,7 @@ ENV/
 *.swo
 *~
 .DS_Store
+.claude/
 
 # Setup state tracking
 .setup_state/

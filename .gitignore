@@ -49,6 +49,7 @@ ENV/
 *~
 .DS_Store
 .claude/
+CLAUDE.md
 
 # Setup state tracking
 .setup_state/

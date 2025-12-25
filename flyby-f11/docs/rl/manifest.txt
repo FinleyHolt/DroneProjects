@@ -1,0 +1,18 @@
+RL Framework Repositories - flyby-f11 Project
+Downloaded: 2025-12-25
+
+Repositories:
+1. Gymnasium (243M) - https://github.com/Farama-Foundation/Gymnasium.git
+   Standard API for reinforcement learning environments
+
+2. stable-baselines3 (4.7M) - https://github.com/DLR-RM/stable-baselines3.git
+   PyTorch implementations of RL algorithms (PPO, A2C, SAC, TD3, DQN)
+
+3. BehaviorTree.CPP (6.6M) - https://github.com/BehaviorTree/BehaviorTree.CPP.git
+   C++ library for behavior trees in robotics and AI
+
+4. BehaviorTree.ROS2 (712K) - https://github.com/BehaviorTree/BehaviorTree.ROS2.git
+   ROS2 integration for BehaviorTree.CPP
+
+Total size: ~255M
+All repositories cloned with --depth 1 (shallow clone)

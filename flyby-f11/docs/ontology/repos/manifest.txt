@@ -1,0 +1,27 @@
+Ontology Tool Repositories
+===========================
+
+Downloaded: 2025-12-25
+
+Repositories:
+1. sumo (298M) - https://github.com/ontologyportal/sumo.git
+   Suggested Upper Merged Ontology - comprehensive formal ontology
+
+2. vampire (14M) - https://github.com/vprover/vampire.git
+   Vampire theorem prover - first-order logic automated reasoning
+
+3. clingo (18M) - https://github.com/potassco/clingo.git
+   Clingo answer set programming solver - non-monotonic reasoning
+
+4. eprover (17M) - https://github.com/eprover/eprover.git
+   E theorem prover - equational and first-order logic
+
+5. swi-prolog-docs (40K) - Manual download
+   SWI-Prolog documentation for logic programming
+
+Total size: ~347M
+
+Notes:
+- All repositories cloned with --depth 1 (shallow clone)
+- Used for ontology research and formal reasoning integration
+- See parent directory documentation for integration guides

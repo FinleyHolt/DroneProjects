@@ -159,6 +159,37 @@ DroneProjects/
 - **Launch Files**: snake_case naming with `.launch.py` extension
 - **Experimental Code**: Prefix branches/folders with `exp-` to signal unstable code
 
+## Documentation Conventions
+
+- **Format**: All technical documentation uses Quarto Markdown (`.qmd` files)
+- **YAML Header**: Every `.qmd` file must include YAML frontmatter with custom formatting:
+  ```yaml
+  ---
+  title: "Document Title"
+  author: "Finley Holt"
+  date: today
+  format:
+    pdf:
+      documentclass: article
+      geometry:
+        - margin=1in
+      fontsize: 11pt
+      number-sections: true
+      toc: true
+      include-in-header:
+        text: |
+          \usepackage{fancyhdr}
+          \pagestyle{fancy}
+          \fancyhf{}
+          \fancyhead[L]{\textit{Short Document Title}}
+          \fancyhead[R]{\thepage}
+          \renewcommand{\headrulewidth}{0.4pt}
+  ---
+  ```
+- **Rendering**: Use `quarto render filename.qmd` to generate PDF outputs
+- **Purpose**: Ensures consistent professional formatting across all project documentation
+- **Examples**: See `flyby-f11/APPROACH.qmd`, `flyby-f11/ONTOLOGY_FOUNDATION.qmd`, `flyby-f11/literature_review/*.qmd`
+
 ## ROS 2 Package Organization
 
 ### project-drone Packages

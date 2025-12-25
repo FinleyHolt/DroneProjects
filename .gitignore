@@ -76,3 +76,22 @@ credentials.json
 docker-compose.override.yml
 .docker/
 *.dockerignore.local
+
+# Reference documentation (cloned git repos for offline access)
+# These are external repos downloaded by scripts, not part of our project
+flyby-f11/docs/ontology/repos/clingo/
+flyby-f11/docs/ontology/repos/eprover/
+flyby-f11/docs/ontology/repos/sumo/
+flyby-f11/docs/ontology/repos/vampire/
+flyby-f11/docs/rl/BehaviorTree.CPP/
+flyby-f11/docs/rl/BehaviorTree.ROS2/
+flyby-f11/docs/rl/Gymnasium/
+flyby-f11/docs/rl/behavior-trees/BehaviorTree.CPP/
+flyby-f11/docs/rl/behavior-trees/BehaviorTree.ROS2/
+flyby-f11/docs/rl/gymnasium/repo/
+flyby-f11/docs/rl/stable-baselines3/repo/
+flyby-f11/docs/ros2/pyswip/pyswip/
+flyby-f11/docs/vision/repos/NanoLLM/
+flyby-f11/docs/vision/repos/jetson-inference/
+flyby-f11/docs/vision/repos/realsense-ros/
+flyby-f11/docs/vision/repos/ultralytics/

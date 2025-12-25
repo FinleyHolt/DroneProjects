@@ -1,0 +1,1315 @@
+---
+title: "Flyby-F11 Implementation Roadmap"
+subtitle: "Progressive Development Tasks with Measurable Success Criteria"
+author: "Finley Holt"
+date: today
+format:
+  pdf:
+    documentclass: article
+    geometry:
+      - margin=1in
+    fontsize: 11pt
+    number-sections: true
+    toc: true
+    include-in-header:
+      text: |
+        \usepackage{fancyhdr}
+        \pagestyle{fancy}
+        \fancyhf{}
+        \fancyhead[L]{\textit{Flyby-F11 Implementation Roadmap}}
+        \fancyhead[R]{\thepage}
+        \renewcommand{\headrulewidth}{0.4pt}
+---
+
+# Overview
+
+**Goal**: Build an ontology-constrained autonomous quadcopter system that verifies safety through formal reasoning and executes missions using reinforcement learning.
+
+**Development Platform**: ASUS ProArt P16 (RTX 5090 24GB, 64GB RAM)
+
+**Target Deployment**: Jetson Orin NX 16GB
+
+**Architecture**: Two-phase system - Planning Mode (SUMO + Vampire theorem prover) validates mission safety, Execution Mode (Prolog runtime) enforces constraints in real-time.
+
+---
+
+# Phase 1: Ontology Toolchain Foundation
+
+## Task 1.1: Build and Verify Vampire Theorem Prover
+
+**Objective**: Set up automated theorem proving capability for safety verification.
+
+**Implementation Steps**:
+
+1. Clone and build Vampire from source
+2. Create test suite for basic first-order logic proofs
+3. Verify installation with UAV-relevant axioms
+
+**Success Criteria**:
+
+- [ ] `vampire` binary executes without errors
+- [ ] Test proof file proves: `uav(drone1) ∧ (∀X: uav(X) ⇒ vehicle(X)) ⊢ vehicle(drone1)`
+- [ ] Vampire returns "Refutation found" or "Theorem proved" status
+- [ ] Execution time < 1 second for simple proofs
+
+**Verification Commands**:
+
+```bash
+cd flyby-f11/ontology/tools/vampire/build
+./bin/vampire --version
+./bin/vampire ../test/simple_uav.tptp
+```
+
+**Deliverable**: `flyby-f11/ontology/tools/vampire/test/simple_uav.tptp` with successful proof output
+
+---
+
+## Task 1.2: Extract Relevant SUMO Axioms
+
+**Objective**: Identify and document SUMO ontology components relevant to UAV navigation.
+
+**Implementation Steps**:
+
+1. Parse `docs/ontology/repos/sumo/Merge.kif`
+2. Extract axioms for: spatial relations, motion, agents, physical objects
+3. Create domain-specific subset of SUMO
+
+**Success Criteria**:
+
+- [ ] Documentation file lists ≥20 SUMO axioms with explanations
+- [ ] All axioms are syntactically valid SUO-KIF
+- [ ] Coverage includes: `Object`, `Process`, `agent`, `distance`, `between`, `orientation`
+- [ ] Each axiom includes: original SUMO reference, explanation, UAV relevance
+
+**Deliverable**: `flyby-f11/ontology/planning_mode/sumo_subset.md`
+
+**Verification**: Manual review confirms axioms are relevant to UAV spatial reasoning
+
+---
+
+## Task 1.3: Install and Test SWI-Prolog Runtime
+
+**Objective**: Set up execution mode runtime environment.
+
+**Implementation Steps**:
+
+1. Install SWI-Prolog system package
+2. Install Python bindings (pyswip)
+3. Create test suite for Prolog queries
+
+**Success Criteria**:
+
+- [ ] `swipl --version` returns version ≥8.0
+- [ ] Python imports `from pyswip import Prolog` without errors
+- [ ] Test query `uav(X)` returns expected results
+- [ ] Assertion and retraction operations work correctly
+
+**Verification Script**:
+
+```python
+from pyswip import Prolog
+prolog = Prolog()
+prolog.assertz("uav(drone1)")
+prolog.assertz("uav(drone2)")
+results = list(prolog.query("uav(X)"))
+assert len(results) == 2
+assert {'X': 'drone1'} in results
+print("✅ SWI-Prolog test passed")
+```
+
+**Deliverable**: `flyby-f11/ontology/execution_mode/test_prolog.py` with passing tests
+
+---
+
+# Phase 2: UAV Domain Ontology
+
+## Task 2.1: Define UAV Taxonomy in SUO-KIF
+
+**Objective**: Create formal UAV domain ontology extending SUMO.
+
+**Implementation Steps**:
+
+1. Define class hierarchy: `UAV`, `Quadcopter`, `FlightPhase` subclasses
+2. Add documentation strings for each concept
+3. Define relations: `batteryLevel`, `altitude`, `maxSpeed`
+
+**Success Criteria**:
+
+- [ ] File contains ≥50 lines of valid SUO-KIF
+- [ ] Defines ≥10 UAV-specific classes
+- [ ] All classes connect to SUMO base classes
+- [ ] Includes English documentation for each class
+- [ ] Syntax validation passes (no parser errors)
+
+**Verification**:
+
+```bash
+# Check syntax (manual inspection)
+grep -c "^(subclass" flyby-f11/ontology/planning_mode/uav_domain.kif
+# Should return ≥10
+```
+
+**Deliverable**: `flyby-f11/ontology/planning_mode/uav_domain.kif`
+
+---
+
+## Task 2.2: Encode Safety Constraints as FOL Axioms
+
+**Objective**: Formalize operational safety requirements as first-order logic.
+
+**Implementation Steps**:
+
+1. Write battery safety axiom (minimum charge for operations)
+2. Write collision proximity constraint
+3. Write geofence boundary constraint
+4. Write altitude limit constraint
+
+**Success Criteria**:
+
+- [ ] ≥4 safety axioms in SUO-KIF format
+- [ ] Each axiom uses proper quantifiers and implications
+- [ ] Battery constraint: `(instance ?L Landing) ∧ (batteryLevel ?UAV ?B) ⇒ (greaterThan ?B 0.15)`
+- [ ] Proximity constraint enforces minimum distance from obstacles
+- [ ] All axioms are semantically meaningful (encode real safety rules)
+
+**Deliverable**: `flyby-f11/ontology/planning_mode/safety_constraints.kif`
+
+**Verification**: Manual review by SME confirms constraints match operational safety requirements
+
+---
+
+## Task 2.3: Verify Safety Properties with Vampire
+
+**Objective**: Prove theorem prover can detect constraint violations.
+
+**Implementation Steps**:
+
+1. Convert KIF axioms to TPTP format
+2. Create test scenarios (safe and unsafe)
+3. Prove Vampire detects contradictions in unsafe scenarios
+
+**Success Criteria**:
+
+- [ ] ≥3 test scenarios in TPTP format
+- [ ] Unsafe scenario 1: Battery 10% + Landing → Contradiction proved
+- [ ] Unsafe scenario 2: Proximity 1m + Forward motion → Contradiction proved
+- [ ] Safe scenario: Battery 50% + Landing → No contradiction
+- [ ] All proofs complete in <5 seconds
+
+**Verification Commands**:
+
+```bash
+for file in flyby-f11/ontology/planning_mode/tests/*.tptp; do
+    echo "Testing: $file"
+    vampire "$file" | grep -E "(Refutation|Satisfiable)"
+done
+```
+
+**Deliverable**: `flyby-f11/ontology/planning_mode/tests/` directory with 3+ TPTP test files and proof logs
+
+---
+
+# Phase 3: Planning-to-Execution Translation
+
+## Task 3.1: Manual KIF-to-Prolog Translation
+
+**Objective**: Translate safety axioms to executable Prolog rules.
+
+**Implementation Steps**:
+
+1. Convert battery constraint to Prolog
+2. Convert proximity constraint to Prolog
+3. Convert geofence constraint to Prolog
+4. Test each rule with example queries
+
+**Success Criteria**:
+
+- [ ] ≥4 Prolog rules corresponding to KIF axioms
+- [ ] Battery rule: `canExecute(landing) :- batteryLevel(B), B > 0.15.`
+- [ ] Proximity rule: `canExecute(forward) :- nearestObstacle(D), D > 3.0.`
+- [ ] All rules execute without syntax errors
+- [ ] Test queries return expected true/false results
+
+**Verification Script**:
+
+```prolog
+% Test battery constraint
+:- batteryLevel(0.10).
+?- canExecute(landing).  % Should fail
+
+:- retractall(batteryLevel(_)).
+:- batteryLevel(0.50).
+?- canExecute(landing).  % Should succeed
+```
+
+**Deliverable**: `flyby-f11/ontology/execution_mode/safety_rules.pl` with test cases
+
+---
+
+## Task 3.2: Automated KIF-to-Prolog Translator
+
+**Objective**: Build tool to automate axiom translation.
+
+**Implementation Steps**:
+
+1. Parse SUO-KIF syntax (S-expressions)
+2. Identify implication patterns: `(=> (and ...) ...)`
+3. Generate equivalent Prolog rules
+4. Handle basic predicates: `greaterThan`, `lessThan`, `equal`
+
+**Success Criteria**:
+
+- [ ] Script translates ≥3 axiom patterns correctly
+- [ ] Input: KIF file, Output: Prolog file
+- [ ] Handles quantifiers: universal (∀) becomes Prolog variables
+- [ ] Generated Prolog is syntactically valid (loads without errors)
+- [ ] Test cases: translate safety constraints from Task 2.2
+
+**Verification**:
+
+```bash
+python3 flyby-f11/scripts/kif_to_prolog.py \
+    ontology/planning_mode/safety_constraints.kif \
+    ontology/execution_mode/compiled_rules.pl
+
+swipl -g "consult('ontology/execution_mode/compiled_rules.pl')" -t halt
+# Should exit with code 0 (no syntax errors)
+```
+
+**Deliverable**: `flyby-f11/scripts/kif_to_prolog.py` with unit tests
+
+---
+
+## Task 3.3: Mission Verification Demo
+
+**Objective**: End-to-end demo of planning verification and execution filtering.
+
+**Implementation Steps**:
+
+1. Create mission scenario data structure
+2. Load Prolog rules from Task 3.1
+3. Assert scenario facts (battery level, obstacles, etc.)
+4. Query safety constraints
+5. Generate human-readable explanation of violations
+
+**Success Criteria**:
+
+- [ ] Demo script runs without errors
+- [ ] Tests ≥5 scenarios (mix of safe and unsafe)
+- [ ] Unsafe scenario detected: Battery 10%, Obstacle 1m, Geofence violation
+- [ ] Safe scenario passes all checks
+- [ ] Outputs include: constraint violated, reason, suggested mitigation
+
+**Example Output**:
+
+```
+Scenario 1: Emergency Landing (Low Battery)
+  Battery: 8%
+  ❌ VIOLATION: canExecute(landing) failed
+  Reason: batteryLevel(0.08) < minimum(0.15)
+  Mitigation: Increase altitude, find safe landing zone
+
+Scenario 2: Normal Takeoff
+  Battery: 85%
+  Nearest Obstacle: 10m
+  ✅ PASS: All constraints satisfied
+```
+
+**Deliverable**: `flyby-f11/demo/verify_mission.py` with documented test scenarios
+
+---
+
+# Phase 4: Simulation Environment Integration
+
+## Task 4.1: ArduPilot SITL Setup
+
+**Objective**: Establish software-in-the-loop simulation environment.
+
+**Implementation Steps**:
+
+1. Clone and build ArduPilot
+2. Install dependencies (MAVProxy, pymavlink)
+3. Launch SITL and verify telemetry
+
+**Success Criteria**:
+
+- [ ] `sim_vehicle.py` launches without errors
+- [ ] MAVProxy console shows GPS lock and EKF healthy
+- [ ] Telemetry streams on UDP port 14550
+- [ ] Can arm vehicle and receive mode changes
+
+**Verification Commands**:
+
+```bash
+cd ardupilot/ArduCopter
+sim_vehicle.py -w --console --map
+# In MAVProxy console:
+# mode GUIDED
+# arm throttle
+# Should see "APM: ARMED"
+```
+
+**Deliverable**: Screenshot of MAVProxy showing armed vehicle with EKF healthy
+
+---
+
+## Task 4.2: MAVSDK Python Connection
+
+**Objective**: Control simulated UAV from Python.
+
+**Implementation Steps**:
+
+1. Install MAVSDK-Python
+2. Write connection script
+3. Implement basic flight commands: arm, takeoff, land
+
+**Success Criteria**:
+
+- [ ] Script connects to SITL on `udp://:14540`
+- [ ] Successfully arms vehicle
+- [ ] Takeoff to 5m altitude (±0.5m tolerance)
+- [ ] Hover for 10 seconds (position hold)
+- [ ] Lands autonomously
+- [ ] No errors during flight sequence
+
+**Verification**:
+
+```python
+# Script should complete without exceptions
+# Telemetry log shows:
+# - Armed state change
+# - Altitude reached 5.0m ± 0.5m
+# - Landed detected
+```
+
+**Deliverable**: `flyby-f11/simulation/scripts/basic_flight.py` with logged telemetry
+
+---
+
+## Task 4.3: Ontology-Constrained Takeoff
+
+**Objective**: Integrate Prolog safety checks into flight control.
+
+**Implementation Steps**:
+
+1. Modify basic flight script to query Prolog before actions
+2. Implement battery level simulation
+3. Demonstrate takeoff blocked when battery < 15%
+
+**Success Criteria**:
+
+- [ ] Script loads Prolog rules from `compiled_rules.pl`
+- [ ] When battery=50%, takeoff proceeds normally
+- [ ] When battery=10%, takeoff is blocked with error message
+- [ ] Error message explains which constraint failed
+- [ ] Flight log shows constraint check executed before arm command
+
+**Example Output**:
+
+```
+Checking constraints for: takeoff
+  Battery level: 10%
+  ❌ BLOCKED: canExecute(takeoff) = False
+  Reason: Insufficient battery (0.10 < 0.15 required)
+  Action: Takeoff aborted
+
+[Different run with battery=50%]
+  Battery level: 50%
+  ✅ ALLOWED: All constraints satisfied
+  Action: Proceeding with takeoff
+```
+
+**Deliverable**: `flyby-f11/simulation/scripts/safe_flight.py` with demo video (or screen recording)
+
+---
+
+# Phase 5: ROS 2 Perception Grounding
+
+## Task 5.1: ROS 2 Workspace Setup
+
+**Objective**: Create ROS 2 development environment for ontology integration.
+
+**Implementation Steps**:
+
+1. Initialize ROS 2 workspace
+2. Create dummy packages to verify build system
+3. Test inter-node communication
+
+**Success Criteria**:
+
+- [ ] `colcon build` completes without errors
+- [ ] `source install/setup.bash` works
+- [ ] Talker/listener demo shows message passing
+- [ ] ROS 2 nodes discovered via `ros2 node list`
+
+**Verification**:
+
+```bash
+cd flyby-f11/ros2_ws
+colcon build --symlink-install
+source install/setup.bash
+ros2 run demo_nodes_cpp talker &
+ros2 run demo_nodes_cpp listener
+# Should see messages received
+```
+
+**Deliverable**: `flyby-f11/ros2_ws/` with clean build
+
+---
+
+## Task 5.2: Mock Vision Detection Publisher
+
+**Objective**: Simulate object detection messages for testing grounding.
+
+**Implementation Steps**:
+
+1. Create ROS 2 package: `perception_grounding`
+2. Write node publishing fake YOLO detections
+3. Use `vision_msgs/Detection2DArray`
+
+**Success Criteria**:
+
+- [ ] Node publishes to `/detections` topic at 10Hz
+- [ ] Messages include: object class, bounding box, confidence
+- [ ] Simulates ≥3 object classes (person, car, obstacle)
+- [ ] `ros2 topic echo /detections` shows valid messages
+- [ ] No memory leaks over 10 minute run
+
+**Verification**:
+
+```bash
+ros2 run perception_grounding mock_vision &
+ros2 topic hz /detections  # Should show ~10 Hz
+ros2 topic echo /detections | head -n 50
+```
+
+**Deliverable**: `flyby-f11/ros2_ws/src/perception_grounding/mock_vision_node.py`
+
+---
+
+## Task 5.3: Object Grounding Node (Vision → Prolog)
+
+**Objective**: Convert perception messages to symbolic facts.
+
+**Implementation Steps**:
+
+1. Subscribe to `/detections` topic
+2. For each detection, assert Prolog facts: `objectType(ID, Class)`, `inView(ID)`
+3. Implement object ID tracking (persistent across frames)
+4. Clean up stale assertions (objects no longer in view)
+
+**Success Criteria**:
+
+- [ ] Node subscribes to `/detections` successfully
+- [ ] For each detection message, ≥2 Prolog facts asserted
+- [ ] Prolog database queryable via PySwip
+- [ ] Stale objects retracted after 1 second of no detections
+- [ ] Handles 30 FPS detection stream without lag
+
+**Verification Script**:
+
+```python
+# After node runs for 10 seconds:
+from pyswip import Prolog
+prolog = Prolog()
+objects = list(prolog.query("objectType(ID, Class)"))
+assert len(objects) > 0, "No objects grounded"
+print(f"✅ Grounded {len(objects)} objects")
+```
+
+**Deliverable**: `flyby-f11/ros2_ws/src/perception_grounding/object_grounding_node.py`
+
+---
+
+# Phase 6: Real-Time Safety Monitoring
+
+## Task 6.1: Safety Monitor Node
+
+**Objective**: Continuously check ontology constraints and publish alerts.
+
+**Implementation Steps**:
+
+1. Create ROS 2 package: `safety_monitor`
+2. Load Prolog safety rules
+3. Query constraints at 10Hz
+4. Publish violations to `/safety_alerts` topic
+
+**Success Criteria**:
+
+- [ ] Node loads `compiled_rules.pl` at startup
+- [ ] Queries Prolog every 100ms (10Hz)
+- [ ] Publishes alert when constraint violated
+- [ ] Alert message includes: constraint name, severity, timestamp
+- [ ] Latency from violation to alert < 200ms
+
+**Test Scenario**:
+
+```python
+# Simulate low battery
+prolog.assertz("batteryLevel(0.05)")
+# Within 200ms, alert published to /safety_alerts
+```
+
+**Deliverable**: `flyby-f11/ros2_ws/src/safety_monitor/safety_monitor_node.py` with unit tests
+
+---
+
+## Task 6.2: Action Filter Node
+
+**Objective**: Block unsafe velocity commands using Prolog.
+
+**Implementation Steps**:
+
+1. Subscribe to `/cmd_vel` (desired velocity from planner)
+2. Query Prolog: `canExecute(move(Vx, Vy, Vz))`
+3. If allowed, republish to `/cmd_vel_safe`
+4. If blocked, publish zero velocity and log reason
+
+**Success Criteria**:
+
+- [ ] Node subscribes to `/cmd_vel` and publishes to `/cmd_vel_safe`
+- [ ] When obstacle at 1m, forward motion (Vx > 0) blocked
+- [ ] Lateral/vertical motion allowed when no constraints violated
+- [ ] Blocking latency < 50ms
+- [ ] Logs include constraint violation explanation
+
+**Test Cases**:
+
+| Input Velocity | Obstacle Distance | Expected Output | Reason |
+|----------------|-------------------|----------------|---------|
+| (1.0, 0, 0) | 5m | (1.0, 0, 0) | No constraint |
+| (1.0, 0, 0) | 1m | (0, 0, 0) | Proximity violation |
+| (0, 1.0, 0) | 1m | (0, 1.0, 0) | Lateral allowed |
+
+**Deliverable**: `flyby-f11/ros2_ws/src/safety_monitor/action_filter_node.py` with test suite
+
+---
+
+## Task 6.3: Full Pipeline Integration Test
+
+**Objective**: Validate complete perception → grounding → safety → actuation flow.
+
+**Implementation Steps**:
+
+1. Create launch file for all nodes
+2. Set up test scenario in simulation
+3. Verify end-to-end behavior
+
+**Success Criteria**:
+
+- [ ] Launch file starts all required nodes
+- [ ] Mock vision publishes person detection at 2m distance
+- [ ] Grounding node asserts `distance(drone, person, 2.0)`
+- [ ] Safety monitor triggers proximity alert
+- [ ] Action filter blocks forward velocity command
+- [ ] SITL receives zero velocity (vehicle stops)
+- [ ] All steps complete within 500ms total latency
+
+**Test Procedure**:
+
+1. Launch: `ros2 launch perception_grounding integration_test.launch.py`
+2. Publish test detection: `ros2 topic pub /detections ...`
+3. Verify: `ros2 topic echo /safety_alerts` shows proximity alert
+4. Verify: `ros2 topic echo /cmd_vel_safe` shows zero velocity
+
+**Deliverable**: `flyby-f11/ros2_ws/src/perception_grounding/launch/integration_test.launch.py` with test documentation
+
+---
+
+# Phase 7: Real Perception Integration
+
+## Task 7.1: YOLO11 TensorRT Optimization
+
+**Objective**: Deploy optimized object detection for RTX 5090.
+
+**Implementation Steps**:
+
+1. Export YOLO11n to TensorRT format
+2. Benchmark inference speed
+3. Verify accuracy on COCO validation set
+
+**Success Criteria**:
+
+- [ ] `yolo11n.engine` file generated successfully
+- [ ] Inference speed ≥100 FPS at 640x640 resolution on RTX 5090
+- [ ] mAP@0.5 ≥ 45% on COCO validation set
+- [ ] FP16 precision enabled
+- [ ] GPU memory usage < 2GB
+
+**Verification**:
+
+```python
+from ultralytics import YOLO
+model = YOLO("yolo11n.engine")
+results = model.val(data="coco.yaml")
+print(f"mAP@0.5: {results.box.map50}")
+```
+
+**Deliverable**: `flyby-f11/models/yolo11n.engine` with benchmark report
+
+---
+
+## Task 7.2: YOLO ROS 2 Node
+
+**Objective**: Real-time object detection in ROS 2 pipeline.
+
+**Implementation Steps**:
+
+1. Create detection node using TensorRT engine
+2. Subscribe to camera images
+3. Publish Detection2DArray messages
+
+**Success Criteria**:
+
+- [ ] Node loads TensorRT model at startup (< 5 seconds)
+- [ ] Processes 640x640 images at ≥30 FPS
+- [ ] Publishes detections with class labels and confidence scores
+- [ ] Handles camera disconnection gracefully
+- [ ] CPU usage < 50% of one core (most work on GPU)
+
+**Verification**:
+
+```bash
+ros2 run perception_pipeline yolo_node &
+ros2 topic hz /detections  # Should show ≥30 Hz
+```
+
+**Deliverable**: `flyby-f11/ros2_ws/src/perception_pipeline/yolo_node.py`
+
+---
+
+## Task 7.3: Replace Mock with Real Detection
+
+**Objective**: Swap simulation detections with live YOLO.
+
+**Implementation Steps**:
+
+1. Modify integration test launch file
+2. Connect to webcam or test video
+3. Verify grounding works with real detections
+
+**Success Criteria**:
+
+- [ ] Launch file uses YOLO node instead of mock
+- [ ] Grounding node receives detections from YOLO
+- [ ] Safety constraints trigger on real object detections
+- [ ] System handles variable detection rates (10-60 FPS)
+- [ ] No degradation in safety monitoring performance
+
+**Test**:
+
+Place object in front of camera → Safety alert triggered → Motion blocked
+
+**Deliverable**: Updated `integration_test.launch.py` with real YOLO, demo video
+
+---
+
+# Phase 8: Depth-Based Spatial Reasoning
+
+## Task 8.1: Gazebo Depth Camera Integration
+
+**Objective**: Add depth sensing to simulation environment.
+
+**Implementation Steps**:
+
+1. Create Gazebo world with obstacles (walls, boxes)
+2. Add depth camera plugin to quadcopter model
+3. Publish depth images to ROS 2
+
+**Success Criteria**:
+
+- [ ] Gazebo simulation loads without errors
+- [ ] Depth camera publishes to `/depth/image_raw` at ≥20 FPS
+- [ ] Depth range: 0.3m to 10m
+- [ ] Image resolution: 640x480 minimum
+- [ ] Camera intrinsics published to `/depth/camera_info`
+
+**Verification**:
+
+```bash
+ros2 run image_view image_view --ros-args --remap image:=/depth/image_raw
+# Should show depth visualization
+```
+
+**Deliverable**: `flyby-f11/simulation/worlds/depth_test.world` with quadcopter model
+
+---
+
+## Task 8.2: Spatial Relation Node (Depth → Distance)
+
+**Objective**: Compute 3D distances from depth maps and bounding boxes.
+
+**Implementation Steps**:
+
+1. Subscribe to depth images and detections
+2. Sample depth at bounding box center
+3. Convert pixel + depth to 3D position
+4. Compute Euclidean distance
+5. Assert Prolog facts: `distance(drone, ObjectID, Distance)`
+
+**Success Criteria**:
+
+- [ ] Node uses camera intrinsics for deprojection
+- [ ] Distance accuracy within ±10% of ground truth
+- [ ] Handles depth sensor noise (NaN, infinity values)
+- [ ] Asserts distance facts to Prolog database
+- [ ] Processes detections at ≥20 FPS
+
+**Test Case**:
+
+- Place simulated box at 3.0m in Gazebo
+- Node should assert `distance(drone, box_1, D)` where `2.7 ≤ D ≤ 3.3`
+
+**Deliverable**: `flyby-f11/ros2_ws/src/perception_pipeline/spatial_relation_node.py`
+
+---
+
+## Task 8.3: Collision Avoidance Test
+
+**Objective**: Demonstrate autonomous stopping when approaching obstacles.
+
+**Implementation Steps**:
+
+1. Set up Gazebo world with wall obstacle
+2. Command drone to fly toward wall
+3. Verify action filter blocks motion at safe distance
+
+**Success Criteria**:
+
+- [ ] Drone commanded to move forward at 1 m/s
+- [ ] When distance to wall ≤ 3m, velocity set to zero
+- [ ] Drone maintains hover (does not collide)
+- [ ] Safety alert published with proximity warning
+- [ ] Works in 100% of test runs (10 trials)
+
+**Test Procedure**:
+
+1. Start at 10m from wall
+2. Command: `ros2 topic pub /cmd_vel geometry_msgs/Twist "{linear: {x: 1.0}}"`
+3. Monitor: `ros2 topic echo /cmd_vel_safe`
+4. Verify: Drone stops at ~3m from wall
+
+**Deliverable**: Demo video showing collision avoidance, flight log analysis
+
+---
+
+# Phase 9: Advanced Temporal Reasoning
+
+## Task 9.1: Temporal Tracking in Prolog
+
+**Objective**: Add time-based object tracking and loitering detection.
+
+**Implementation Steps**:
+
+1. Extend Prolog database with timestamped facts
+2. Implement position history tracking
+3. Write loitering detection rule
+
+**Success Criteria**:
+
+- [ ] Prolog stores position history with timestamps
+- [ ] Old positions cleaned up (> 30 seconds removed)
+- [ ] Loitering rule: `isLoitering(Obj)` true if variance < 1.0m over 30 observations
+- [ ] Memory usage stable over long runs (no leaks)
+- [ ] Query latency < 10ms
+
+**Loitering Rule**:
+
+```prolog
+isLoitering(Obj) :-
+    findall(Pos, position_history(Obj, Pos, _), Positions),
+    length(Positions, N), N > 30,
+    variance(Positions, V), V < 1.0.
+```
+
+**Deliverable**: `flyby-f11/ontology/execution_mode/temporal_rules.pl` with test cases
+
+---
+
+## Task 9.2: Ternary Spatial Relations
+
+**Objective**: Implement `between(A, B, C)` predicate for path planning.
+
+**Implementation Steps**:
+
+1. Define `between/3` using coordinate geometry
+2. Test with known configurations
+3. Use in path blocking constraint
+
+**Success Criteria**:
+
+- [ ] `between(drone, obj1, obj2)` computes correctly
+- [ ] Geometric test: point on line segment ± tolerance
+- [ ] Handles 3D coordinates (not just 2D)
+- [ ] Performance: < 5ms per query
+- [ ] Works for edge cases (collinear points, very close objects)
+
+**Test Cases**:
+
+| Drone Pos | Obj1 Pos | Obj2 Pos | Expected Result |
+|-----------|----------|----------|----------------|
+| (0, 5, 0) | (0, 0, 0) | (0, 10, 0) | True (on line) |
+| (5, 5, 0) | (0, 0, 0) | (0, 10, 0) | False (off line) |
+| (0, 2, 0) | (0, 0, 0) | (0, 10, 0) | True (on segment) |
+
+**Deliverable**: `flyby-f11/ontology/execution_mode/spatial_relations.pl`
+
+---
+
+## Task 9.3: Multi-Constraint Integration Test
+
+**Objective**: Validate system with complex scenarios requiring multiple constraint types.
+
+**Test Scenarios**:
+
+1. **Proximity Alert**: Person approaching drone from 10m → 2m
+2. **Loitering Detection**: Person stationary near drone for 10 seconds
+3. **Path Blocking**: Two objects close together, drone must reroute
+
+**Success Criteria**:
+
+- [ ] Scenario 1: Proximity alert triggered at 3m threshold
+- [ ] Scenario 2: Loitering alert after 30 position samples with low variance
+- [ ] Scenario 3: Forward motion blocked when path between objects
+- [ ] All scenarios tested in Gazebo simulation
+- [ ] Total system latency (perception → action filter) < 300ms
+
+**Deliverable**: Test suite in `flyby-f11/ros2_ws/src/perception_grounding/test/multi_constraint_tests.py` with video demonstrations
+
+---
+
+# Phase 10: Reinforcement Learning Environment
+
+## Task 10.1: Custom Gymnasium Environment
+
+**Objective**: Create RL training environment for ontology-constrained navigation.
+
+**Implementation Steps**:
+
+1. Subclass `gym.Env`
+2. Define observation space (position, velocity, goal, obstacles)
+3. Define action space (velocity commands)
+4. Integrate Prolog constraint checking in `step()`
+
+**Success Criteria**:
+
+- [ ] Environment registered with Gymnasium
+- [ ] Observation space: Box(12,) - position(3) + velocity(3) + goal(3) + obstacles(3)
+- [ ] Action space: Box(4,) - vx, vy, vz, yaw_rate ∈ [-1, 1]
+- [ ] Invalid actions (constraint violations) return large negative reward
+- [ ] `env.reset()` randomizes start/goal positions
+- [ ] `env.step()` queries Prolog before executing action
+
+**Verification**:
+
+```python
+import gymnasium as gym
+env = gym.make("UAVNavigation-v0")
+obs, info = env.reset()
+assert obs.shape == (12,), "Wrong observation shape"
+action = env.action_space.sample()
+obs, reward, done, truncated, info = env.step(action)
+print("✅ Environment test passed")
+```
+
+**Deliverable**: `flyby-f11/training/envs/uav_nav_env.py` registered as Gymnasium environment
+
+---
+
+## Task 10.2: Reward Function Design
+
+**Objective**: Design reward that encourages goal-reaching while respecting constraints.
+
+**Reward Components**:
+
+1. Goal progress: `-distance_to_goal * 0.1`
+2. Constraint compliance bonus: `+10` if all constraints satisfied
+3. Violation penalty: `-50` per violated constraint
+4. Collision penalty: `-1000` (episode termination)
+5. Goal reached bonus: `+500`
+
+**Success Criteria**:
+
+- [ ] Reward function implemented in environment
+- [ ] Test episode rewards range: [-1100, 510]
+- [ ] Constraint-compliant paths receive higher cumulative reward
+- [ ] Collision immediately terminates episode with large penalty
+
+**Verification**:
+
+Run 100 random episodes, verify:
+- Episodes with collisions have reward < -900
+- Episodes reaching goal have reward > 400
+
+**Deliverable**: Documented reward function in `flyby-f11/training/envs/uav_nav_env.py` with unit tests
+
+---
+
+## Task 10.3: Random Policy Baseline
+
+**Objective**: Establish baseline performance with random policy.
+
+**Implementation Steps**:
+
+1. Run 100 episodes with `env.action_space.sample()`
+2. Log: episode length, total reward, constraint violations, collisions
+3. Create baseline metrics
+
+**Success Criteria**:
+
+- [ ] 100 episodes complete without crashes
+- [ ] Metrics logged to CSV file
+- [ ] Average success rate (goal reached) documented
+- [ ] Constraint violation rate per episode computed
+- [ ] Baseline: success rate < 5% expected (random policy)
+
+**Deliverable**: `flyby-f11/training/baselines/random_policy_results.csv` with analysis plots
+
+---
+
+# Phase 11: Policy Training
+
+## Task 11.1: Train PPO Policy
+
+**Objective**: Train first reinforcement learning policy.
+
+**Implementation Steps**:
+
+1. Install Stable-Baselines3
+2. Configure PPO hyperparameters
+3. Train for 100k timesteps
+4. Save checkpoints every 10k steps
+
+**Success Criteria**:
+
+- [ ] Training completes without errors
+- [ ] Final model saved to `flyby-f11/training/models/ppo_uav_v1.zip`
+- [ ] Training curve shows learning (reward increases)
+- [ ] Success rate > 50% on validation set (100 episodes)
+- [ ] Constraint violation rate < 10%
+
+**Hyperparameters**:
+
+```python
+model = PPO(
+    "MlpPolicy", env,
+    learning_rate=3e-4,
+    n_steps=2048,
+    batch_size=64,
+    n_epochs=10,
+    gamma=0.99,
+    verbose=1
+)
+```
+
+**Deliverable**: Trained model + training logs in TensorBoard format
+
+---
+
+## Task 11.2: Policy Evaluation
+
+**Objective**: Rigorously test trained policy performance.
+
+**Test Protocol**:
+
+1. 100 random test scenarios (unseen during training)
+2. Deterministic policy execution
+3. Measure: success rate, collision rate, average reward, constraint violations
+
+**Success Criteria**:
+
+- [ ] Success rate ≥ 60%
+- [ ] Collision rate < 5%
+- [ ] Constraint violations per episode < 1.0
+- [ ] Average episode reward > 200
+- [ ] Generalizes to unseen start/goal configurations
+
+**Deliverable**: `flyby-f11/training/evaluation/ppo_v1_evaluation.md` with statistics and plots
+
+---
+
+## Task 11.3: Ablation Study (With vs. Without Ontology)
+
+**Objective**: Prove ontology constraints improve safety.
+
+**Experiment Design**:
+
+1. Train baseline PPO **without** Prolog constraints (all actions allowed)
+2. Train ontology-constrained PPO (current system)
+3. Compare collision rates and safety violations
+
+**Success Criteria**:
+
+- [ ] Both models trained for equal timesteps (100k)
+- [ ] Tested on identical 100 scenarios
+- [ ] Ontology-constrained model has ≥30% fewer collisions
+- [ ] Ontology-constrained model has ≥50% fewer safety violations
+- [ ] Statistical significance: p < 0.05 (t-test)
+
+**Deliverable**: Comparative analysis in `flyby-f11/training/ablation/ontology_impact.md` with graphs
+
+---
+
+# Phase 12: Hierarchical Policy Architecture
+
+## Task 12.1: Three-Level Hierarchy Design
+
+**Objective**: Decompose navigation into hierarchical sub-tasks.
+
+**Hierarchy Levels**:
+
+1. **Mission Planner** (L1): Select waypoints to reach goal
+2. **Behavior Selector** (L2): Choose behavior (navigate/loiter/avoid)
+3. **Trajectory Optimizer** (L3): Output velocity commands
+
+**Success Criteria**:
+
+- [ ] Three separate Gymnasium environments defined
+- [ ] L3 environment: continuous velocity control
+- [ ] L2 environment: discrete behavior selection
+- [ ] L1 environment: waypoint generation
+- [ ] Each level's action is input to lower level
+
+**Deliverable**: Three environment files in `flyby-f11/training/envs/hierarchical/`
+
+---
+
+## Task 12.2: Bottom-Up Training
+
+**Objective**: Train hierarchy from lowest to highest level.
+
+**Training Sequence**:
+
+1. Train L3 (trajectory) for 200k steps
+2. Train L2 (behavior) using frozen L3 for 100k steps
+3. Train L1 (mission) using frozen L2 for 50k steps
+
+**Success Criteria**:
+
+- [ ] L3 achieves 70% success reaching waypoints
+- [ ] L2 achieves 60% success with behavior selection
+- [ ] L1 achieves 50% success on full missions
+- [ ] Each level's model saved separately
+- [ ] Inference latency: L1 + L2 + L3 < 50ms total
+
+**Deliverable**: Three trained models + training curves
+
+---
+
+## Task 12.3: Full Mission Test
+
+**Objective**: Complete complex multi-waypoint mission autonomously.
+
+**Mission Specification**:
+
+- 5 waypoints in sequence
+- Static obstacles between waypoints
+- Must respect all safety constraints
+- Maximum mission time: 5 minutes
+
+**Success Criteria**:
+
+- [ ] Drone visits all 5 waypoints in order
+- [ ] No collisions during mission
+- [ ] Zero safety constraint violations
+- [ ] Completes in < 5 minutes
+- [ ] Success rate ≥ 40% over 20 trials
+
+**Deliverable**: Mission test results + video of successful run
+
+---
+
+# Phase 13: Sim-to-Real Transfer Preparation
+
+## Task 13.1: Domain Randomization
+
+**Objective**: Improve generalization through varied training conditions.
+
+**Randomization Parameters**:
+
+- Wind speed: 0-5 m/s, random direction
+- Obstacle positions: ±2m from nominal
+- Lighting: brightness multiplier 0.5-1.5
+- Sensor noise: Gaussian 0-5% of reading
+
+**Success Criteria**:
+
+- [ ] All randomizations implemented in environment
+- [ ] Retrain policy for 150k steps with randomization
+- [ ] Test on 50 novel scenarios (outside training distribution)
+- [ ] Success rate ≥ 50% on novel scenarios
+- [ ] Performance degradation < 15% vs. training distribution
+
+**Deliverable**: Randomized environment + retrained model with evaluation
+
+---
+
+## Task 13.2: Deploy to ArduPilot SITL
+
+**Objective**: Run trained policy controlling real autopilot firmware.
+
+**Implementation Steps**:
+
+1. Create ROS 2 node wrapping RL policy
+2. Subscribe to telemetry (position, velocity)
+3. Publish velocity setpoints to MAVSDK
+4. Run closed loop in SITL
+
+**Success Criteria**:
+
+- [ ] Node loads trained policy at startup
+- [ ] Inference at ≥10 Hz
+- [ ] Successfully controls SITL quadcopter
+- [ ] Completes 3-waypoint mission in SITL
+- [ ] Safety monitor blocks unsafe commands from policy
+
+**Verification**:
+
+```bash
+sim_vehicle.py &
+ros2 launch flyby_f11_bringup rl_sitl.launch.py
+# Observe autonomous waypoint navigation
+```
+
+**Deliverable**: `flyby-f11/ros2_ws/src/flyby_f11_mission/rl_controller_node.py`
+
+---
+
+## Task 13.3: Hardware Pre-Flight Checklist
+
+**Objective**: Prepare for real hardware testing.
+
+**Checklist Items**:
+
+1. Sensor calibration (IMU, compass, ESCs)
+2. RC failsafe configuration
+3. Geofence parameters set
+4. Emergency stop procedure tested
+5. Manual flight validation
+
+**Success Criteria**:
+
+- [ ] All sensors calibrated per manufacturer specs
+- [ ] RC failsafe triggers within 2 seconds of signal loss
+- [ ] Geofence enforced (tested in SITL)
+- [ ] Pilot can manually override in < 1 second
+- [ ] Pre-flight checklist documented
+
+**Deliverable**: `flyby-f11/docs/pre_flight_checklist.md`
+
+---
+
+# Phase 14: Hardware Validation (Future)
+
+## Task 14.1: Tethered Hover Test
+
+**Objective**: First powered test with safety tether.
+
+**Test Procedure**:
+
+1. Attach 3m safety tether
+2. Execute stabilized hover at 1m altitude
+3. Run RL policy for 60 seconds
+4. Monitor all constraints
+
+**Success Criteria**:
+
+- [ ] Stable hover (position hold within ±0.5m)
+- [ ] Duration ≥ 60 seconds
+- [ ] Zero safety violations logged
+- [ ] Battery level monitored correctly
+- [ ] Emergency stop responsive
+
+**Deliverable**: Flight log + video
+
+---
+
+## Task 14.2: Autonomous Waypoint Mission (Hardware)
+
+**Objective**: Execute full autonomous mission on real hardware.
+
+**Mission Parameters**:
+
+- 3 waypoints within 50m radius
+- Open outdoor area (no obstacles)
+- GPS-based navigation
+- RC pilot standby for safety
+
+**Success Criteria**:
+
+- [ ] Drone visits all waypoints (within 2m radius)
+- [ ] No manual interventions required
+- [ ] All safety constraints respected
+- [ ] Smooth trajectory (no erratic movements)
+- [ ] Safe landing after mission complete
+
+**Deliverable**: Flight log, telemetry analysis, video
+
+---
+
+## Task 14.3: Final Demonstration
+
+**Objective**: Complete mission with full explainability.
+
+**Demonstration Scenario**:
+
+- Inspection mission with no-fly zone constraint
+- Person detection triggers loitering alert
+- Autonomous rerouting around detected obstacle
+- Mission completion with audit trail
+
+**Success Criteria**:
+
+- [ ] Mission accepted via natural language input (future work)
+- [ ] Vampire verification of mission plan (offline)
+- [ ] Execution with RL + Prolog constraints
+- [ ] Real-time explanations logged ("blocked forward motion: proximity constraint")
+- [ ] Complete audit trail: all decisions traceable to ontology
+
+**Deliverable**: Demonstration video + decision log analysis
+
+---
+
+# Success Metrics Summary
+
+## Phase-Level Metrics
+
+Each phase must meet **all** success criteria before proceeding to next phase.
+
+| Phase | Key Metric | Target |
+|-------|-----------|--------|
+| 1-3 | Ontology toolchain functional | 100% tests pass |
+| 4-6 | Safety monitoring latency | < 300ms end-to-end |
+| 7-9 | Perception accuracy | mAP > 45%, distance error < 10% |
+| 10-11 | RL policy success rate | > 60% |
+| 12 | Hierarchical mission success | > 40% |
+| 13 | Sim-to-real transfer | < 15% performance drop |
+| 14 | Hardware validation | 100% safety compliance |
+
+## Overall System Requirements
+
+At project completion, system must demonstrate:
+
+- [ ] **Safety**: Zero constraint violations in 100 test runs
+- [ ] **Performance**: >50% mission success rate
+- [ ] **Explainability**: All decisions traceable to ontology rules
+- [ ] **Real-time**: Decision latency <300ms
+- [ ] **Generalization**: Works in unseen environments
+
+---
+
+# Development Notes
+
+**Iteration Expected**: Many tasks will require multiple attempts. Failure is part of the process - document what doesn't work.
+
+**Testing Philosophy**: Every component must have automated tests before integration.
+
+**Version Control**: Commit after each task completion with clear descriptions.
+
+**Documentation**: Update inline comments and architecture docs as system evolves.
+
+---
+
+**Document Version**: 2.0
+**Last Updated**: 2025-12-25
+**Status**: Restructured for progressive development with measurable success criteria

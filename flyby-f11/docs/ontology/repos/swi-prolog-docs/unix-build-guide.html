@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>SWI-Prolog -- Installation on Linux, *BSD (Unix)</title>
+
+<link rel="stylesheet" type="text/css" href="/css/footer.css">
+<link rel="stylesheet" type="text/css" href="/css/plweb.css">
+<link rel="stylesheet" type="text/css" href="/css/post.css">
+<link rel="stylesheet" type="text/css" href="/css/swipl.css">
+<link rel="stylesheet" type="text/css" href="/css/tags.css">
+<script type="text/javascript" src="/js/jquery-3.6.0.min.js">
+
+</script>
+<link rel="stylesheet" type="text/css" href="/js/jquery/ui/jquery-ui.min.css">
+<link rel="stylesheet" type="text/css" href="/pldoc/res/pldoc.css">
+<link rel="stylesheet" type="text/css" href="/css/annotation.css">
+<script type="text/javascript" src="/js/jquery/menu.js">
+
+</script>
+<script type="text/javascript" src="/js/jquery/ui/jquery-ui.min.js">
+
+</script>
+<script type="text/javascript" src="/js/tagit/js/tag-it.min.js">
+
+</script>
+<link rel="stylesheet" type="text/css" href="/js/tagit/css/jquery.tagit.css">
+<link rel="stylesheet" type="text/css" href="/js/tagit/css/tagit.ui-zendesk.css">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<link rel="shortcut icon" href="/icons/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+</head>
+<body>
+<div class="outer-container">
+<div id="upper-header">
+
+<table id="upper-header-contents">
+<tr><td id="dyknow-container">Did you know ... 
+<script type="text/javascript">
+
+		   $(function() {
+		     $.ajax({ url: "/dyk",
+			      success: function(data) {
+					   console.log(data);
+			        $("#"+"dyknow-container").html(data);
+			      }
+		            });
+		   });
+		  
+</script>
+</td><td id="search-container"><span class="lbl">Search Documentation:</span>
+
+<form action="/search" id="search-form">
+<input name="for" id="for" value="">
+<input id="submit-for" type="submit" value="Search">
+<script type="text/javascript">
+
+    $(function() {
+	function htmlEncode(text) {
+	  if ( !text ) return "";
+	  return document.createElement('a')
+			 .appendChild(document.createTextNode(text))
+			 .parentNode
+			 .innerHTML;
+	}
+	$("#"+"for").autocomplete({
+	minLength: 1,
+	delay: 0.3,
+	source: "/autocomplete/ac_predicate",
+	focus: function(event,ui) {
+	  $("#"+"for").val(ui.item.label);
+	  return false;
+	},
+	select: function(event,ui) {
+	  $("#"+"for").val(ui.item.label);
+	  window.location.href = ui.item.href;
+	  return false;
+	}
+	})
+	.data("ui-autocomplete")._renderItem = function(ul,item) {
+	var label = String(htmlEncode(item.label)).replace(
+	    htmlEncode(this.term),
+	    "<span class=\"acmatch\">"+this.term+"</span>");
+	var tag = item.tag ? " <i>["+item.tag+"]</i>" : "";
+	return $("<li>")
+	  .append("<a class=\""+item.class+"\">"+label+tag+"</a>")
+	  .appendTo(ul)
+	};
+	});
+
+</script>
+</form>
+
+</td></tr>
+</table>
+
+</div>
+
+<table id="header-line-area">
+<tr><td id="logo"><a href="http://www.swi-prolog.org"><img class="owl" src="/icons/christmas.png" alt="Merry Christmas." title="Merry Christmas."></a></td><td class="primary-header">SWI-Prolog -- Installation on Linux, *BSD (Unix)</td></tr>
+</table>
+
+
+<div id="menubar">
+<div class="menubar fixed-width">
+<ul class="menubar-container">
+<li><a href="/">HOME</a></li>
+<li>DOWNLOAD
+<ul>
+<li><a href="/Download.html">SWI-Prolog</a></li>
+<li><a href="/build/">Sources/building</a></li>
+<li><a href="/Docker.html">Docker images</a></li>
+<li><a href="/pack/list">Add-ons</a></li>
+<li><a href="https://github.com/SWI-Prolog">Browse GIT<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+</ul>
+</li>
+<li>DOCUMENTATION
+<ul>
+<li><a href="/pldoc/refman/">Manual</a></li>
+<li><a href="/pldoc/package/">Packages</a></li>
+<li><a href="/FAQ/">FAQ</a></li>
+<li><a href="/pldoc/man?section=cmdline">Command line</a></li>
+<li><a href="/pldoc/package/pldoc.html">PlDoc</a></li>
+<li>Bluffers<span class="arrow">&#x25B6;</span>
+<ul>
+<li><a href="/pldoc/man?section=syntax">Prolog syntax</a></li>
+<li><a href="/pldoc/man?section=emacsbluff">PceEmacs</a></li>
+<li><a href="/pldoc/man?section=htmlwrite">HTML generation</a></li>
+</ul>
+</li>
+<li><a href="/license.html">License</a></li>
+<li><a href="/Publications.html">Publications</a></li>
+<li><a href="/pldoc/man?section=extensions">Rev 7 Extensions</a></li>
+</ul>
+</li>
+<li>TUTORIALS
+<ul>
+<li>Beginner<span class="arrow">&#x25B6;</span>
+<ul>
+<li><a href="/pldoc/man?section=quickstart">Getting started</a></li>
+<li><a href="http://lpn.swi-prolog.org/">Learn Prolog Now!<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="http://book.simply-logical.space/">Simply Logical<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="/pldoc/man?section=debugoverview">Debugger</a></li>
+<li><a href="/IDE.html">Development tools</a></li>
+</ul>
+</li>
+<li>Advanced<span class="arrow">&#x25B6;</span>
+<ul>
+<li><a href="http://chiselapp.com/user/ttmrichter/repository/gng/doc/trunk/output/tutorials/swiplmodtut.html">Modules<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="https://www.github.com/Anniepoo/swipldcgtut/blob/master/dcgcourse.adoc">Grammars (DCGs)<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="https://www.github.com/Anniepoo/swiplclpfd/blob/master/clpfd.adoc">clp(fd)<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="https://www.github.com/Anniepoo/swiplmessage/blob/master/message.adoc">Printing messages<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="http://chiselapp.com/user/ttmrichter/repository/swipldoctut/doc/tip/doc/tutorial.html">PlDoc<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+</ul>
+</li>
+<li>Web applications<span class="arrow">&#x25B6;</span>
+<ul>
+<li><a href="https://www.github.com/Anniepoo/swiplwebtut/blob/master/web.adoc">Web applications<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="https://github.com/triska/letswicrypt">Let's Encrypt!<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="/pengines/">Pengines</a></li>
+</ul>
+</li>
+<li>Semantic web<span class="arrow">&#x25B6;</span>
+<ul>
+<li><a href="https://cliopatria.swi-prolog.org/tutorial/">ClioPatria<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="/howto/UseRdfMeta.html">RDF namespaces</a></li>
+</ul>
+</li>
+<li>Graphics<span class="arrow">&#x25B6;</span>
+<ul>
+<li><a href="/download/xpce/doc/coursenotes/coursenotes.pdf">XPCE</a></li>
+<li><a href="/Graphics.html">GUI options</a></li>
+</ul>
+</li>
+<li>Machine learning<span class="arrow">&#x25B6;</span>
+<ul>
+<li><a href="http://cplint.ml.unife.it/">Probabilistic Logic Programming<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+</ul>
+</li>
+<li>External collections<span class="arrow">&#x25B6;</span>
+<ul>
+<li><a href="https://www.metalevel.at/prolog">Meta level tutorials<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+</ul>
+</li>
+<li>For packagers<span class="arrow">&#x25B6;</span>
+<ul>
+<li><a href="/build/guidelines.html">Linux packages</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a href="/community.html">COMMUNITY</a>
+<ul>
+<li><a href="https://swi-prolog.discourse.group">Forum &amp; mailing list<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="/blog">Blog</a></li>
+<li><a href="/news/archive">News</a></li>
+<li><a href="/bug.html">Report a bug</a></li>
+<li><a href="/howto/SubmitPatch.html">Submit a patch</a></li>
+<li><a href="/howto/Pack.html">Submit an add-on</a></li>
+<li><a href="https://github.com/SWI-Prolog/roadmap">Roadmap (on GitHub)<img class="ext-link" src="/icons/ext-link.png" alt="External"></a></li>
+<li><a href="/Links.html">External links</a></li>
+<li><a href="/contributing.html">Contributing</a></li>
+<li><a href="/Code-of-Conduct.html">Code of Conduct</a></li>
+<li><a href="/Contributors.html">Contributors</a></li>
+<li><a href="/loot.html">SWI-Prolog items</a></li>
+</ul>
+</li>
+<li><a href="/commercial/index.html">COMMERCIAL</a></li>
+<li>WIKI
+<ul>
+<li><a href="/openid/login?openid.return_to=/build/unix.html">Login</a></li>
+<li><a href="/wiki_edit?location=/build/unix.html">Edit this page</a></li>
+<li><a href="/wiki/changes">View changes</a></li>
+<li><a href="/wiki/sandbox">Sandbox</a></li>
+<li><a href="/wiki/">Wiki help</a></li>
+<li><a href="/list-tags">All tags</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="breadcrumb"></div>
+<div class="inner-contents wiki">
+<div id="contents" class="contents wiki">
+
+<h2 class="wiki">Installing from binaries</h2>
+
+<p>
+The official packages are often out of date. PPAs and flatpak are
+created for every release.</p>
+<ul>
+<li><a href="PPA.html">PPAs</a> are available for Ubuntu.</li>
+<li><a href="flatpak.html">Flatpak</a> are available for most Linux distributions</li>
+</ul>
+
+<h2 class="wiki">Installing from source</h2>
+
+<p>
+Installing from source is often the best option for installing on Linux
+and *BSD based systems. Building is not complex.</p>
+
+<h3 class="wiki">Downloading SWI-Prolog</h3>
+
+<p>
+Download the SWI-Prolog source</p>
+<ul>
+<li>As a <i>tar ball</i> from <a href="/Download.html">the download page</a></li>
+<li>Using GIT from <a href="https://github.com/SWI-Prolog/">GIThub</a></li>
+</ul>
+
+<p>
+We recommend using GIT as it makes updates much faster and you can
+upgrade as well as downgrade easily at any time to any version.</p>
+
+<h3 class="wiki">Preparing the source (when downloading using GIT)</h3>
+
+<p>
+The <i>tar ball</i> is self contained. The GIT repository contains sub
+modules. The git repository is downloaded (cloned) using the commands
+below:</p>
+
+<pre class="code" ext="">
+git clone --recurse-submodules https://github.com/SWI-Prolog/swipl-devel.git
+cd swipl-devel</pre>
+
+<p>
+Similarly, the sequence to update the source using git and rebuild is</p>
+
+<pre class="code" ext="">
+cd swipl-devel
+git pull
+git submodule update --init --recursive</pre>
+
+<h3 class="wiki">Getting the prerequisites</h3>
+
+<p>
+Building SWI-Prolog from source requires tools as well as libraries. We maintain
+pages that describes the required dependencies by platform. The last entry of the
+list below describes the dependencies in platform independent way.</p>
+<ul>
+<li><a href="Debian.html">Debian based linux (Debian, Ubuntu, Mint, Raspberry Pi, ...)</a></li>
+<li><a href="Redhat.html">Redhat based linux (Fedora, Redhat, CentOS, ...)</a></li>
+<li><a href="SuSE.html">SuSE</a></li>
+<li><a href="Mageia.html">Mageia</a></li>
+<li><a href="prerequisites.html">Other systems (background info)</a></li>
+</ul>
+
+<h3 class="wiki">Building using cmake</h3>
+
+<p>
+Using cmake the system is typically build in a subdirectory of the
+downloaded sources. The build system does not add or modify any file
+in the source tree and (thus) multiple subdirectories can be created
+holding different configurations. A built system can be removed by
+removing the build directory. The example below installs the system in
+your home directory and used <a href="https://ninja-build.org/">ninja</a> to
+build the system. We recommend building using GCC for best
+performance.</p>
+
+<pre class="code" ext="">
+cd swipl-devel
+mkdir build
+cd build
+cmake -DCMAKE_INSTALL_PREFIX=$HOME -DCMAKE_BUILD_TYPE=PGO -G Ninja ..
+ninja
+ctest -j $(nproc) --output-on-failure
+ninja install</pre>
+
+<p>
+SWI-Prolog can be used without installing by running <code>src/swipl</code>
+from below the <code>build</code> directory. You may create a symbolic link from
+your personal <i>bin</i> directory to <code>src/swipl</code> in the build directory.</p>
+
+<p>
+A full description for installing a particular configuration in a
+particular location, dealing with development workflows, etc. can be
+found in the file
+<a href="https://github.com/SWI-Prolog/swipl-devel/blob/master/CMAKE.md">CMAKE.md</a></p>
+
+<h2 class="wiki">Post installation</h2>
+
+<h3 class="wiki">Desktop integration files</h3>
+
+<p>
+When using a freedesktop.org compatible system (most Linux
+distributions), desktop integration can be installed using the command
+below. This registers <code>swipl</code> and <code>swipl-win</code> as applications and
+creates the Prolog MIME type.</p>
+
+<p>
+swipl sys desktop</p>
+
+<h3 class="wiki">Post installation for JPL</h3>
+
+<p>
+If you want to call Java from Prolog using JPL, you need to add the
+directory holding the JVM shared objects to the dynamic linker search
+path. Using default installation on Ubuntu, this is achieved by adding
+the following to your <code>~/.profile</code>. Check your Java configuration to
+find the exact path.</p>
+
+<pre class="code" ext="">
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/jvm/java-1.8.0-openjdk-amd64/jre/lib/amd64/server</pre>
+
+</div>
+</div>
+<div id="dialog" style="display:none;"></div>
+<div class="footer newstyle">
+<div class="footer">
+<div id="community-content">
+<div id="tags-component">
+<div id="tags-notes">Tags are associated to your profile if you are logged in<span class="separator">|</span><a href="/tag-abuse?obj=2a979e1766567be0560329cf399019b992bd25ae">Report abuse</a></div>
+<div id="tags-label">Tags:</div>
+<div id="tags-bar">
+<ul id="tags">
+<li>cmake</li>
+<li>ninja</li>
+</ul>
+</div>
+<div id="tags-warnings"></div>
+</div>
+
+<script type="text/javascript">
+
+		    function tagInfo(text) {
+		      $("#tags-warnings").text(text);
+		      $("#tags-warnings").removeClass("warning");
+		      $("#tags-warnings").addClass("informational");
+		    }
+		    function tagWarning(text) {
+		      $("#tags-warnings").text(text);
+		      $("#tags-warnings").addClass("warning");
+		      $("#tags-warnings").removeClass("informational");
+		    }
+
+		    $(document).ready(function() {
+		      $("#tags").tagit({
+			  autocomplete: { delay: 0.3,
+					  minLength: 1,
+					  source: "/complete-tag"
+					},
+			  onTagClicked: function(event, ui) {
+			    window.location.href = "/show-tag"+"?tag="+
+			      encodeURIComponent(ui.tagLabel);
+			  },
+			  beforeTagAdded: function(event, ui) {
+			    if ( !ui.duringInitialization ) {
+			      var result = false;
+			      tagInfo("Submitting ...");
+			      $.ajax({ dataType: "json",
+				       url: "/add-tag",
+				       data: { tag: ui.tagLabel,
+					       obj: "2a979e1766567be0560329cf399019b992bd25ae"
+					     },
+				       async: false,
+				       success: function(data) {
+					if ( data.status == true ) {
+					  tagInfo("Added: "+ui.tagLabel);
+					  result = true;
+					} else {
+					  tagWarning(data.message);
+					}
+				      }
+				     });
+			      return result;
+			    }
+			  },
+			  beforeTagRemoved: function(event, ui) {
+			    var result = false;
+			    if ( !ui.tagLabel ) {
+			      return false;
+			    }
+			    tagInfo("Submitting ...");
+			    $.ajax({ dataType: "json",
+				     url: "/remove-tag",
+				     data: { tag: ui.tagLabel,
+					     obj: "2a979e1766567be0560329cf399019b992bd25ae"
+					   },
+				     async: false,
+				     success: function(data) {
+					if ( data.status == true ) {
+					  tagInfo("Removed: "+ui.tagLabel);
+					  result = true;
+					} else {
+					  tagWarning(data.message);
+					}
+				      }
+				   });
+			    return result;
+			  },
+			  placeholderText: "Tag Wiki page \"SWI-Prolog -- Installation on Linux, *BSD (Unix)\""
+			});
+		      });
+		  
+</script>
+
+<div class="posts annotation-component"></div>
+<div class="post-login"><b><a class="signin" href="/openid/login?openid.return_to=/build/unix.html">login</a></b> to add a new annotation post.</div>
+</div>
+<div id="footer">
+<div class="current-user"><a class="signin" href="/openid/login?openid.return_to=/build/unix.html">login</a></div>
+<a id="powered" href="http://www.swi-prolog.org">Powered by SWI-Prolog 10.1.0</a></div>
+</div>
+<script type="text/javascript">
+
+		   $().ready(function()
+	           { var $navtree = $(".navwindow");
+		     var $navcontent = $(".navcontent");
+		     if ( $navtree.length > 0 && $navcontent.length > 0 )
+		     { var $window = $(window).on("resize", function()
+		       { var ch = $navcontent.height();
+			 var nh = $navtree.height();
+			 if ( nh > 400 && nh > ch + 200 )
+			 { if ( ch < 300 ) ch = 300;
+			   $navtree.height(ch);
+			   $navtree.css('overflow-y', 'scroll');
+
+			   var current = $navtree.find("li.nav.current");
+			   if ( current.position().top > ch-40 )
+			   { $navtree.scrollTop(current.position().top - (ch-40));
+			   }
+			 }
+		       }).trigger("resize")
+		     }
+		   });
+		  
+</script>
+</div>
+<div id="tail-end">&nbsp;</div>
+</div>
+</body>
+
+</html>

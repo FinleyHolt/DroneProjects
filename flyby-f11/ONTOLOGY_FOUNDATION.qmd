@@ -1,0 +1,467 @@
+---
+title: "Ontology Foundation for RL-Constrained Drone Autonomy"
+author: "Finley Holt"
+date: today
+format:
+  pdf:
+    documentclass: article
+    geometry:
+      - margin=1in
+    fontsize: 11pt
+    number-sections: true
+    toc: true
+    include-in-header:
+      text: |
+        \usepackage{fancyhdr}
+        \pagestyle{fancy}
+        \fancyhf{}
+        \fancyhead[L]{\textit{Ontology Foundation for RL-Constrained Drone Autonomy}}
+        \fancyhead[R]{\thepage}
+        \renewcommand{\headrulewidth}{0.4pt}
+---
+
+# Ontology Foundation for RL-Constrained Drone Autonomy
+
+**Purpose**: Define canonical problems and domain vocabulary for Flyby F-11 autonomous missions using SUMO ontology framework.
+
+**Advisor**: Adam Pease (SUMO creator)
+
+---
+
+## Part 1: Canonical Problems
+
+### Problem Definition Template
+
+For each canonical problem, specify:
+1. **Mission objective** (what success looks like)
+2. **Initial conditions** (starting state, environment assumptions)
+3. **Constraints** (safety bounds, operational limits, no-fly zones)
+4. **Termination conditions** (mission complete, failure cases, timeout)
+5. **Evaluation metrics** (how to measure performance)
+
+---
+
+### Canonical Problem 1: [NAME]
+
+**Mission Objective**:
+- [ ] TODO: Define what the drone must accomplish
+
+**Initial Conditions**:
+- [ ] TODO: Starting position (ground, airborne)
+- [ ] TODO: Environment (indoor, outdoor, obstacles present/absent)
+- [ ] TODO: Sensor state (GPS available, visual odometry only, etc.)
+
+**Constraints**:
+- [ ] TODO: Safety constraints (min/max altitude, geofence boundaries)
+- [ ] TODO: Operational constraints (battery reserve, time limits)
+- [ ] TODO: Environmental constraints (weather, lighting, obstacles)
+
+**Termination Conditions**:
+- [ ] TODO: Success criteria (reached goal, task completed)
+- [ ] TODO: Failure criteria (collision, lost localization, timeout)
+- [ ] TODO: Abort criteria (low battery, lost communication)
+
+**Evaluation Metrics**:
+- [ ] TODO: Task completion rate
+- [ ] TODO: Time to completion
+- [ ] TODO: Energy efficiency
+- [ ] TODO: Safety violations (constraint breaches)
+- [ ] TODO: Other domain-specific metrics
+
+---
+
+### Canonical Problem 2: [NAME]
+
+**Mission Objective**:
+- [ ] TODO:
+
+**Initial Conditions**:
+- [ ] TODO:
+
+**Constraints**:
+- [ ] TODO:
+
+**Termination Conditions**:
+- [ ] TODO:
+
+**Evaluation Metrics**:
+- [ ] TODO:
+
+---
+
+### Canonical Problem 3: [NAME]
+
+**Mission Objective**:
+- [ ] TODO:
+
+**Initial Conditions**:
+- [ ] TODO:
+
+**Constraints**:
+- [ ] TODO:
+
+**Termination Conditions**:
+- [ ] TODO:
+
+**Evaluation Metrics**:
+- [ ] TODO:
+
+---
+
+### Additional Problems
+
+- [ ] TODO: Add more canonical problems as needed (recommend 3-7 total)
+
+---
+
+## Part 2: Domain Vocabulary
+
+### Vocabulary Template
+
+For each concept, specify:
+1. **SUMO parent class** (how it relates to existing SUMO hierarchy)
+2. **Definition** (formal description of the concept)
+3. **Attributes/Properties** (relevant features or parameters)
+4. **Relations** (how it connects to other concepts)
+5. **Instances/Examples** (concrete examples in our domain)
+
+---
+
+### Concept Category: Physical Objects
+
+#### Concept: UAV (Unmanned Aerial Vehicle)
+
+**SUMO Parent Class**:
+- [ ] TODO: Identify parent (likely `Device` → `TransportationDevice` or similar)
+
+**Definition**:
+- [ ] TODO: Formal definition of what constitutes a UAV in our domain
+
+**Attributes**:
+- [ ] TODO: Mass, dimensions, payload capacity, battery capacity, flight time
+- [ ] TODO: Sensor suite (cameras, depth sensors, IMU, GPS, etc.)
+- [ ] TODO: Actuators (motors, propellers, control surfaces)
+
+**Relations**:
+- [ ] TODO: `carries` (payload, sensors)
+- [ ] TODO: `locatedAt` (spatial position)
+- [ ] TODO: `hasState` (flight phase, battery level, etc.)
+
+**Instances**:
+- [ ] TODO: FlybyF11 (our specific platform)
+
+---
+
+#### Concept: Obstacle
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+#### Concept: Target/Waypoint
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+### Concept Category: Spatial Relations
+
+#### Concept: Above/Below
+
+**SUMO Parent Class**:
+- [ ] TODO: Likely `PositionalAttribute` or `SpatialRelation`
+
+**Definition**:
+- [ ] TODO: Formal definition with thresholds (e.g., "Above(X, Y) iff altitude(X) > altitude(Y) + threshold")
+
+**Attributes**:
+- [ ] TODO: Vertical separation distance
+
+**Relations**:
+- [ ] TODO: Binary relation between physical objects
+
+**Instances**:
+- [ ] TODO: UAV above ground, UAV above obstacle
+
+---
+
+#### Concept: Near/Far
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+### Concept Category: Processes (Actions/Behaviors)
+
+#### Concept: Takeoff
+
+**SUMO Parent Class**:
+- [ ] TODO: Likely `Process` or `Motion`
+
+**Definition**:
+- [ ] TODO: Transition from ground state to airborne state
+
+**Attributes**:
+- [ ] TODO: Target altitude, ascent rate
+
+**Relations**:
+- [ ] TODO: `precondition` (battery sufficient, motors armed)
+- [ ] TODO: `postcondition` (altitude > threshold, airborne state)
+- [ ] TODO: `during` (vertical ascent, stabilization)
+
+**Instances**:
+- [ ] TODO: Standard takeoff, emergency takeoff
+
+---
+
+#### Concept: Navigation/Waypoint Transit
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+#### Concept: Loiter/Hover
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+#### Concept: Landing
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+### Concept Category: States
+
+#### Concept: FlightPhase
+
+**SUMO Parent Class**:
+- [ ] TODO: Likely `StateOfMind` or custom `StateAttribute`
+
+**Definition**:
+- [ ] TODO: Discrete states representing mission progression
+
+**Attributes**:
+- [ ] TODO: Current phase (e.g., preflight, takeoff, cruise, mission, landing, emergency)
+
+**Relations**:
+- [ ] TODO: `transitions_to` (valid state transitions)
+- [ ] TODO: `requires` (conditions for entering state)
+
+**Instances**:
+- [ ] TODO: Preflight, Armed, Airborne, Mission, RTL (Return to Launch), Emergency
+
+---
+
+#### Concept: BatteryState
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+### Concept Category: Safety Constraints
+
+#### Concept: GeofenceBoundary
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+#### Concept: MinimumAltitude
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+#### Concept: BatteryReserve
+
+**SUMO Parent Class**:
+- [ ] TODO:
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO:
+
+---
+
+### Concept Category: Temporal Relations
+
+#### Concept: Before/After/During
+
+**SUMO Parent Class**:
+- [ ] TODO: `TemporalRelation`
+
+**Definition**:
+- [ ] TODO:
+
+**Attributes**:
+- [ ] TODO:
+
+**Relations**:
+- [ ] TODO:
+
+**Instances**:
+- [ ] TODO: Takeoff before mission, landing after mission complete
+
+---
+
+### Additional Vocabulary Categories
+
+- [ ] TODO: Add sensor concepts (camera, depth sensor, IMU, GPS)
+- [ ] TODO: Add perception concepts (object detection, localization, mapping)
+- [ ] TODO: Add mission-specific concepts (inspection, reconnaissance, monitoring)
+- [ ] TODO: Add environmental concepts (weather, lighting, wind)
+
+---
+
+## Part 3: Integration with RL
+
+### How Ontology Constrains RL (To Be Filled After Part 1 & 2)
+
+**State Abstraction**:
+- [ ] TODO: Which ontology concepts map to RL state representation?
+
+**Action Space**:
+- [ ] TODO: Which ontology processes define valid actions?
+
+**Reward Shaping**:
+- [ ] TODO: Which ontology constraints contribute to reward penalties?
+
+**Hard Constraints**:
+- [ ] TODO: Which ontology rules must never be violated (safety-critical)?
+
+---
+
+## Notes for Discussion with Adam Pease
+
+- [ ] TODO: Questions about SUMO subset selection
+- [ ] TODO: Reasoning engine recommendations (Pellet, HermiT, custom)
+- [ ] TODO: Performance considerations for real-time UAV constraints
+- [ ] TODO: How to formally verify ontology constraint compliance
+- [ ] TODO: Validation methodology for ontology completeness

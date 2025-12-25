@@ -1,0 +1,335 @@
+# ArduPilot Flight Control Documentation Manifest
+# Generated: 2025-12-25
+# Location: /home/finley/Github/DroneProjects/flyby-f11/docs/flight_control/
+
+================================================================================
+OVERVIEW
+================================================================================
+
+This directory contains critical ArduPilot and flight control documentation for
+the flyby-f11 autonomous drone project. Due to permission restrictions during
+automated download, comprehensive reference guides have been created instead.
+
+All documentation is based on the latest ArduPilot Copter, MAVSDK, and MAVLink
+specifications as of December 2025.
+
+================================================================================
+DOCUMENTATION FILES CREATED
+================================================================================
+
+1. DOWNLOAD_INSTRUCTIONS.md
+   - Complete guide for manually downloading ArduPilot documentation
+   - URLs for all critical ArduPilot Copter pages
+   - MAVSDK repository and documentation links
+   - ArduPilot SITL setup and Gazebo integration guides
+   - MAVLink protocol documentation references
+   - ROS 2 integration resources
+   - Includes all wget and git clone commands for easy execution
+
+2. ARDUPILOT_QUICK_REFERENCE.md
+   - Comprehensive ArduPilot quick reference for autonomous flight
+   - ArduPilot vs PX4 comparison table
+   - Critical flight modes (especially GUIDED mode for offboard control)
+   - Complete MAVSDK usage examples with ArduPilot
+   - Critical parameter reference for autonomous flight
+   - Coordinate frame conversions (NED ↔ ENU)
+   - MAVLink message reference for control
+   - SITL setup and usage instructions
+   - Gazebo integration guide
+   - Pre-flight checklists
+   - Common issues and troubleshooting
+
+3. MAVSDK_ROS2_INTEGRATION.md
+   - Complete guide for integrating MAVSDK with ROS 2
+   - Three architecture options (wrapper, custom, direct MAVLink)
+   - drone_mavsdk wrapper detailed documentation
+   - Installation and configuration instructions
+   - Example launch files for flyby-f11
+   - Command-line testing procedures
+   - Example waypoint navigator node implementation
+   - Frame transformation code (ENU ↔ NED)
+   - Custom MAVSDK bridge example
+   - Complete testing workflow
+   - Performance optimization for Jetson Orin NX
+   - Troubleshooting guide
+
+================================================================================
+KEY TOPICS COVERED
+================================================================================
+
+ArduPilot Fundamentals:
+- Flight modes (GUIDED, AUTO, LOITER, RTL, STABILIZE)
+- GUIDED mode for companion computer control (equivalent to PX4 OFFBOARD)
+- Parameter configuration for autonomous flight
+- EKF setup for GPS and visual odometry
+- Arming checks and failsafes
+
+MAVSDK Integration:
+- Connection setup (UDP, serial, TCP)
+- Offboard control patterns (position, velocity, attitude)
+- Arming, takeoff, and landing procedures
+- Telemetry access
+- Integration with ArduPilot GUIDED mode
+
+Simulation:
+- ArduPilot SITL installation and setup
+- sim_vehicle.py usage
+- Gazebo integration with ardupilot_gazebo plugin
+- MAVProxy ground control station
+
+ROS 2 Integration:
+- drone_mavsdk wrapper architecture
+- Custom MAVSDK bridge implementation
+- Topic/service/action interfaces
+- Frame transformations
+- Autonomy stack integration examples
+
+MAVLink Protocol:
+- SET_POSITION_TARGET_LOCAL_NED for position/velocity control
+- COMMAND_LONG for arm/disarm/mode changes
+- VISION_POSITION_ESTIMATE for visual odometry
+- Message structure and usage
+
+================================================================================
+RECOMMENDED MANUAL DOWNLOADS
+================================================================================
+
+To supplement these guides, manually download the following resources:
+
+1. ArduPilot Copter Documentation
+   Website: https://ardupilot.org/copter/
+   Priority pages:
+   - Flight modes: https://ardupilot.org/copter/docs/flight-modes.html
+   - GUIDED mode: https://ardupilot.org/copter/docs/ac2_guidedmode.html
+   - Parameters: https://ardupilot.org/copter/docs/parameters.html
+
+2. MAVSDK Repository and Documentation
+   Repository: https://github.com/mavlink/MAVSDK
+   Documentation: https://mavsdk.mavlink.io/
+   Clone with: git clone --depth 1 https://github.com/mavlink/MAVSDK.git
+
+3. ArduPilot SITL Documentation
+   SITL overview: https://ardupilot.org/dev/docs/sitl-simulator-software-in-the-loop.html
+   Gazebo integration: https://ardupilot.org/dev/docs/sitl-with-gazebo.html
+
+4. drone_mavsdk ROS 2 Wrapper
+   Repository: https://github.com/slaghuis/drone_mavsdk
+   Clone with: git clone --depth 1 https://github.com/slaghuis/drone_mavsdk.git
+
+5. ardupilot_gazebo Plugin
+   Repository: https://github.com/khancyr/ardupilot_gazebo
+   Clone with: git clone --depth 1 https://github.com/khancyr/ardupilot_gazebo.git
+
+See DOWNLOAD_INSTRUCTIONS.md for complete download commands.
+
+================================================================================
+CRITICAL DISTINCTIONS: ARDUPILOT vs PX4
+================================================================================
+
+The flyby-f11 project uses ArduPilot, NOT PX4. Key differences:
+
+1. Offboard Mode:
+   - ArduPilot: GUIDED mode
+   - PX4: OFFBOARD mode
+   - MAVSDK Offboard plugin works with both
+
+2. SITL Command:
+   - ArduPilot: sim_vehicle.py -v ArduCopter
+   - PX4: make px4_sitl gazebo
+
+3. Configuration:
+   - ArduPilot: Parameters via MAVLink/files
+   - PX4: Parameters + mixers + startup scripts
+
+4. GCS Tools:
+   - ArduPilot: MAVProxy (default), Mission Planner, QGC
+   - PX4: QGroundControl (default)
+
+5. Coordinate Frame:
+   - Both use NED (North-East-Down) for MAVLink
+   - ROS 2 typically uses ENU (East-North-Up)
+   - Requires frame transformation
+
+================================================================================
+USAGE INSTRUCTIONS
+================================================================================
+
+1. Start by reading ARDUPILOT_QUICK_REFERENCE.md for fundamental concepts
+
+2. Set up ArduPilot SITL following the SITL Setup section
+
+3. Test basic flight in simulation with MAVProxy
+
+4. Read MAVSDK_ROS2_INTEGRATION.md for ROS 2 integration
+
+5. Clone drone_mavsdk wrapper or implement custom MAVSDK bridge
+
+6. Test telemetry and basic control in SITL with ROS 2
+
+7. Integrate with flyby_f11_mission autonomy stack
+
+8. Use DOWNLOAD_INSTRUCTIONS.md to fetch additional online documentation
+
+================================================================================
+NEXT STEPS FOR flyby-f11 PROJECT
+================================================================================
+
+1. Set up ArduPilot SITL on development machine
+   - Install ArduPilot and dependencies
+   - Verify basic SITL flight with MAVProxy
+
+2. Install and test MAVSDK
+   - Build MAVSDK library or install from apt
+   - Test connection to SITL
+   - Verify offboard control in GUIDED mode
+
+3. Clone and build drone_mavsdk ROS 2 wrapper
+   - Add to flyby-f11/ros2_ws/src/
+   - Build with colcon
+   - Test telemetry and control topics
+
+4. Create flyby_f11_bringup launch files
+   - MAVSDK bridge configuration
+   - Telemetry, action, and offboard nodes
+   - SITL and hardware launch variants
+
+5. Integrate with autonomy stack
+   - Behavior tree integration
+   - Mission planning interface
+   - Perception pipeline connection
+
+6. Test in simulation
+   - Waypoint navigation
+   - Obstacle avoidance
+   - Visual odometry integration
+
+7. Deploy to real hardware
+   - Jetson Orin NX setup
+   - Serial connection to flight controller
+   - Flight testing
+
+================================================================================
+RESOURCES AND COMMUNITY
+================================================================================
+
+Documentation:
+- ArduPilot Copter: https://ardupilot.org/copter/
+- ArduPilot Developer: https://ardupilot.org/dev/
+- MAVSDK: https://mavsdk.mavlink.io/
+- MAVLink: https://mavlink.io/
+
+Community:
+- ArduPilot Forums: https://discuss.ardupilot.org/
+- ArduPilot Discord: https://ardupilot.org/discord
+- MAVSDK GitHub Issues: https://github.com/mavlink/MAVSDK/issues
+
+Tools:
+- MAVProxy: http://ardupilot.org/mavproxy/
+- QGroundControl: http://qgroundcontrol.com/
+- Mission Planner: https://ardupilot.org/planner/ (Windows only)
+
+Repositories:
+- ArduPilot: https://github.com/ArduPilot/ardupilot
+- MAVSDK: https://github.com/mavlink/MAVSDK
+- drone_mavsdk: https://github.com/slaghuis/drone_mavsdk
+- ardupilot_gazebo: https://github.com/khancyr/ardupilot_gazebo
+
+================================================================================
+TECHNICAL NOTES
+================================================================================
+
+Platform: flyby-f11 (Flyby Robotics F-11)
+Compute: NVIDIA Jetson Orin NX 16GB (50 TOPS)
+Autopilot: ArduPilot Copter (version TBD)
+Middleware: ROS 2 Humble
+Flight Control Interface: MAVSDK C++/Python
+Simulation: ArduPilot SITL + Gazebo
+
+Key Requirements:
+- MAVSDK library (libmavsdk-dev or build from source)
+- ArduPilot SITL for simulation
+- ROS 2 Humble for autonomy stack
+- Gazebo for 3D simulation (optional)
+- MAVProxy or QGroundControl for monitoring
+
+Development Workflow:
+1. Develop and test in SITL simulation
+2. Validate autonomy behaviors with Gazebo
+3. Hardware-in-the-loop testing (if available)
+4. Flight testing on real hardware
+
+Safety Notes:
+- Always have RC override capability
+- Test thoroughly in simulation before hardware
+- Follow pre-flight checklists
+- Monitor battery voltage
+- Maintain visual line of sight during testing
+- Have emergency landing procedures ready
+
+================================================================================
+FILE STRUCTURE
+================================================================================
+
+/home/finley/Github/DroneProjects/flyby-f11/docs/flight_control/
+├── manifest.txt (this file)
+├── DOWNLOAD_INSTRUCTIONS.md (manual download guide)
+├── ARDUPILOT_QUICK_REFERENCE.md (comprehensive ArduPilot guide)
+└── MAVSDK_ROS2_INTEGRATION.md (ROS 2 integration guide)
+
+Recommended additional structure (after manual downloads):
+├── ardupilot_copter/
+│   ├── flight_modes.html
+│   ├── guided_mode.html
+│   ├── parameters.html
+│   └── ...
+├── mavsdk/
+│   ├── offboard_control_guide.html
+│   ├── cpp_api_reference.html
+│   └── ...
+├── ardupilot_sitl/
+│   ├── sitl_overview.html
+│   ├── gazebo_integration.html
+│   └── ...
+├── mavlink/
+│   ├── common_messages.html
+│   └── ...
+├── ros2_integration/
+│   ├── ardupilot_ros2.html
+│   └── ...
+└── repos/
+    ├── MAVSDK/
+    ├── drone_mavsdk/
+    └── ardupilot_gazebo/
+
+================================================================================
+VERSION INFORMATION
+================================================================================
+
+Documentation Date: December 25, 2025
+ArduPilot Version: Latest (Copter 4.x)
+MAVSDK Version: Latest (v2.x)
+ROS 2 Distribution: Humble Hawksbill
+MAVLink Protocol: 2.0
+
+These guides are current as of the documentation date. Always check official
+ArduPilot and MAVSDK documentation for the latest updates and changes.
+
+================================================================================
+CONTACT AND SUPPORT
+================================================================================
+
+Project: flyby-f11 autonomous drone
+Developer: Finley Holt
+Repository: /home/finley/Github/DroneProjects/flyby-f11
+
+For ArduPilot support:
+- Forums: https://discuss.ardupilot.org/
+- Discord: https://ardupilot.org/discord
+
+For MAVSDK support:
+- GitHub Issues: https://github.com/mavlink/MAVSDK/issues
+- Documentation: https://mavsdk.mavlink.io/
+
+================================================================================
+END OF MANIFEST
+================================================================================

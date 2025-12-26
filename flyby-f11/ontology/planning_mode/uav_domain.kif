@@ -1,0 +1,1212 @@
+;;; =========================================================================
+;;; Flyby F-11 UAV Domain Ontology
+;;; =========================================================================
+;;;
+;;; This ontology extends SUMO (Suggested Upper Merged Ontology) with
+;;; comprehensive drone-specific concepts for mission planning, safety
+;;; verification, and autonomous navigation.
+;;;
+;;; Developed for the Flyby F-11 autonomous UAV platform (Jetson Orin NX)
+;;; in support of ontology-constrained reinforcement learning for safe
+;;; autonomous missions.
+;;;
+;;; Author: Finley Holt
+;;; Version: 1.0
+;;; Date: 2024-12-25
+;;; License: MIT
+;;;
+;;; Extends: SUMO Mid-level-ontology.kif, Transportation.kif
+;;; References: IEEE 1872.2-2021 (Autonomous Robotics Ontology)
+;;;             FAA Part 107 Regulations
+;;;
+;;; =========================================================================
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 1: UAV CLASS HIERARCHY
+;;; -------------------------------------------------------------------------
+;;; Defines the foundational UAV classes extending SUMO's Aircraft hierarchy
+
+;; UAV is a subclass of Aircraft (from Mid-level-ontology.kif)
+(subclass UAV Aircraft)
+(documentation UAV EnglishLanguage
+  "An Unmanned Aerial Vehicle is an aircraft capable of autonomous or
+  remotely piloted flight without a human pilot onboard. Also known as a
+  drone or unmanned aircraft system (UAS).")
+
+;; Subclasses of UAV by configuration
+(subclass Multirotor UAV)
+(documentation Multirotor EnglishLanguage
+  "A UAV that generates lift and thrust using multiple rotors. Common
+  configurations include quadcopter (4 rotors), hexacopter (6), and
+  octocopter (8). Capable of vertical takeoff and landing (VTOL) and hover.")
+
+(subclass FixedWingUAV UAV)
+(documentation FixedWingUAV EnglishLanguage
+  "A UAV with fixed wings that generates lift through forward motion.
+  Generally more efficient for long-range flight but requires runway or
+  catapult launch.")
+
+(subclass HybridVTOL UAV)
+(documentation HybridVTOL EnglishLanguage
+  "A UAV combining fixed-wing efficiency with vertical takeoff/landing
+  capability. Typically uses tilt-rotor or separate lift/cruise propulsion.")
+
+;; Specific multirotor configurations
+(subclass Quadcopter Multirotor)
+(documentation Quadcopter EnglishLanguage
+  "A multirotor aircraft with exactly four rotors, typically arranged in
+  X or + configuration.")
+
+(subclass Hexacopter Multirotor)
+(documentation Hexacopter EnglishLanguage
+  "A multirotor aircraft with six rotors, providing redundancy and
+  increased payload capacity.")
+
+(subclass Octocopter Multirotor)
+(documentation Octocopter EnglishLanguage
+  "A multirotor aircraft with eight rotors, providing maximum redundancy
+  and payload capacity.")
+
+;; Flyby F-11 as a specific instance type
+(subclass FlybyF11 Quadcopter)
+(documentation FlybyF11 EnglishLanguage
+  "The Flyby Robotics F-11 Developer Quadcopter, featuring Jetson Orin NX
+  16GB compute module, open flight controller, and 3kg payload capacity.
+  NDAA-compliant platform for autonomous mission development.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 2: UAV COMPONENT CLASSES
+;;; -------------------------------------------------------------------------
+;;; Defines sensors, actuators, and subsystems of UAVs
+
+;; Sensor hierarchy
+(subclass UAVSensor Device)
+(documentation UAVSensor EnglishLanguage
+  "A sensor used on a UAV for perception, navigation, or state estimation.")
+
+(subclass PositioningSensor UAVSensor)
+(documentation PositioningSensor EnglishLanguage
+  "A sensor that provides position information for the UAV.")
+
+(subclass GNSSSensor PositioningSensor)
+(documentation GNSSSensor EnglishLanguage
+  "A Global Navigation Satellite System sensor (GPS, GLONASS, Galileo, BeiDou)
+  providing absolute position estimates.")
+
+(subclass VisualOdometrySensor PositioningSensor)
+(documentation VisualOdometrySensor EnglishLanguage
+  "A sensor using visual features to track relative motion. Examples include
+  Intel RealSense T265.")
+
+(subclass PerceptionSensor UAVSensor)
+(documentation PerceptionSensor EnglishLanguage
+  "A sensor used for environmental perception and obstacle detection.")
+
+(subclass DepthCamera PerceptionSensor)
+(documentation DepthCamera EnglishLanguage
+  "A camera providing depth information for each pixel, enabling 3D scene
+  reconstruction. Examples include Intel RealSense D455, stereo cameras.")
+
+(subclass RGBCamera PerceptionSensor)
+(documentation RGBCamera EnglishLanguage
+  "A standard color camera providing visual imagery.")
+
+(subclass LiDARSensor PerceptionSensor)
+(documentation LiDARSensor EnglishLanguage
+  "Light Detection and Ranging sensor providing precise distance measurements
+  using laser scanning.")
+
+;; Inertial sensors
+(subclass InertialMeasurementUnit UAVSensor)
+(documentation InertialMeasurementUnit EnglishLanguage
+  "IMU sensor containing accelerometers and gyroscopes for measuring linear
+  acceleration and angular velocity.")
+
+;; Compute modules
+(subclass UAVComputer Device)
+(documentation UAVComputer EnglishLanguage
+  "An onboard computer for UAV autonomy, perception, and decision-making.")
+
+(subclass JetsonModule UAVComputer)
+(documentation JetsonModule EnglishLanguage
+  "NVIDIA Jetson embedded AI compute module for edge inference and autonomy.")
+
+;; Propulsion
+(subclass UAVPropulsionSystem Device)
+(documentation UAVPropulsionSystem EnglishLanguage
+  "The propulsion system of a UAV including motors, propellers, and ESCs.")
+
+(subclass BrushlessMotor UAVPropulsionSystem)
+(documentation BrushlessMotor EnglishLanguage
+  "An electric brushless motor used for UAV propulsion.")
+
+(subclass Propeller UAVPropulsionSystem)
+(documentation Propeller EnglishLanguage
+  "A rotating blade assembly that generates thrust or lift.")
+
+;; Power systems
+(subclass UAVBattery Device)
+(documentation UAVBattery EnglishLanguage
+  "A battery providing electrical power for UAV operations.")
+
+(subclass LiPoBattery UAVBattery)
+(documentation LiPoBattery EnglishLanguage
+  "Lithium Polymer battery commonly used in UAVs for high energy density.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 3: UAV PHYSICAL PROPERTIES AND RELATIONS
+;;; -------------------------------------------------------------------------
+;;; Defines measurable attributes and physical relationships for UAVs
+
+;; Mass properties
+(instance hasMaxTakeoffMass BinaryPredicate)
+(domain hasMaxTakeoffMass 1 UAV)
+(domain hasMaxTakeoffMass 2 MassMeasure)
+(documentation hasMaxTakeoffMass EnglishLanguage
+  "(hasMaxTakeoffMass ?UAV ?MASS) means the maximum mass at which ?UAV can
+  safely take off is ?MASS.")
+
+(instance hasEmptyMass BinaryPredicate)
+(domain hasEmptyMass 1 UAV)
+(domain hasEmptyMass 2 MassMeasure)
+(documentation hasEmptyMass EnglishLanguage
+  "(hasEmptyMass ?UAV ?MASS) means ?UAV has an empty (no payload/fuel) mass
+  of ?MASS.")
+
+(instance hasPayloadCapacity BinaryPredicate)
+(domain hasPayloadCapacity 1 UAV)
+(domain hasPayloadCapacity 2 MassMeasure)
+(documentation hasPayloadCapacity EnglishLanguage
+  "(hasPayloadCapacity ?UAV ?MASS) means ?UAV can carry a payload up to ?MASS.")
+
+;; Dimensional properties
+(instance hasWingspan BinaryPredicate)
+(domain hasWingspan 1 FixedWingUAV)
+(domain hasWingspan 2 LengthMeasure)
+(documentation hasWingspan EnglishLanguage
+  "(hasWingspan ?UAV ?LENGTH) specifies the wingspan of a fixed-wing UAV.")
+
+(instance hasRotorDiameter BinaryPredicate)
+(domain hasRotorDiameter 1 Multirotor)
+(domain hasRotorDiameter 2 LengthMeasure)
+(documentation hasRotorDiameter EnglishLanguage
+  "(hasRotorDiameter ?UAV ?DIAMETER) specifies the rotor diameter of a multirotor.")
+
+(instance hasDiagonalMotorDistance BinaryPredicate)
+(domain hasDiagonalMotorDistance 1 Multirotor)
+(domain hasDiagonalMotorDistance 2 LengthMeasure)
+(documentation hasDiagonalMotorDistance EnglishLanguage
+  "(hasDiagonalMotorDistance ?UAV ?DIST) specifies the diagonal motor-to-motor
+  distance (frame size) of a multirotor.")
+
+;; Performance properties
+(instance hasMaxAltitude BinaryPredicate)
+(domain hasMaxAltitude 1 UAV)
+(domain hasMaxAltitude 2 LengthMeasure)
+(documentation hasMaxAltitude EnglishLanguage
+  "(hasMaxAltitude ?UAV ?ALT) means ?UAV can safely operate up to altitude ?ALT
+  above ground level.")
+
+(instance hasMaxSpeed BinaryPredicate)
+(domain hasMaxSpeed 1 UAV)
+(domain hasMaxSpeed 2 SpeedMeasure)
+(documentation hasMaxSpeed EnglishLanguage
+  "(hasMaxSpeed ?UAV ?SPEED) means ?UAV has a maximum horizontal speed of ?SPEED.")
+
+(instance hasMaxClimbRate BinaryPredicate)
+(domain hasMaxClimbRate 1 UAV)
+(domain hasMaxClimbRate 2 SpeedMeasure)
+(documentation hasMaxClimbRate EnglishLanguage
+  "(hasMaxClimbRate ?UAV ?RATE) specifies the maximum vertical climb rate.")
+
+(instance hasMaxDescentRate BinaryPredicate)
+(domain hasMaxDescentRate 1 UAV)
+(domain hasMaxDescentRate 2 SpeedMeasure)
+(documentation hasMaxDescentRate EnglishLanguage
+  "(hasMaxDescentRate ?UAV ?RATE) specifies the maximum vertical descent rate.")
+
+(instance hasMaxFlightTime BinaryPredicate)
+(domain hasMaxFlightTime 1 UAV)
+(domain hasMaxFlightTime 2 TimeDuration)
+(documentation hasMaxFlightTime EnglishLanguage
+  "(hasMaxFlightTime ?UAV ?DURATION) means ?UAV can fly for up to ?DURATION
+  under normal conditions with typical payload.")
+
+(instance hasMaxRange BinaryPredicate)
+(domain hasMaxRange 1 UAV)
+(domain hasMaxRange 2 LengthMeasure)
+(documentation hasMaxRange EnglishLanguage
+  "(hasMaxRange ?UAV ?RANGE) specifies the maximum horizontal range from launch.")
+
+;; Sensor equipment relations
+(instance hasSensor TernaryPredicate)
+(domain hasSensor 1 UAV)
+(domain hasSensor 2 UAVSensor)
+(domain hasSensor 3 PositionalAttribute)
+(documentation hasSensor EnglishLanguage
+  "(hasSensor ?UAV ?SENSOR ?POSITION) means ?UAV is equipped with ?SENSOR
+  mounted at ?POSITION (e.g., front, down, gimbal).")
+
+(instance hasComputer BinaryPredicate)
+(domain hasComputer 1 UAV)
+(domain hasComputer 2 UAVComputer)
+(documentation hasComputer EnglishLanguage
+  "(hasComputer ?UAV ?COMPUTER) means ?UAV uses ?COMPUTER for onboard processing.")
+
+;; Capability predicates
+(instance canHover UnaryPredicate)
+(domain canHover 1 UAV)
+(documentation canHover EnglishLanguage
+  "(canHover ?UAV) means ?UAV is capable of sustained stationary flight (hover).")
+
+;; All multirotors can hover
+(=>
+  (instance ?UAV Multirotor)
+  (canHover ?UAV))
+
+(instance canVerticalTakeoff UnaryPredicate)
+(domain canVerticalTakeoff 1 UAV)
+(documentation canVerticalTakeoff EnglishLanguage
+  "(canVerticalTakeoff ?UAV) means ?UAV can take off vertically without a runway.")
+
+;; Multirotors and hybrid VTOLs can take off vertically
+(=>
+  (or
+    (instance ?UAV Multirotor)
+    (instance ?UAV HybridVTOL))
+  (canVerticalTakeoff ?UAV))
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 4: MISSION CLASSES AND TYPES
+;;; -------------------------------------------------------------------------
+;;; Defines mission types, objectives, and mission-related concepts
+
+;; Mission base class
+(subclass UAVMission Process)
+(documentation UAVMission EnglishLanguage
+  "A planned sequence of actions to be executed by a UAV to achieve specified
+  objectives. Includes all flight operations from takeoff to landing.")
+
+;; Mission types by objective
+(subclass WaypointMission UAVMission)
+(documentation WaypointMission EnglishLanguage
+  "A mission where the UAV navigates through a sequence of specified waypoints.
+  Success is measured by visiting all waypoints in order.")
+
+(subclass SurveyMission UAVMission)
+(documentation SurveyMission EnglishLanguage
+  "A mission to systematically cover an area for mapping, inspection, or
+  data collection. Typically involves parallel flight paths at constant altitude.")
+
+(subclass InspectionMission UAVMission)
+(documentation InspectionMission EnglishLanguage
+  "A mission to closely examine a specific structure or target, often requiring
+  proximity flight and multiple viewpoints.")
+
+(subclass SearchAndRescueMission UAVMission)
+(documentation SearchAndRescueMission EnglishLanguage
+  "A mission to locate persons or objects in distress, typically involving
+  search patterns and object detection.")
+
+(subclass DeliveryMission UAVMission)
+(documentation DeliveryMission EnglishLanguage
+  "A mission to transport a payload from origin to destination.")
+
+(subclass ReconnaissanceMission UAVMission)
+(documentation ReconnaissanceMission EnglishLanguage
+  "A mission to gather information about an area or target without engaging.")
+
+;; Mission state attributes
+(subclass MissionStatus Attribute)
+(documentation MissionStatus EnglishLanguage
+  "An attribute representing the current execution status of a mission.")
+
+(instance MissionPending MissionStatus)
+(documentation MissionPending EnglishLanguage
+  "Mission has been defined but not yet started.")
+
+(instance MissionActive MissionStatus)
+(documentation MissionActive EnglishLanguage
+  "Mission is currently being executed.")
+
+(instance MissionPaused MissionStatus)
+(documentation MissionPaused EnglishLanguage
+  "Mission execution has been temporarily suspended.")
+
+(instance MissionCompleted MissionStatus)
+(documentation MissionCompleted EnglishLanguage
+  "Mission objectives have been successfully achieved.")
+
+(instance MissionAborted MissionStatus)
+(documentation MissionAborted EnglishLanguage
+  "Mission was terminated before completion due to safety or operator command.")
+
+(instance MissionFailed MissionStatus)
+(documentation MissionFailed EnglishLanguage
+  "Mission could not be completed due to failures or constraint violations.")
+
+;; Mission relations
+(instance hasMissionStatus BinaryPredicate)
+(domain hasMissionStatus 1 UAVMission)
+(domain hasMissionStatus 2 MissionStatus)
+(documentation hasMissionStatus EnglishLanguage
+  "(hasMissionStatus ?MISSION ?STATUS) indicates the current status of ?MISSION.")
+
+(instance hasMissionObjective BinaryPredicate)
+(domain hasMissionObjective 1 UAVMission)
+(domain hasMissionObjective 2 Entity)
+(documentation hasMissionObjective EnglishLanguage
+  "(hasMissionObjective ?MISSION ?OBJECTIVE) specifies what ?MISSION aims to achieve.")
+
+(instance hasMissionArea BinaryPredicate)
+(domain hasMissionArea 1 UAVMission)
+(domain hasMissionArea 2 Region)
+(documentation hasMissionArea EnglishLanguage
+  "(hasMissionArea ?MISSION ?AREA) specifies the geographic region for ?MISSION.")
+
+(instance assignedUAV BinaryPredicate)
+(domain assignedUAV 1 UAVMission)
+(domain assignedUAV 2 UAV)
+(documentation assignedUAV EnglishLanguage
+  "(assignedUAV ?MISSION ?UAV) means ?UAV is assigned to execute ?MISSION.")
+
+;; Waypoint class
+(subclass Waypoint Object)
+(documentation Waypoint EnglishLanguage
+  "A defined point in 3D space that a UAV should reach during a mission.")
+
+(instance hasWaypointPosition BinaryPredicate)
+(domain hasWaypointPosition 1 Waypoint)
+(domain hasWaypointPosition 2 Object)  ; Position3D
+(documentation hasWaypointPosition EnglishLanguage
+  "(hasWaypointPosition ?WP ?POS) specifies the 3D position of waypoint ?WP.")
+
+(instance hasWaypointSequence TernaryPredicate)
+(domain hasWaypointSequence 1 WaypointMission)
+(domain hasWaypointSequence 2 Waypoint)
+(domain hasWaypointSequence 3 PositiveInteger)
+(documentation hasWaypointSequence EnglishLanguage
+  "(hasWaypointSequence ?MISSION ?WP ?INDEX) places ?WP at position ?INDEX in
+  the waypoint sequence of ?MISSION.")
+
+(instance hasWaypointAction BinaryPredicate)
+(domain hasWaypointAction 1 Waypoint)
+(domain hasWaypointAction 2 Process)
+(documentation hasWaypointAction EnglishLanguage
+  "(hasWaypointAction ?WP ?ACTION) specifies an action to perform upon reaching ?WP,
+  such as capturing an image or hovering for a duration.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 5: FLIGHT PHASES AND STATES
+;;; -------------------------------------------------------------------------
+;;; Defines the discrete phases of UAV flight operation
+
+(subclass FlightPhase Attribute)
+(documentation FlightPhase EnglishLanguage
+  "A distinct phase in the lifecycle of a UAV flight operation.")
+
+;; Pre-flight phases
+(instance Preflight FlightPhase)
+(documentation Preflight EnglishLanguage
+  "System checks and initialization before arming. Includes sensor calibration,
+  GPS lock acquisition, and pre-arm checks.")
+
+(instance Armed FlightPhase)
+(documentation Armed EnglishLanguage
+  "Motors are enabled and ready for flight. UAV is still on the ground.")
+
+;; Flight phases
+(instance Takeoff FlightPhase)
+(documentation Takeoff EnglishLanguage
+  "Transition from ground to airborne state. Ends when safe hover altitude reached.")
+
+(instance Hover FlightPhase)
+(documentation Hover EnglishLanguage
+  "Stationary flight at a fixed position. Used for station-keeping or pause.")
+
+(instance Transit FlightPhase)
+(documentation Transit EnglishLanguage
+  "Navigation between waypoints or positions. Normal cruise flight.")
+
+(instance Loiter FlightPhase)
+(documentation Loiter EnglishLanguage
+  "Maintaining position over a point while potentially orbiting. Similar to hover
+  but may include slow movement in a pattern.")
+
+(instance MissionExecution FlightPhase)
+(documentation MissionExecution EnglishLanguage
+  "Active execution of mission-specific tasks (survey, inspection, etc.).")
+
+(instance ReturnToLaunch FlightPhase)
+(documentation ReturnToLaunch EnglishLanguage
+  "Automatic return to launch/home position. Triggered by low battery, lost link,
+  or mission completion.")
+
+(instance Landing FlightPhase)
+(documentation Landing EnglishLanguage
+  "Controlled descent to ground. Ends when UAV is stationary on ground.")
+
+(instance EmergencyLanding FlightPhase)
+(documentation EmergencyLanding EnglishLanguage
+  "Immediate descent to nearest safe landing zone due to critical failure.")
+
+(instance Disarmed FlightPhase)
+(documentation Disarmed EnglishLanguage
+  "Post-flight state with motors disabled. UAV is safe to approach.")
+
+;; Flight phase relation
+(instance hasFlightPhase BinaryPredicate)
+(domain hasFlightPhase 1 UAV)
+(domain hasFlightPhase 2 FlightPhase)
+(documentation hasFlightPhase EnglishLanguage
+  "(hasFlightPhase ?UAV ?PHASE) indicates ?UAV is currently in flight phase ?PHASE.")
+
+;; Flight phase transitions
+(instance canTransitionTo BinaryPredicate)
+(domain canTransitionTo 1 FlightPhase)
+(domain canTransitionTo 2 FlightPhase)
+(documentation canTransitionTo EnglishLanguage
+  "(canTransitionTo ?PHASE1 ?PHASE2) means a UAV can legally transition from
+  ?PHASE1 to ?PHASE2.")
+
+;; Valid phase transitions
+(canTransitionTo Preflight Armed)
+(canTransitionTo Armed Takeoff)
+(canTransitionTo Armed Disarmed)
+(canTransitionTo Takeoff Hover)
+(canTransitionTo Hover Transit)
+(canTransitionTo Hover Loiter)
+(canTransitionTo Hover MissionExecution)
+(canTransitionTo Hover Landing)
+(canTransitionTo Transit Hover)
+(canTransitionTo Transit Loiter)
+(canTransitionTo Transit MissionExecution)
+(canTransitionTo Transit ReturnToLaunch)
+(canTransitionTo Loiter Transit)
+(canTransitionTo Loiter Hover)
+(canTransitionTo Loiter MissionExecution)
+(canTransitionTo MissionExecution Hover)
+(canTransitionTo MissionExecution Transit)
+(canTransitionTo MissionExecution ReturnToLaunch)
+(canTransitionTo ReturnToLaunch Hover)
+(canTransitionTo ReturnToLaunch Landing)
+(canTransitionTo Landing Disarmed)
+
+;; Emergency transitions (always allowed)
+(canTransitionTo Takeoff EmergencyLanding)
+(canTransitionTo Hover EmergencyLanding)
+(canTransitionTo Transit EmergencyLanding)
+(canTransitionTo Loiter EmergencyLanding)
+(canTransitionTo MissionExecution EmergencyLanding)
+(canTransitionTo ReturnToLaunch EmergencyLanding)
+(canTransitionTo EmergencyLanding Disarmed)
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 6: SPATIAL RELATIONS AND REGIONS
+;;; -------------------------------------------------------------------------
+;;; Defines spatial concepts for navigation and safety
+
+;; Region types
+(subclass AirspaceRegion Region)
+(documentation AirspaceRegion EnglishLanguage
+  "A defined 3-dimensional region of airspace.")
+
+(subclass Geofence AirspaceRegion)
+(documentation Geofence EnglishLanguage
+  "A virtual boundary defining the permitted operating area for a UAV.")
+
+(subclass NoFlyZone AirspaceRegion)
+(documentation NoFlyZone EnglishLanguage
+  "An airspace region where UAV flight is prohibited.")
+
+(subclass RestrictedAirspace AirspaceRegion)
+(documentation RestrictedAirspace EnglishLanguage
+  "Airspace with access restrictions, may require special authorization.")
+
+(subclass ControlledAirspace AirspaceRegion)
+(documentation ControlledAirspace EnglishLanguage
+  "Airspace under air traffic control jurisdiction (Class A through E).")
+
+(subclass UncontrolledAirspace AirspaceRegion)
+(documentation UncontrolledAirspace EnglishLanguage
+  "Class G airspace without active air traffic control.")
+
+(subclass LandingZone Region)
+(documentation LandingZone EnglishLanguage
+  "A designated safe area for UAV landing operations.")
+
+(subclass LaunchPoint Region)
+(documentation LaunchPoint EnglishLanguage
+  "The designated takeoff location for a UAV mission.")
+
+;; Obstacle class
+(subclass Obstacle Object)
+(documentation Obstacle EnglishLanguage
+  "Any object that a UAV must avoid during flight.")
+
+(subclass StaticObstacle Obstacle)
+(documentation StaticObstacle EnglishLanguage
+  "An obstacle that does not move, such as a building, tree, or terrain feature.")
+
+(subclass DynamicObstacle Obstacle)
+(documentation DynamicObstacle EnglishLanguage
+  "An obstacle that can move, such as a bird, another aircraft, or a person.")
+
+;; Spatial relations
+(instance isWithin BinaryPredicate)
+(domain isWithin 1 Object)
+(domain isWithin 2 Region)
+(documentation isWithin EnglishLanguage
+  "(isWithin ?OBJ ?REGION) means ?OBJ is located inside ?REGION.")
+
+(instance isOutside BinaryPredicate)
+(domain isOutside 1 Object)
+(domain isOutside 2 Region)
+(documentation isOutside EnglishLanguage
+  "(isOutside ?OBJ ?REGION) means ?OBJ is located outside ?REGION.")
+
+;; Logical constraint: isWithin and isOutside are mutually exclusive
+(=>
+  (isWithin ?OBJ ?REGION)
+  (not (isOutside ?OBJ ?REGION)))
+
+(instance distanceTo TernaryPredicate)
+(domain distanceTo 1 Object)
+(domain distanceTo 2 Object)
+(domain distanceTo 3 LengthMeasure)
+(documentation distanceTo EnglishLanguage
+  "(distanceTo ?OBJ1 ?OBJ2 ?DIST) means the Euclidean distance between ?OBJ1
+  and ?OBJ2 is ?DIST.")
+
+(instance altitudeAGL BinaryPredicate)
+(domain altitudeAGL 1 Object)
+(domain altitudeAGL 2 LengthMeasure)
+(documentation altitudeAGL EnglishLanguage
+  "(altitudeAGL ?OBJ ?ALT) means ?OBJ is at altitude ?ALT above ground level.")
+
+(instance altitudeMSL BinaryPredicate)
+(domain altitudeMSL 1 Object)
+(domain altitudeMSL 2 LengthMeasure)
+(documentation altitudeMSL EnglishLanguage
+  "(altitudeMSL ?OBJ ?ALT) means ?OBJ is at altitude ?ALT above mean sea level.")
+
+(instance clearanceDistance TernaryPredicate)
+(domain clearanceDistance 1 UAV)
+(domain clearanceDistance 2 PositionalAttribute)
+(domain clearanceDistance 3 LengthMeasure)
+(documentation clearanceDistance EnglishLanguage
+  "(clearanceDistance ?UAV ?DIRECTION ?DIST) means the clearance to nearest
+  obstacle in ?DIRECTION is ?DIST. Used for obstacle detection.")
+
+(instance hasSafeSeparation BinaryPredicate)
+(domain hasSafeSeparation 1 UAV)
+(domain hasSafeSeparation 2 Object)
+(documentation hasSafeSeparation EnglishLanguage
+  "(hasSafeSeparation ?UAV ?OBJ) means ?UAV has adequate separation distance
+  from ?OBJ for safe operation.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 7: ENVIRONMENTAL CONDITIONS
+;;; -------------------------------------------------------------------------
+;;; Defines environmental factors affecting UAV operations
+
+(subclass EnvironmentalCondition Attribute)
+(documentation EnvironmentalCondition EnglishLanguage
+  "A condition of the environment that can affect UAV operations.")
+
+;; Weather conditions
+(subclass WeatherCondition EnvironmentalCondition)
+(documentation WeatherCondition EnglishLanguage
+  "Atmospheric conditions affecting flight safety and performance.")
+
+(instance WindSpeed BinaryPredicate)
+(domain WindSpeed 1 Region)
+(domain WindSpeed 2 SpeedMeasure)
+(documentation WindSpeed EnglishLanguage
+  "(WindSpeed ?REGION ?SPEED) indicates wind speed in ?REGION is ?SPEED.")
+
+(instance WindDirection BinaryPredicate)
+(domain WindDirection 1 Region)
+(domain WindDirection 2 AngularMeasure)
+(documentation WindDirection EnglishLanguage
+  "(WindDirection ?REGION ?ANGLE) indicates wind direction in ?REGION (0-360 degrees).")
+
+(instance VisibilityDistance BinaryPredicate)
+(domain VisibilityDistance 1 Region)
+(domain VisibilityDistance 2 LengthMeasure)
+(documentation VisibilityDistance EnglishLanguage
+  "(VisibilityDistance ?REGION ?DIST) indicates visibility distance in ?REGION.")
+
+(instance Precipitation BinaryPredicate)
+(domain Precipitation 1 Region)
+(domain Precipitation 2 Attribute)
+(documentation Precipitation EnglishLanguage
+  "(Precipitation ?REGION ?TYPE) indicates precipitation type in ?REGION
+  (rain, snow, hail, none).")
+
+(instance AmbientTemperature BinaryPredicate)
+(domain AmbientTemperature 1 Region)
+(domain AmbientTemperature 2 TemperatureMeasure)
+(documentation AmbientTemperature EnglishLanguage
+  "(AmbientTemperature ?REGION ?TEMP) indicates temperature in ?REGION.")
+
+;; Lighting conditions
+(instance LightingCondition BinaryPredicate)
+(domain LightingCondition 1 Region)
+(domain LightingCondition 2 Attribute)
+(documentation LightingCondition EnglishLanguage
+  "(LightingCondition ?REGION ?COND) indicates lighting conditions
+  (daylight, twilight, night).")
+
+;; GNSS availability
+(instance GNSSAvailability BinaryPredicate)
+(domain GNSSAvailability 1 Region)
+(domain GNSSAvailability 2 Attribute)
+(documentation GNSSAvailability EnglishLanguage
+  "(GNSSAvailability ?REGION ?STATUS) indicates GNSS signal quality in ?REGION
+  (full, degraded, denied).")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 8: REGULATORY CONSTRAINTS
+;;; -------------------------------------------------------------------------
+;;; Defines regulatory rules based on FAA Part 107 and NDAA compliance
+
+(subclass RegulatoryConstraint Attribute)
+(documentation RegulatoryConstraint EnglishLanguage
+  "A constraint imposed by aviation regulations (FAA, ICAO, etc.).")
+
+;; FAA Part 107 constraints
+(instance FAAPart107Compliant UnaryPredicate)
+(domain FAAPart107Compliant 1 UAVMission)
+(documentation FAAPart107Compliant EnglishLanguage
+  "(FAAPart107Compliant ?MISSION) means ?MISSION complies with FAA Part 107 rules.")
+
+;; Part 107 altitude limit (400 feet AGL unless within 400 feet of a structure)
+(instance MaxRegulatoryAltitude BinaryPredicate)
+(domain MaxRegulatoryAltitude 1 Region)
+(domain MaxRegulatoryAltitude 2 LengthMeasure)
+(documentation MaxRegulatoryAltitude EnglishLanguage
+  "(MaxRegulatoryAltitude ?REGION ?ALT) specifies the maximum legal altitude in ?REGION.")
+
+;; Visual line of sight requirement
+(instance RequiresVisualLineOfSight UnaryPredicate)
+(domain RequiresVisualLineOfSight 1 UAVMission)
+(documentation RequiresVisualLineOfSight EnglishLanguage
+  "(RequiresVisualLineOfSight ?MISSION) means ?MISSION must maintain visual
+  line of sight unless waiver obtained.")
+
+;; NDAA compliance
+(instance NDAACompliant UnaryPredicate)
+(domain NDAACompliant 1 UAV)
+(documentation NDAACompliant EnglishLanguage
+  "(NDAACompliant ?UAV) means ?UAV meets NDAA requirements for government use
+  (no components from prohibited manufacturers).")
+
+;; FlybyF11 is NDAA compliant
+(=>
+  (instance ?UAV FlybyF11)
+  (NDAACompliant ?UAV))
+
+;; Airspace authorization
+(instance hasAirspaceAuthorization BinaryPredicate)
+(domain hasAirspaceAuthorization 1 UAVMission)
+(domain hasAirspaceAuthorization 2 AirspaceRegion)
+(documentation hasAirspaceAuthorization EnglishLanguage
+  "(hasAirspaceAuthorization ?MISSION ?AIRSPACE) means ?MISSION has obtained
+  authorization to operate in ?AIRSPACE.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 9: OPERATIONAL CONSTRAINTS
+;;; -------------------------------------------------------------------------
+;;; Defines operational limits and safety margins
+
+(subclass OperationalConstraint Attribute)
+(documentation OperationalConstraint EnglishLanguage
+  "A constraint on UAV operations based on safety requirements and
+  operational limitations.")
+
+;; Battery-related constraints
+(instance MinimumBatteryLevel BinaryPredicate)
+(domain MinimumBatteryLevel 1 UAV)
+(domain MinimumBatteryLevel 2 RealNumber)
+(documentation MinimumBatteryLevel EnglishLanguage
+  "(MinimumBatteryLevel ?UAV ?LEVEL) specifies the minimum battery percentage
+  (0-100) required for continued flight operations.")
+
+(instance CurrentBatteryLevel BinaryPredicate)
+(domain CurrentBatteryLevel 1 UAV)
+(domain CurrentBatteryLevel 2 RealNumber)
+(documentation CurrentBatteryLevel EnglishLanguage
+  "(CurrentBatteryLevel ?UAV ?LEVEL) indicates the current battery percentage.")
+
+(instance BatteryReserveForReturn BinaryPredicate)
+(domain BatteryReserveForReturn 1 UAV)
+(domain BatteryReserveForReturn 2 RealNumber)
+(documentation BatteryReserveForReturn EnglishLanguage
+  "(BatteryReserveForReturn ?UAV ?LEVEL) specifies the battery percentage that
+  must be reserved to safely return to launch point.")
+
+;; Battery safety axiom: must maintain reserve for return
+(=>
+  (and
+    (CurrentBatteryLevel ?UAV ?CURRENT)
+    (BatteryReserveForReturn ?UAV ?RESERVE)
+    (lessThan ?CURRENT ?RESERVE))
+  (mustReturnToLaunch ?UAV))
+
+(instance mustReturnToLaunch UnaryPredicate)
+(domain mustReturnToLaunch 1 UAV)
+(documentation mustReturnToLaunch EnglishLanguage
+  "(mustReturnToLaunch ?UAV) indicates ?UAV must immediately return to launch
+  due to constraint violations (typically low battery).")
+
+;; Altitude constraints
+(instance MinimumOperatingAltitude BinaryPredicate)
+(domain MinimumOperatingAltitude 1 UAVMission)
+(domain MinimumOperatingAltitude 2 LengthMeasure)
+(documentation MinimumOperatingAltitude EnglishLanguage
+  "(MinimumOperatingAltitude ?MISSION ?ALT) specifies minimum safe altitude for
+  obstacle clearance during ?MISSION.")
+
+(instance MaximumOperatingAltitude BinaryPredicate)
+(domain MaximumOperatingAltitude 1 UAVMission)
+(domain MaximumOperatingAltitude 2 LengthMeasure)
+(documentation MaximumOperatingAltitude EnglishLanguage
+  "(MaximumOperatingAltitude ?MISSION ?ALT) specifies maximum altitude for
+  ?MISSION (regulatory or performance limited).")
+
+;; Safety margins
+(instance MinimumObstacleDistance BinaryPredicate)
+(domain MinimumObstacleDistance 1 UAV)
+(domain MinimumObstacleDistance 2 LengthMeasure)
+(documentation MinimumObstacleDistance EnglishLanguage
+  "(MinimumObstacleDistance ?UAV ?DIST) specifies minimum separation distance
+  that ?UAV must maintain from obstacles.")
+
+(instance MinimumPersonDistance BinaryPredicate)
+(domain MinimumPersonDistance 1 UAV)
+(domain MinimumPersonDistance 2 LengthMeasure)
+(documentation MinimumPersonDistance EnglishLanguage
+  "(MinimumPersonDistance ?UAV ?DIST) specifies minimum horizontal distance
+  that ?UAV must maintain from non-participating persons.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 10: SAFETY AXIOMS
+;;; -------------------------------------------------------------------------
+;;; Critical safety rules that must never be violated
+
+;; Collision avoidance axiom
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?OBS Obstacle)
+    (distanceTo ?UAV ?OBS ?DIST)
+    (MinimumObstacleDistance ?UAV ?MIN_DIST)
+    (lessThan ?DIST ?MIN_DIST))
+  (not (safeState ?UAV)))
+
+(instance safeState UnaryPredicate)
+(domain safeState 1 UAV)
+(documentation safeState EnglishLanguage
+  "(safeState ?UAV) indicates ?UAV is in a safe operational state with all
+  constraints satisfied.")
+
+;; Geofence containment axiom
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?MISSION UAVMission)
+    (assignedUAV ?MISSION ?UAV)
+    (hasMissionArea ?MISSION ?GEOFENCE)
+    (instance ?GEOFENCE Geofence)
+    (isOutside ?UAV ?GEOFENCE))
+  (geofenceViolation ?UAV))
+
+(instance geofenceViolation UnaryPredicate)
+(domain geofenceViolation 1 UAV)
+(documentation geofenceViolation EnglishLanguage
+  "(geofenceViolation ?UAV) indicates ?UAV has violated its geofence boundary.")
+
+;; No-fly zone axiom
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?NFZ NoFlyZone)
+    (isWithin ?UAV ?NFZ))
+  (and
+    (not (safeState ?UAV))
+    (noFlyZoneViolation ?UAV)))
+
+(instance noFlyZoneViolation UnaryPredicate)
+(domain noFlyZoneViolation 1 UAV)
+(documentation noFlyZoneViolation EnglishLanguage
+  "(noFlyZoneViolation ?UAV) indicates ?UAV has entered a no-fly zone.")
+
+;; Altitude violation axiom
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?MISSION UAVMission)
+    (assignedUAV ?MISSION ?UAV)
+    (MaximumOperatingAltitude ?MISSION ?MAX_ALT)
+    (altitudeAGL ?UAV ?CURRENT_ALT)
+    (greaterThan ?CURRENT_ALT ?MAX_ALT))
+  (altitudeViolation ?UAV))
+
+(instance altitudeViolation UnaryPredicate)
+(domain altitudeViolation 1 UAV)
+(documentation altitudeViolation EnglishLanguage
+  "(altitudeViolation ?UAV) indicates ?UAV has exceeded maximum operating altitude.")
+
+;; Lost localization safety rule
+(=>
+  (and
+    (instance ?UAV UAV)
+    (not (hasValidLocalization ?UAV)))
+  (mustLand ?UAV))
+
+(instance hasValidLocalization UnaryPredicate)
+(domain hasValidLocalization 1 UAV)
+(documentation hasValidLocalization EnglishLanguage
+  "(hasValidLocalization ?UAV) indicates ?UAV has valid position estimate
+  from GNSS or visual odometry.")
+
+(instance mustLand UnaryPredicate)
+(domain mustLand 1 UAV)
+(documentation mustLand EnglishLanguage
+  "(mustLand ?UAV) indicates ?UAV must immediately land due to critical failure.")
+
+;; Weather safety axiom
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasMaxWindSpeed ?UAV ?MAX_WIND)
+    (hasLocation ?UAV ?LOC)
+    (WindSpeed ?LOC ?CURRENT_WIND)
+    (greaterThan ?CURRENT_WIND ?MAX_WIND))
+  (weatherConstraintViolation ?UAV))
+
+(instance hasMaxWindSpeed BinaryPredicate)
+(domain hasMaxWindSpeed 1 UAV)
+(domain hasMaxWindSpeed 2 SpeedMeasure)
+(documentation hasMaxWindSpeed EnglishLanguage
+  "(hasMaxWindSpeed ?UAV ?SPEED) specifies maximum wind speed in which ?UAV
+  can safely operate.")
+
+(instance weatherConstraintViolation UnaryPredicate)
+(domain weatherConstraintViolation 1 UAV)
+(documentation weatherConstraintViolation EnglishLanguage
+  "(weatherConstraintViolation ?UAV) indicates weather conditions exceed safe
+  operating limits for ?UAV.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 11: ACTION CLASSES
+;;; -------------------------------------------------------------------------
+;;; Defines the actions a UAV can execute
+
+(subclass UAVAction Process)
+(documentation UAVAction EnglishLanguage
+  "An action that a UAV can execute as part of autonomous operation.")
+
+;; Navigation actions
+(subclass NavigateToWaypoint UAVAction)
+(documentation NavigateToWaypoint EnglishLanguage
+  "Navigate to a specified waypoint position.")
+
+(subclass MoveToPosition UAVAction)
+(documentation MoveToPosition EnglishLanguage
+  "Move to a specific 3D position in space.")
+
+(subclass FollowPath UAVAction)
+(documentation FollowPath EnglishLanguage
+  "Follow a defined trajectory or path.")
+
+;; Maneuver actions
+(subclass Ascend UAVAction)
+(documentation Ascend EnglishLanguage
+  "Increase altitude while maintaining horizontal position.")
+
+(subclass Descend UAVAction)
+(documentation Descend EnglishLanguage
+  "Decrease altitude while maintaining horizontal position.")
+
+(subclass TurnToHeading UAVAction)
+(documentation TurnToHeading EnglishLanguage
+  "Rotate to face a specified heading.")
+
+(subclass OrbitPoint UAVAction)
+(documentation OrbitPoint EnglishLanguage
+  "Fly in a circular orbit around a specified point.")
+
+;; Safety actions
+(subclass EmergencyStop UAVAction)
+(documentation EmergencyStop EnglishLanguage
+  "Immediately halt all motion and hover in place.")
+
+(subclass AvoidObstacle UAVAction)
+(documentation AvoidObstacle EnglishLanguage
+  "Execute obstacle avoidance maneuver to maintain safe separation.")
+
+(subclass ReturnToLaunchAction UAVAction)
+(documentation ReturnToLaunchAction EnglishLanguage
+  "Navigate back to launch point for landing.")
+
+(subclass ImmediateLand UAVAction)
+(documentation ImmediateLand EnglishLanguage
+  "Land at current position due to emergency.")
+
+;; Perception actions
+(subclass CaptureImage UAVAction)
+(documentation CaptureImage EnglishLanguage
+  "Capture an image with the camera system.")
+
+(subclass RecordVideo UAVAction)
+(documentation RecordVideo EnglishLanguage
+  "Record video with the camera system.")
+
+(subclass ScanArea UAVAction)
+(documentation ScanArea EnglishLanguage
+  "Systematically observe an area using onboard sensors.")
+
+;; Action preconditions
+(instance actionPrecondition BinaryPredicate)
+(domain actionPrecondition 1 UAVAction)
+(domain actionPrecondition 2 Attribute)
+(documentation actionPrecondition EnglishLanguage
+  "(actionPrecondition ?ACTION ?CONDITION) specifies that ?CONDITION must be
+  true for ?ACTION to be executable.")
+
+;; Navigation requires valid localization
+(actionPrecondition NavigateToWaypoint hasValidLocalization)
+(actionPrecondition MoveToPosition hasValidLocalization)
+(actionPrecondition FollowPath hasValidLocalization)
+
+;; Takeoff precondition: must be armed and on ground
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?TAKEOFF Takeoff)
+    (agent ?TAKEOFF ?UAV))
+  (and
+    (hasFlightPhase ?UAV Armed)
+    (altitudeAGL ?UAV (MeasureFn 0 Meter))))
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 12: SENSOR STATE AND QUALITY
+;;; -------------------------------------------------------------------------
+;;; Defines sensor status and data quality concepts
+
+(subclass SensorState Attribute)
+(documentation SensorState EnglishLanguage
+  "The operational state of a sensor.")
+
+(instance SensorOperational SensorState)
+(documentation SensorOperational EnglishLanguage
+  "Sensor is functioning normally and providing valid data.")
+
+(instance SensorDegraded SensorState)
+(documentation SensorDegraded EnglishLanguage
+  "Sensor is providing data but at reduced quality or reliability.")
+
+(instance SensorFailed SensorState)
+(documentation SensorFailed EnglishLanguage
+  "Sensor has failed and is not providing usable data.")
+
+(instance hasSensorState BinaryPredicate)
+(domain hasSensorState 1 UAVSensor)
+(domain hasSensorState 2 SensorState)
+(documentation hasSensorState EnglishLanguage
+  "(hasSensorState ?SENSOR ?STATE) indicates the current state of ?SENSOR.")
+
+;; Data quality
+(subclass DataQuality Attribute)
+(documentation DataQuality EnglishLanguage
+  "The quality level of sensor data or estimates.")
+
+(instance HighQuality DataQuality)
+(instance MediumQuality DataQuality)
+(instance LowQuality DataQuality)
+(instance NoData DataQuality)
+
+(instance hasPositionQuality BinaryPredicate)
+(domain hasPositionQuality 1 UAV)
+(domain hasPositionQuality 2 DataQuality)
+(documentation hasPositionQuality EnglishLanguage
+  "(hasPositionQuality ?UAV ?QUALITY) indicates the quality of position estimate.")
+
+;; Valid localization requires at least low quality position
+(=>
+  (and
+    (instance ?UAV UAV)
+    (or
+      (hasPositionQuality ?UAV HighQuality)
+      (hasPositionQuality ?UAV MediumQuality)
+      (hasPositionQuality ?UAV LowQuality)))
+  (hasValidLocalization ?UAV))
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 13: FLYBY F-11 SPECIFIC INSTANCE
+;;; -------------------------------------------------------------------------
+;;; Platform-specific definitions for Flyby F-11
+
+;; Flyby F-11 properties (from specification)
+(=>
+  (instance ?UAV FlybyF11)
+  (and
+    (hasPayloadCapacity ?UAV (MeasureFn 3.0 Kilogram))
+    (hasComputer ?UAV JetsonOrinNX16GB)
+    (canHover ?UAV)
+    (canVerticalTakeoff ?UAV)
+    (NDAACompliant ?UAV)))
+
+;; Standard operating parameters for Flyby F-11
+(instance defaultMaxAltitude BinaryPredicate)
+(domain defaultMaxAltitude 1 FlybyF11)
+(domain defaultMaxAltitude 2 LengthMeasure)
+
+;; 120 meters (approximately 400 feet per FAA Part 107)
+(=>
+  (instance ?UAV FlybyF11)
+  (hasMaxAltitude ?UAV (MeasureFn 120 Meter)))
+
+;; Default safety distances
+(=>
+  (instance ?UAV FlybyF11)
+  (and
+    (MinimumObstacleDistance ?UAV (MeasureFn 3.0 Meter))
+    (MinimumPersonDistance ?UAV (MeasureFn 15.0 Meter))))
+
+;; Battery constraints for Flyby F-11
+(=>
+  (instance ?UAV FlybyF11)
+  (and
+    (MinimumBatteryLevel ?UAV 20.0)
+    (BatteryReserveForReturn ?UAV 25.0)))
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 14: MISSION VALIDITY AXIOMS
+;;; -------------------------------------------------------------------------
+;;; Rules for determining if a mission is valid and executable
+
+(instance isValidMission UnaryPredicate)
+(domain isValidMission 1 UAVMission)
+(documentation isValidMission EnglishLanguage
+  "(isValidMission ?MISSION) indicates ?MISSION satisfies all preconditions
+  and constraints for execution.")
+
+;; Mission validity requires: UAV assigned, area defined, within capabilities
+(=>
+  (and
+    (instance ?MISSION UAVMission)
+    (assignedUAV ?MISSION ?UAV)
+    (hasMissionArea ?MISSION ?AREA)
+    (instance ?AREA Geofence)
+    (not (overlapsWithNoFlyZone ?AREA)))
+  (hasMissionAreaValid ?MISSION))
+
+(instance hasMissionAreaValid UnaryPredicate)
+(domain hasMissionAreaValid 1 UAVMission)
+(documentation hasMissionAreaValid EnglishLanguage
+  "(hasMissionAreaValid ?MISSION) indicates mission area does not include
+  no-fly zones or other prohibited areas.")
+
+(instance overlapsWithNoFlyZone BinaryPredicate)
+(domain overlapsWithNoFlyZone 1 Region)
+(domain overlapsWithNoFlyZone 2 NoFlyZone)
+(documentation overlapsWithNoFlyZone EnglishLanguage
+  "(overlapsWithNoFlyZone ?REGION ?NFZ) means ?REGION overlaps with ?NFZ.")
+
+;; Complete mission validity check
+(=>
+  (and
+    (instance ?MISSION UAVMission)
+    (assignedUAV ?MISSION ?UAV)
+    (instance ?UAV UAV)
+    (hasMissionAreaValid ?MISSION)
+    (hasAdequateBattery ?UAV ?MISSION)
+    (hasRequiredSensors ?UAV ?MISSION)
+    (weatherPermits ?MISSION))
+  (isValidMission ?MISSION))
+
+(instance hasAdequateBattery BinaryPredicate)
+(domain hasAdequateBattery 1 UAV)
+(domain hasAdequateBattery 2 UAVMission)
+(documentation hasAdequateBattery EnglishLanguage
+  "(hasAdequateBattery ?UAV ?MISSION) means ?UAV has sufficient battery
+  to complete ?MISSION with required reserves.")
+
+(instance hasRequiredSensors BinaryPredicate)
+(domain hasRequiredSensors 1 UAV)
+(domain hasRequiredSensors 2 UAVMission)
+(documentation hasRequiredSensors EnglishLanguage
+  "(hasRequiredSensors ?UAV ?MISSION) means ?UAV has all sensors required
+  for ?MISSION objectives.")
+
+(instance weatherPermits UnaryPredicate)
+(domain weatherPermits 1 UAVMission)
+(documentation weatherPermits EnglishLanguage
+  "(weatherPermits ?MISSION) means current weather conditions are within
+  acceptable limits for ?MISSION execution.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 15: EMERGENCY PROCEDURES
+;;; -------------------------------------------------------------------------
+;;; Defines emergency response behaviors
+
+(subclass EmergencyCondition Attribute)
+(documentation EmergencyCondition EnglishLanguage
+  "A condition requiring immediate emergency response.")
+
+(instance LowBatteryEmergency EmergencyCondition)
+(documentation LowBatteryEmergency EnglishLanguage
+  "Battery level critically low, insufficient for normal return.")
+
+(instance LostLinkEmergency EmergencyCondition)
+(documentation LostLinkEmergency EnglishLanguage
+  "Communication link with ground station lost.")
+
+(instance LocalizationLostEmergency EmergencyCondition)
+(documentation LocalizationLostEmergency EnglishLanguage
+  "Position estimation has failed, location unknown.")
+
+(instance ObstacleCollisionImminent EmergencyCondition)
+(documentation ObstacleCollisionImminent EnglishLanguage
+  "Collision with obstacle is imminent if current trajectory maintained.")
+
+(instance WeatherEmergency EmergencyCondition)
+(documentation WeatherEmergency EnglishLanguage
+  "Weather conditions have exceeded safe operating limits.")
+
+;; Emergency response mapping
+(instance triggersEmergencyAction BinaryPredicate)
+(domain triggersEmergencyAction 1 EmergencyCondition)
+(domain triggersEmergencyAction 2 UAVAction)
+(documentation triggersEmergencyAction EnglishLanguage
+  "(triggersEmergencyAction ?CONDITION ?ACTION) means ?CONDITION should
+  trigger immediate execution of ?ACTION.")
+
+;; Emergency response rules
+(triggersEmergencyAction LowBatteryEmergency ImmediateLand)
+(triggersEmergencyAction LocalizationLostEmergency ImmediateLand)
+(triggersEmergencyAction ObstacleCollisionImminent AvoidObstacle)
+(triggersEmergencyAction WeatherEmergency ReturnToLaunchAction)
+(triggersEmergencyAction LostLinkEmergency ReturnToLaunchAction)
+
+
+;;; =========================================================================
+;;; END OF UAV DOMAIN ONTOLOGY
+;;; =========================================================================

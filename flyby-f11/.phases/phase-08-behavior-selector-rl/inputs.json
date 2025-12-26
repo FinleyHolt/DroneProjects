@@ -1,0 +1,37 @@
+{
+  "phase": "phase-08-behavior-selector-rl",
+  "required_inputs": {
+    "phase_07_outputs": {
+      "ontology_rl_package": "ros2_ws/src/ontology_rl/",
+      "description": "Shared RL package from Phase 7"
+    },
+    "phase_04_outputs": {
+      "prolog_bridge": "ros2_ws/src/prolog_bridge/",
+      "description": "Prolog query interface for transition validation"
+    },
+    "behavior_definitions": {
+      "navigate": "Transit behavior parameters",
+      "loiter": "Station-keeping parameters",
+      "land": "Landing parameters",
+      "avoid": "Avoidance parameters",
+      "description": "Behavior mode specifications"
+    },
+    "knowledge_requirements": {
+      "reinforcement_learning": "PPO, advantage estimation",
+      "behavior_trees": "BT concepts and integration",
+      "flight_modes": "PX4/ArduPilot flight modes",
+      "description": "Technical knowledge for behavior implementation"
+    }
+  },
+  "optional_inputs": {
+    "behavior_tree_xml": {
+      "default": null,
+      "description": "Existing BT definitions to integrate"
+    }
+  },
+  "environment_variables": {
+    "BEHAVIOR_HORIZON_SECONDS": "1",
+    "PPO_LEARNING_RATE": "3e-4",
+    "BEHAVIOR_SWITCH_PENALTY": "0.1"
+  }
+}

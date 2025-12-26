@@ -1,0 +1,147 @@
+;;; =========================================================================
+;;; Test Scenario: No-Fly Zone Violation
+;;; =========================================================================
+;;;
+;;; This test scenario defines a situation where the UAV has entered a
+;;; no-fly zone, which is a critical safety violation requiring immediate
+;;; corrective action.
+;;;
+;;; Expected Result: noFlyZoneViolation triggered, not safe state
+;;;
+;;; =========================================================================
+
+;;; -------------------------------------------------------------------------
+;;; INSTANCE DEFINITIONS
+;;; -------------------------------------------------------------------------
+
+;; Create a Flyby F-11 UAV instance
+(instance nfzTestDrone FlybyF11)
+(documentation nfzTestDrone EnglishLanguage
+  "Test drone for no-fly zone violation scenario.")
+
+;; Current state: flying within a no-fly zone
+(CurrentBatteryLevel nfzTestDrone 55.0)
+(hasFlightPhase nfzTestDrone Transit)
+(hasPositionQuality nfzTestDrone HighQuality)
+
+;; Sensor states: operational
+(instance nfzTestGNSS GNSSSensor)
+(hasSensor nfzTestDrone nfzTestGNSS Center)
+(hasSensorState nfzTestGNSS SensorOperational)
+
+;;; -------------------------------------------------------------------------
+;;; NO-FLY ZONE DEFINITION
+;;; -------------------------------------------------------------------------
+
+;; Define a no-fly zone (e.g., airport airspace)
+(instance airportNFZ NoFlyZone)
+(documentation airportNFZ EnglishLanguage
+  "No-fly zone around a regional airport, Class D airspace.")
+
+;; Another example: Military installation
+(instance militaryNFZ NoFlyZone)
+(documentation militaryNFZ EnglishLanguage
+  "No-fly zone around a military installation, restricted airspace.")
+
+;;; -------------------------------------------------------------------------
+;;; THE VIOLATION
+;;; -------------------------------------------------------------------------
+
+;; UAV has entered the airport no-fly zone
+(isWithin nfzTestDrone airportNFZ)
+
+;; This triggers the no-fly zone axiom from uav_domain.kif:
+;; (=>
+;;   (and
+;;     (instance ?UAV UAV)
+;;     (instance ?NFZ NoFlyZone)
+;;     (isWithin ?UAV ?NFZ))
+;;   (and
+;;     (not (safeState ?UAV))
+;;     (noFlyZoneViolation ?UAV)))
+
+;;; -------------------------------------------------------------------------
+;;; MISSION CONTEXT
+;;; -------------------------------------------------------------------------
+
+;; Define the original mission
+(instance nfzMission InspectionMission)
+(assignedUAV nfzMission nfzTestDrone)
+(hasMissionStatus nfzMission MissionActive)
+
+;; Define the intended mission geofence (should not have included NFZ)
+(instance nfzMissionGeofence Geofence)
+(hasMissionArea nfzMission nfzMissionGeofence)
+
+;; Error: The geofence overlaps with the no-fly zone (planning failure)
+(overlapsWithNoFlyZone nfzMissionGeofence)
+
+;;; -------------------------------------------------------------------------
+;;; EXPECTED QUERY RESULTS
+;;; -------------------------------------------------------------------------
+
+;; Query: (noFlyZoneViolation nfzTestDrone)
+;; Expected: True
+;;
+;; Query: (safeState nfzTestDrone)
+;; Expected: False (cannot be derived due to NFZ violation)
+;;
+;; Query: (isValidMission nfzMission)
+;; Expected: False (geofence overlaps with NFZ)
+;;
+;; Query: (hasMissionAreaValid nfzMission)
+;; Expected: False (overlapsWithNoFlyZone is true)
+
+;;; -------------------------------------------------------------------------
+;;; EXPECTED BEHAVIOR (CRITICAL)
+;;; -------------------------------------------------------------------------
+
+;; No-fly zone violations are CRITICAL and require immediate action:
+;;
+;; 1. IMMEDIATE: Halt current trajectory
+;; 2. Calculate exit vector from no-fly zone
+;; 3. Execute immediate exit at maximum safe speed
+;; 4. Once outside NFZ, evaluate:
+;;    - If battery sufficient: Return to Launch
+;;    - If battery critical: Land at nearest safe point outside NFZ
+;; 5. Mission is automatically aborted
+;; 6. Violation is logged for regulatory compliance
+;;
+;; This is a reportable incident under FAA Part 107.
+
+;;; -------------------------------------------------------------------------
+;;; ROOT CAUSE ANALYSIS
+;;; -------------------------------------------------------------------------
+
+;; This scenario represents a planning failure:
+;; - The mission geofence was defined to overlap with a no-fly zone
+;; - Pre-flight validation should have caught this
+;; - This indicates a gap in mission planning validation
+;;
+;; Corrective measures:
+;; 1. Pre-flight check: Verify no NFZ overlaps
+;; 2. Use authoritative NFZ databases (FAA LAANC, B4UFLY)
+;; 3. Add buffer zones around known NFZs
+;; 4. Require explicit acknowledgment of nearby NFZs
+
+;;; -------------------------------------------------------------------------
+;;; RELATED TEST: NFZ PROXIMITY WARNING
+;;; -------------------------------------------------------------------------
+
+;; Additional drone approaching an NFZ (not yet inside)
+(instance nfzApproachDrone FlybyF11)
+(CurrentBatteryLevel nfzApproachDrone 70.0)
+(hasFlightPhase nfzApproachDrone Transit)
+
+;; Drone is near but not inside the NFZ
+(distanceTo nfzApproachDrone airportNFZ (MeasureFn 200 Meter))
+
+;; Expected behavior:
+;; - Warning at 500m from NFZ boundary
+;; - Alert at 200m from NFZ boundary
+;; - Halt forward motion at 100m if heading toward NFZ
+;; - Automatically adjust trajectory to avoid NFZ
+
+;;; =========================================================================
+;;; END OF NO-FLY ZONE VIOLATION TEST SCENARIO
+;;; =========================================================================

@@ -1,0 +1,125 @@
+;;; =========================================================================
+;;; Test Scenario: Geofence Violation
+;;; =========================================================================
+;;;
+;;; This test scenario defines a situation where the UAV has exited its
+;;; defined geofence boundary, triggering a geofence violation.
+;;;
+;;; Expected Result: geofenceViolation triggered, safety state violated
+;;;
+;;; =========================================================================
+
+;;; -------------------------------------------------------------------------
+;;; INSTANCE DEFINITIONS
+;;; -------------------------------------------------------------------------
+
+;; Create a Flyby F-11 UAV instance
+(instance geofenceTestDrone FlybyF11)
+(documentation geofenceTestDrone EnglishLanguage
+  "Test drone for geofence violation scenario.")
+
+;; Current state: flying but outside geofence
+(CurrentBatteryLevel geofenceTestDrone 65.0)
+(hasFlightPhase geofenceTestDrone Transit)
+(hasPositionQuality geofenceTestDrone HighQuality)
+
+;; Sensor states: operational
+(instance geoTestGNSS GNSSSensor)
+(hasSensor geofenceTestDrone geoTestGNSS Center)
+(hasSensorState geoTestGNSS SensorOperational)
+
+;;; -------------------------------------------------------------------------
+;;; MISSION DEFINITION
+;;; -------------------------------------------------------------------------
+
+;; Define the mission
+(instance geofenceViolationMission SurveyMission)
+(documentation geofenceViolationMission EnglishLanguage
+  "A survey mission where the UAV drifted outside its geofence.")
+
+;; Assign UAV to mission
+(assignedUAV geofenceViolationMission geofenceTestDrone)
+(hasMissionStatus geofenceViolationMission MissionActive)
+
+;;; -------------------------------------------------------------------------
+;;; GEOFENCE DEFINITION AND VIOLATION
+;;; -------------------------------------------------------------------------
+
+;; Define the operating geofence (a 500m x 500m area)
+(instance surveyGeofence Geofence)
+(documentation surveyGeofence EnglishLanguage
+  "Defined operating area for the survey mission.")
+
+;; Associate mission with geofence
+(hasMissionArea geofenceViolationMission surveyGeofence)
+
+;; THE VIOLATION: UAV is OUTSIDE the geofence
+(isOutside geofenceTestDrone surveyGeofence)
+
+;; This triggers the geofence violation axiom from uav_domain.kif:
+;; (=>
+;;   (and
+;;     (instance ?UAV UAV)
+;;     (instance ?MISSION UAVMission)
+;;     (assignedUAV ?MISSION ?UAV)
+;;     (hasMissionArea ?MISSION ?GEOFENCE)
+;;     (instance ?GEOFENCE Geofence)
+;;     (isOutside ?UAV ?GEOFENCE))
+;;   (geofenceViolation ?UAV))
+
+;;; -------------------------------------------------------------------------
+;;; ALTITUDE (Valid)
+;;; -------------------------------------------------------------------------
+
+;; Altitude is within limits
+(MaximumOperatingAltitude geofenceViolationMission (MeasureFn 100 Meter))
+(altitudeAGL geofenceTestDrone (MeasureFn 60 Meter))
+
+;;; -------------------------------------------------------------------------
+;;; EXPECTED QUERY RESULTS
+;;; -------------------------------------------------------------------------
+
+;; Query: (geofenceViolation geofenceTestDrone)
+;; Expected: True
+;;
+;; Query: (isWithin geofenceTestDrone surveyGeofence)
+;; Expected: False (by mutual exclusion with isOutside)
+;;
+;; Query: (isValidMission geofenceViolationMission)
+;; Expected: False (UAV not within mission area)
+
+;;; -------------------------------------------------------------------------
+;;; EXPECTED BEHAVIOR
+;;; -------------------------------------------------------------------------
+
+;; When geofence violation is detected:
+;; 1. Immediately halt current trajectory
+;; 2. Calculate vector to return to geofence
+;; 3. Navigate to nearest point within geofence
+;; 4. If unable to return, transition to ReturnToLaunch
+;; 5. Log violation for post-flight analysis
+;;
+;; Some systems may:
+;; - Trigger audible/visual alarm on ground station
+;; - Automatically enable Return-to-Launch mode
+;; - Reduce flight envelope (lower max altitude, speed)
+
+;;; -------------------------------------------------------------------------
+;;; SCENARIO VARIATIONS
+;;; -------------------------------------------------------------------------
+
+;; Variation 1: Minor boundary excursion (wind gust)
+;; - UAV briefly exits boundary due to wind
+;; - Expected: Return to boundary, log warning, continue mission
+
+;; Variation 2: Deliberate violation attempt
+;; - Operator commands flight outside geofence
+;; - Expected: Reject command, maintain position, log rejection
+
+;; Variation 3: GPS drift near boundary
+;; - Position uncertainty causes apparent violation
+;; - Expected: Add margin, verify with visual odometry if available
+
+;;; =========================================================================
+;;; END OF GEOFENCE VIOLATION TEST SCENARIO
+;;; =========================================================================

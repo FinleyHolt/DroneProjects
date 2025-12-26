@@ -1,0 +1,46 @@
+{
+  "phase": "phase-14-documentation-release",
+  "required_inputs": {
+    "phase_11_outputs": {
+      "benchmark_results": "benchmark/results/",
+      "figures": "benchmark/results/figures/",
+      "description": "Simulation benchmark results for paper"
+    },
+    "phase_12_outputs": {
+      "project_drone_results": "hardware_validation/project-drone/",
+      "description": "Project-drone validation results"
+    },
+    "phase_13_outputs": {
+      "flyby_f11_results": "hardware_validation/flyby-f11/",
+      "mctssa_demo": "deployment/flyby-f11/mctssa_demo/",
+      "description": "Flyby F-11 results and demo package"
+    },
+    "all_source_code": {
+      "ontology": "ontology/",
+      "ros2_packages": "ros2_ws/src/",
+      "containers": "containers/",
+      "description": "Complete source code for documentation"
+    },
+    "knowledge_requirements": {
+      "technical_writing": "Clear technical documentation",
+      "academic_writing": "Research paper formatting",
+      "open_source": "Open-source release practices",
+      "description": "Documentation skills"
+    }
+  },
+  "optional_inputs": {
+    "latex_template": {
+      "default": "ICRA/IROS IEEE format",
+      "description": "Conference paper template"
+    },
+    "video_recordings": {
+      "default": false,
+      "description": "Flight test video recordings"
+    }
+  },
+  "environment_variables": {
+    "PAPER_TARGET": "ICRA2026",
+    "REPO_VISIBILITY": "public",
+    "LICENSE": "MIT"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "phase": "phase-10-aggm-integration",
+  "phase_number": 10,
+  "depends_on": [
+    "phase-05-perception-bridge",
+    "phase-07-mission-planner-rl",
+    "phase-08-behavior-selector-rl",
+    "phase-09-trajectory-optimizer-rl"
+  ],
+  "required_by": [
+    "phase-11-simulation-benchmark"
+  ],
+  "blocking": true,
+  "description": "Phase 10 integrates AGGM with all RL agents. Requires all agents completed.",
+  "dependency_details": {
+    "phase-07-mission-planner-rl": {
+      "reason": "AGGM modifies mission planner goals",
+      "artifacts_needed": ["ros2_ws/src/ontology_rl/agents/mission_planner_sac.py"]
+    },
+    "phase-08-behavior-selector-rl": {
+      "reason": "AGGM influences behavior selection",
+      "artifacts_needed": ["ros2_ws/src/ontology_rl/agents/behavior_selector_ppo.py"]
+    },
+    "phase-09-trajectory-optimizer-rl": {
+      "reason": "AGGM affects trajectory goals",
+      "artifacts_needed": ["ros2_ws/src/ontology_rl/agents/trajectory_optimizer_td3.py"]
+    },
+    "phase-05-perception-bridge": {
+      "reason": "AGGM observes grounded perceptions",
+      "artifacts_needed": ["ros2_ws/src/perception_grounding/"]
+    }
+  },
+  "parallel_execution": {
+    "can_run_parallel": false,
+    "notes": "Must wait for all RL agents to be complete for integration."
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "phase": "phase-13-flyby-f11-integration",
+  "phase_number": 13,
+  "depends_on": [
+    "phase-12-project-drone-validation"
+  ],
+  "required_by": [
+    "phase-14-documentation-release"
+  ],
+  "blocking": true,
+  "description": "Phase 13 deploys to Flyby F-11 production platform. Requires project-drone validation.",
+  "dependency_details": {
+    "phase-12-project-drone-validation": {
+      "reason": "Must validate on accessible hardware before production deployment",
+      "artifacts_needed": [
+        "hardware_validation/project-drone/",
+        "hardware_validation/project-drone/SIM_TO_REAL.md"
+      ]
+    }
+  },
+  "parallel_execution": {
+    "can_run_parallel": false,
+    "notes": "Sequential - project-drone validation must complete first."
+  },
+  "external_dependencies": {
+    "flyby_f11_hardware": "Requires Flyby F-11 access via MCTSSA",
+    "outdoor_testing_authorization": "FAA Part 107 or COA required"
+  }
+}

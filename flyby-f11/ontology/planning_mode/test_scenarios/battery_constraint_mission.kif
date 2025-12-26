@@ -1,0 +1,178 @@
+;;; =========================================================================
+;;; Test Scenario: Battery Constraint Mission
+;;; =========================================================================
+;;;
+;;; This test scenario defines a mission where the UAV has insufficient
+;;; battery remaining for safe return, which should trigger the return-to-
+;;; launch requirement.
+;;;
+;;; Expected Result: mustReturnToLaunch triggered, mission cannot continue
+;;;
+;;; =========================================================================
+
+;;; -------------------------------------------------------------------------
+;;; INSTANCE DEFINITIONS
+;;; -------------------------------------------------------------------------
+
+;; Create a Flyby F-11 UAV instance
+(instance batteryTestDrone FlybyF11)
+(documentation batteryTestDrone EnglishLanguage
+  "Test drone for battery constraint scenario.")
+
+;; Current state: flying but battery critically low
+(CurrentBatteryLevel batteryTestDrone 22.0)  ; 22% remaining
+(hasFlightPhase batteryTestDrone Transit)
+(hasPositionQuality batteryTestDrone HighQuality)
+
+;; Sensor states: operational
+(instance batteryTestGNSS GNSSSensor)
+(hasSensor batteryTestDrone batteryTestGNSS Center)
+(hasSensorState batteryTestGNSS SensorOperational)
+
+;;; -------------------------------------------------------------------------
+;;; FLYBY F-11 BATTERY CONSTRAINTS
+;;; -------------------------------------------------------------------------
+
+;; From uav_domain.kif, FlybyF11 has:
+;; - MinimumBatteryLevel: 20.0%
+;; - BatteryReserveForReturn: 25.0%
+;;
+;; Current battery: 22.0%
+;; Reserve required: 25.0%
+;; 22.0 < 25.0 = True -> mustReturnToLaunch
+
+;; The battery reserve axiom from uav_domain.kif:
+;; (=>
+;;   (and
+;;     (CurrentBatteryLevel ?UAV ?CURRENT)
+;;     (BatteryReserveForReturn ?UAV ?RESERVE)
+;;     (lessThan ?CURRENT ?RESERVE))
+;;   (mustReturnToLaunch ?UAV))
+
+;;; -------------------------------------------------------------------------
+;;; MISSION DEFINITION
+;;; -------------------------------------------------------------------------
+
+;; Define the mission
+(instance batteryConstraintMission WaypointMission)
+(documentation batteryConstraintMission EnglishLanguage
+  "A mission where battery level has dropped below return reserve threshold.")
+
+;; Assign UAV to mission
+(assignedUAV batteryConstraintMission batteryTestDrone)
+(hasMissionStatus batteryConstraintMission MissionActive)
+
+;;; -------------------------------------------------------------------------
+;;; MISSION AREA (Valid)
+;;; -------------------------------------------------------------------------
+
+;; Define the operating geofence
+(instance batteryMissionGeofence Geofence)
+
+;; Associate mission with geofence
+(hasMissionArea batteryConstraintMission batteryMissionGeofence)
+
+;; UAV is within the geofence
+(isWithin batteryTestDrone batteryMissionGeofence)
+
+;; Define waypoints
+(instance batteryWP1 Waypoint)
+(instance batteryWP2 Waypoint)
+(instance batteryWP3 Waypoint)
+
+(hasWaypointSequence batteryConstraintMission batteryWP1 1)
+(hasWaypointSequence batteryConstraintMission batteryWP2 2)
+(hasWaypointSequence batteryConstraintMission batteryWP3 3)
+
+;; All waypoints within geofence
+(isWithin batteryWP1 batteryMissionGeofence)
+(isWithin batteryWP2 batteryMissionGeofence)
+(isWithin batteryWP3 batteryMissionGeofence)
+
+;; Mission altitude (valid)
+(MaximumOperatingAltitude batteryConstraintMission (MeasureFn 80 Meter))
+(altitudeAGL batteryTestDrone (MeasureFn 50 Meter))
+
+;;; -------------------------------------------------------------------------
+;;; ENVIRONMENTAL CONDITIONS (Good)
+;;; -------------------------------------------------------------------------
+
+(instance batteryTestArea Region)
+(WindSpeed batteryTestArea (MeasureFn 4 MetersPerSecond))
+(VisibilityDistance batteryTestArea (MeasureFn 8 Kilometer))
+(LightingCondition batteryTestArea Daylight)
+(GNSSAvailability batteryTestArea HighQuality)
+
+;;; -------------------------------------------------------------------------
+;;; EXPECTED QUERY RESULTS
+;;; -------------------------------------------------------------------------
+
+;; Query: (mustReturnToLaunch batteryTestDrone)
+;; Expected: True
+;;
+;; Because CurrentBatteryLevel (22.0) < BatteryReserveForReturn (25.0)
+;;
+;; Query: (hasAdequateBattery batteryTestDrone batteryConstraintMission)
+;; Expected: False
+;;
+;; The mission cannot be completed safely with current battery.
+;;
+;; Query: (isValidMission batteryConstraintMission)
+;; Expected: False (due to inadequate battery)
+
+;;; -------------------------------------------------------------------------
+;;; ADDITIONAL BATTERY SCENARIOS
+;;; -------------------------------------------------------------------------
+
+;; Critical battery scenario (below minimum)
+(instance criticalBatteryDrone FlybyF11)
+(CurrentBatteryLevel criticalBatteryDrone 18.0)  ; Below 20% minimum
+
+;; For critical battery scenario:
+;; Query: (triggersEmergencyAction LowBatteryEmergency ?ACTION)
+;; Expected: ImmediateLand
+
+;; The drone must land immediately rather than attempt return
+
+;;; -------------------------------------------------------------------------
+;;; EXPECTED BEHAVIOR
+;;; -------------------------------------------------------------------------
+
+;; When (mustReturnToLaunch ?UAV) is true:
+;; 1. Current mission should be aborted
+;; 2. Flight phase should transition to ReturnToLaunch
+;; 3. Mission status should change to MissionAborted
+;; 4. UAV should navigate to launch point
+;; 5. Normal landing sequence should be initiated
+;;
+;; If battery drops to critical (below minimum):
+;; 1. Emergency condition: LowBatteryEmergency
+;; 2. Immediate land at current position
+;; 3. Mission status: MissionFailed
+
+;;; -------------------------------------------------------------------------
+;;; BATTERY STATE PROGRESSION
+;;; -------------------------------------------------------------------------
+
+;; Normal operation: Battery > 50%
+;; Attention: Battery <= 50% but > 30%
+;; Warning: Battery <= 30% but > 25% (reserve threshold)
+;; Critical (RTL): Battery <= 25% (below reserve, must return)
+;; Emergency: Battery <= 20% (immediate land)
+
+;; Test drone is at 22%, which is:
+;; - Below reserve threshold (25%) -> mustReturnToLaunch
+;; - Above minimum (20%) -> can still fly, but must return
+
+;;; =========================================================================
+;;; THEOREM TO PROVE
+;;; =========================================================================
+
+;; This scenario should prove:
+;; - (mustReturnToLaunch batteryTestDrone) is True
+;; - Mission cannot continue safely
+;; - Transition to ReturnToLaunch phase is required
+
+;;; =========================================================================
+;;; END OF BATTERY CONSTRAINT MISSION TEST SCENARIO
+;;; =========================================================================

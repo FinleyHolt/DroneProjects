@@ -1,0 +1,144 @@
+%------------------------------------------------------------------------------
+% UAV Domain Ontology - TPTP Test Axioms
+% Tests key safety axioms with Vampire theorem prover
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% SECTION 1: Type Declarations (FOF)
+% ============================================================================
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(multirotor_is_uav, axiom,
+    ![X]: (multirotor(X) => uav(X))).
+
+fof(quadcopter_is_multirotor, axiom,
+    ![X]: (quadcopter(X) => multirotor(X))).
+
+fof(flyby_f11_is_quadcopter, axiom,
+    ![X]: (flyby_f11(X) => quadcopter(X))).
+
+% ============================================================================
+% SECTION 2: Geofence Axioms
+% ============================================================================
+
+% isWithin and isOutside are mutually exclusive
+fof(within_outside_exclusive, axiom,
+    ![X, R]: (is_within(X, R) => ~is_outside(X, R))).
+
+fof(outside_within_exclusive, axiom,
+    ![X, R]: (is_outside(X, R) => ~is_within(X, R))).
+
+% Geofence violation axiom
+fof(geofence_violation_axiom, axiom,
+    ![UAV, Mission, Geofence]:
+      ((uav(UAV) &
+        uav_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        has_mission_area(Mission, Geofence) &
+        geofence(Geofence) &
+        is_outside(UAV, Geofence))
+       => geofence_violation(UAV))).
+
+% ============================================================================
+% SECTION 3: No-Fly Zone Axioms
+% ============================================================================
+
+% No-fly zone violation implies not safe
+fof(nfz_violation_axiom, axiom,
+    ![UAV, NFZ]:
+      ((uav(UAV) & no_fly_zone(NFZ) & is_within(UAV, NFZ))
+       => (nfz_violation(UAV) & ~safe_state(UAV)))).
+
+% ============================================================================
+% SECTION 4: Battery Axioms
+% ============================================================================
+
+% Battery reserve axiom - must return if below reserve
+fof(battery_reserve_axiom, axiom,
+    ![UAV]:
+      ((uav(UAV) & battery_below_reserve(UAV))
+       => must_return_to_launch(UAV))).
+
+% ============================================================================
+% SECTION 5: Altitude Axioms
+% ============================================================================
+
+% Altitude violation axiom
+fof(altitude_violation_axiom, axiom,
+    ![UAV, Mission]:
+      ((uav(UAV) &
+        uav_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        altitude_exceeds_max(UAV, Mission))
+       => altitude_violation(UAV))).
+
+% ============================================================================
+% SECTION 6: Localization Axioms
+% ============================================================================
+
+% Valid localization from position quality
+fof(high_quality_localization, axiom,
+    ![UAV]: ((uav(UAV) & has_position_quality(UAV, high_quality))
+             => has_valid_localization(UAV))).
+
+fof(medium_quality_localization, axiom,
+    ![UAV]: ((uav(UAV) & has_position_quality(UAV, medium_quality))
+             => has_valid_localization(UAV))).
+
+fof(low_quality_localization, axiom,
+    ![UAV]: ((uav(UAV) & has_position_quality(UAV, low_quality))
+             => has_valid_localization(UAV))).
+
+% Lost localization requires landing
+fof(lost_localization_axiom, axiom,
+    ![UAV]: ((uav(UAV) & ~has_valid_localization(UAV))
+             => must_land(UAV))).
+
+% ============================================================================
+% SECTION 7: Capability Axioms
+% ============================================================================
+
+% All multirotors can hover
+fof(multirotor_hover, axiom,
+    ![UAV]: (multirotor(UAV) => can_hover(UAV))).
+
+% All multirotors and hybrid VTOLs can vertical takeoff
+fof(multirotor_vtol, axiom,
+    ![UAV]: (multirotor(UAV) => can_vertical_takeoff(UAV))).
+
+fof(hybrid_vtol, axiom,
+    ![UAV]: (hybrid_vtol(UAV) => can_vertical_takeoff(UAV))).
+
+% Flyby F-11 is NDAA compliant
+fof(flyby_f11_ndaa, axiom,
+    ![UAV]: (flyby_f11(UAV) => ndaa_compliant(UAV))).
+
+% ============================================================================
+% SECTION 8: Test Scenario - Geofence Violation
+% ============================================================================
+
+% Define test instances
+fof(test_drone_is_flyby_f11, axiom, flyby_f11(test_drone_1)).
+fof(test_mission_exists, axiom, uav_mission(test_mission_1)).
+fof(test_geofence_exists, axiom, geofence(test_geofence_1)).
+fof(test_assignment, axiom, assigned_uav(test_mission_1, test_drone_1)).
+fof(test_mission_area, axiom, has_mission_area(test_mission_1, test_geofence_1)).
+
+% Drone is outside geofence (violation scenario)
+fof(drone_outside_geofence, axiom, is_outside(test_drone_1, test_geofence_1)).
+
+% ============================================================================
+% THEOREM 1: Geofence violation should be detected
+% ============================================================================
+
+fof(prove_geofence_violation, conjecture,
+    geofence_violation(test_drone_1)).
+
+%------------------------------------------------------------------------------
+% Expected result: THEOREM PROVED
+% The test_drone_1 is outside its assigned geofence, which should trigger
+% the geofence_violation predicate.
+%------------------------------------------------------------------------------

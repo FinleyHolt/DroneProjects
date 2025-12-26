@@ -1,0 +1,28 @@
+%------------------------------------------------------------------------------
+% Test: No-Fly Zone Violation
+% Tests that entering a no-fly zone triggers safety violation
+%------------------------------------------------------------------------------
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom, ![X]: (uav(X) => aircraft(X))).
+fof(flyby_f11_is_uav, axiom, ![X]: (flyby_f11(X) => uav(X))).
+
+% No-fly zone violation axiom
+fof(nfz_violation_axiom, axiom,
+    ![UAV, NFZ]:
+      ((uav(UAV) & no_fly_zone(NFZ) & is_within(UAV, NFZ))
+       => nfz_violation(UAV))).
+
+% Not safe when in NFZ
+fof(nfz_not_safe, axiom,
+    ![UAV, NFZ]:
+      ((uav(UAV) & no_fly_zone(NFZ) & is_within(UAV, NFZ))
+       => ~safe_state(UAV))).
+
+% Test scenario
+fof(test_drone_is_flyby, axiom, flyby_f11(test_drone_nfz)).
+fof(test_nfz_exists, axiom, no_fly_zone(airport_nfz)).
+fof(drone_in_nfz, axiom, is_within(test_drone_nfz, airport_nfz)).
+
+% Conjecture: NFZ violation should be detected
+fof(prove_nfz_violation, conjecture, nfz_violation(test_drone_nfz)).

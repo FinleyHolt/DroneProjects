@@ -1,0 +1,18 @@
+%------------------------------------------------------------------------------
+% Test: Multirotor Hover Capability
+% Tests that Flyby F-11 inherits hover capability from Multirotor
+%------------------------------------------------------------------------------
+
+% Class hierarchy
+fof(multirotor_is_uav, axiom, ![X]: (multirotor(X) => uav(X))).
+fof(quadcopter_is_multirotor, axiom, ![X]: (quadcopter(X) => multirotor(X))).
+fof(flyby_f11_is_quadcopter, axiom, ![X]: (flyby_f11(X) => quadcopter(X))).
+
+% All multirotors can hover
+fof(multirotor_hover, axiom, ![X]: (multirotor(X) => can_hover(X))).
+
+% Test scenario
+fof(test_drone_is_flyby, axiom, flyby_f11(flyby_test_drone)).
+
+% Conjecture: Flyby F-11 should be able to hover
+fof(prove_can_hover, conjecture, can_hover(flyby_test_drone)).

@@ -1,0 +1,44 @@
+{
+  "phase": "phase-04-execution-mode",
+  "required_inputs": {
+    "phase_03_outputs": {
+      "generated_rules": "ontology/execution_mode/uav_rules.pl",
+      "prolog_templates": "ontology/execution_mode/templates/",
+      "translator": "ontology/translation/sumo_to_prolog.py",
+      "description": "Compiled Prolog rules from Phase 3 translation"
+    },
+    "system_requirements": {
+      "podman_installed": true,
+      "buildah_installed": true,
+      "disk_space_gb": 10,
+      "description": "Container build tools and storage"
+    },
+    "hardware_access": {
+      "x86_dev_machine": true,
+      "arm_jetson_optional": "Jetson Orin NX for ARM validation (can be deferred)",
+      "description": "Development and deployment hardware"
+    },
+    "knowledge_requirements": {
+      "prolog_optimization": "Understanding of Prolog performance tuning",
+      "ros2_development": "ROS 2 Humble package development",
+      "container_multiarch": "Multi-architecture container builds",
+      "description": "Technical knowledge for runtime implementation"
+    }
+  },
+  "optional_inputs": {
+    "jetson_access": {
+      "default": false,
+      "description": "If true, validate on actual Jetson hardware"
+    },
+    "ros2_workspace": {
+      "default": "ros2_ws/",
+      "description": "Path to ROS 2 workspace"
+    }
+  },
+  "environment_variables": {
+    "PROLOG_STACK_LIMIT": "100M",
+    "PROLOG_GLOBAL_LIMIT": "50M",
+    "ROS_DOMAIN_ID": "42",
+    "ONTOLOGY_MODE": "execution"
+  }
+}

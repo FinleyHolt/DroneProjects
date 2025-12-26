@@ -27,14 +27,24 @@ Phases are numbered sequentially and named descriptively:
 
 | Phase | Name | Description | Est. Time |
 |-------|------|-------------|-----------|
-| 01 | ontology-toolchain | SUMO and Vampire setup | 2-4h |
-| 02 | uav-ontology | UAV domain knowledge base | 8-12h |
+| 01 | ontology-toolchain | SUMO + Vampire planning mode setup | 2-4h |
+| 02 | uav-ontology | UAV domain knowledge base in KIF | 8-12h |
 | 03 | translation | SUMO to Prolog translator | 10-15h |
-| 04 | execution-mode | Prolog runtime | 6-8h |
-| 05 | mission-planner | Mission planning module | 10-12h |
-| ... | ... | ... | ... |
+| 04 | execution-mode | SWI-Prolog runtime (<10ms queries) | 6-8h |
+| 05 | perception-bridge | Vision-to-symbolic grounding nodes | 10-14h |
+| 06 | phase-transition | Planning/execution mode orchestration | 8-10h |
+| 07 | mission-planner-rl | Level 1 SAC agent (10s horizon) | 12-16h |
+| 08 | behavior-selector-rl | Level 2 PPO agent (1s horizon) | 10-14h |
+| 09 | trajectory-optimizer-rl | Level 3 TD3 agent (100ms horizon) | 10-14h |
+| 10 | aggm-integration | Automatic Goal Generation Model | 12-16h |
+| 11 | simulation-benchmark | Benchmark suite and evaluation | 15-20h |
+| 12 | project-drone-validation | Hardware testing on Jetson Orin Nano | 20-30h |
+| 13 | flyby-f11-integration | Deployment to Flyby F-11/Orin NX | 25-35h |
+| 14 | documentation-release | Paper, docs, open-source release | 15-25h |
 
-See [IMPLEMENTATION_ROADMAP.qmd](../IMPLEMENTATION_ROADMAP.qmd) for the complete list of 14 phases.
+**Total estimated time**: 150-220 hours
+
+See [APPROACH.qmd](../APPROACH.qmd) for complete architecture details.
 
 ## File Specifications
 
@@ -170,8 +180,29 @@ phase-03-translation
   ↓
 phase-04-execution-mode
   ↓
-...
+phase-05-perception-bridge
+  ↓
+phase-06-phase-transition
+  ↓
+  ├─────────────────────────────────────┐
+  ↓                   ↓                 ↓
+phase-07-mission    phase-08-behavior  phase-09-trajectory
+-planner-rl         -selector-rl       -optimizer-rl
+  ↓                   ↓                 ↓
+  └─────────────────────────────────────┘
+                      ↓
+         phase-10-aggm-integration
+                      ↓
+         phase-11-simulation-benchmark
+                      ↓
+         phase-12-project-drone-validation
+                      ↓
+         phase-13-flyby-f11-integration
+                      ↓
+         phase-14-documentation-release
 ```
+
+**Parallelization**: Phases 7, 8, 9 (RL agents) can be developed in parallel.
 
 The orchestration scripts enforce this dependency order automatically.
 

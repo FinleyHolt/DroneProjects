@@ -1,0 +1,158 @@
+;;; =========================================================================
+;;; Test Scenario: Valid Waypoint Mission
+;;; =========================================================================
+;;;
+;;; This test scenario defines a valid waypoint navigation mission that
+;;; should pass all constraint checks. Used to verify that valid missions
+;;; are correctly accepted by the reasoning system.
+;;;
+;;; Expected Result: Mission is valid, no constraint violations
+;;;
+;;; =========================================================================
+
+;;; Load the UAV domain ontology
+;; (in-package "UAV-DOMAIN")
+
+;;; -------------------------------------------------------------------------
+;;; INSTANCE DEFINITIONS
+;;; -------------------------------------------------------------------------
+
+;; Create a Flyby F-11 UAV instance
+(instance missionDrone1 FlybyF11)
+(documentation missionDrone1 EnglishLanguage
+  "Test drone for valid waypoint mission scenario.")
+
+;; Current state: fully operational
+(CurrentBatteryLevel missionDrone1 85.0)
+(hasFlightPhase missionDrone1 Preflight)
+(hasPositionQuality missionDrone1 HighQuality)
+
+;; Sensor states: all operational
+(instance frontCamera DepthCamera)
+(hasSensor missionDrone1 frontCamera Front)
+(hasSensorState frontCamera SensorOperational)
+
+(instance gnssReceiver GNSSSensor)
+(hasSensor missionDrone1 gnssReceiver Center)
+(hasSensorState gnssReceiver SensorOperational)
+
+(instance visualOdometry VisualOdometrySensor)
+(hasSensor missionDrone1 visualOdometry Center)
+(hasSensorState visualOdometry SensorOperational)
+
+;;; -------------------------------------------------------------------------
+;;; MISSION DEFINITION
+;;; -------------------------------------------------------------------------
+
+;; Define the mission
+(instance validWaypointMission1 WaypointMission)
+(documentation validWaypointMission1 EnglishLanguage
+  "A valid waypoint mission with 4 waypoints within a safe geofence.")
+
+;; Assign UAV to mission
+(assignedUAV validWaypointMission1 missionDrone1)
+(hasMissionStatus validWaypointMission1 MissionPending)
+
+;;; -------------------------------------------------------------------------
+;;; GEOFENCE AND WAYPOINTS
+;;; -------------------------------------------------------------------------
+
+;; Define the operating geofence
+(instance missionGeofence1 Geofence)
+(documentation missionGeofence1 EnglishLanguage
+  "A 500m x 500m operating area centered on launch point.")
+
+;; Associate mission with geofence
+(hasMissionArea validWaypointMission1 missionGeofence1)
+
+;; Define waypoints
+(instance wp1 Waypoint)
+(instance wp2 Waypoint)
+(instance wp3 Waypoint)
+(instance wp4 Waypoint)
+
+;; All waypoints are within the geofence
+(isWithin wp1 missionGeofence1)
+(isWithin wp2 missionGeofence1)
+(isWithin wp3 missionGeofence1)
+(isWithin wp4 missionGeofence1)
+
+;; Waypoint sequence
+(hasWaypointSequence validWaypointMission1 wp1 1)
+(hasWaypointSequence validWaypointMission1 wp2 2)
+(hasWaypointSequence validWaypointMission1 wp3 3)
+(hasWaypointSequence validWaypointMission1 wp4 4)
+
+;; Waypoint actions (optional)
+(hasWaypointAction wp2 CaptureImage)
+(hasWaypointAction wp3 CaptureImage)
+
+;;; -------------------------------------------------------------------------
+;;; ALTITUDE CONSTRAINTS
+;;; -------------------------------------------------------------------------
+
+;; Mission altitude limits (within regulatory limits)
+(MinimumOperatingAltitude validWaypointMission1 (MeasureFn 20 Meter))
+(MaximumOperatingAltitude validWaypointMission1 (MeasureFn 100 Meter))
+
+;; Current altitude at launch point (on ground)
+(altitudeAGL missionDrone1 (MeasureFn 0 Meter))
+
+;;; -------------------------------------------------------------------------
+;;; ENVIRONMENTAL CONDITIONS
+;;; -------------------------------------------------------------------------
+
+;; Define the operating area environment
+(instance missionArea1 Region)
+
+;; Weather conditions are acceptable
+(WindSpeed missionArea1 (MeasureFn 5 MetersPerSecond))
+(VisibilityDistance missionArea1 (MeasureFn 10 Kilometer))
+(LightingCondition missionArea1 Daylight)
+(GNSSAvailability missionArea1 HighQuality)
+
+;; No precipitation
+(Precipitation missionArea1 None)
+
+;;; -------------------------------------------------------------------------
+;;; SAFETY VERIFICATIONS
+;;; -------------------------------------------------------------------------
+
+;; The geofence does not overlap with any no-fly zones
+(not (overlapsWithNoFlyZone missionGeofence1))
+
+;; Adequate battery for mission
+(hasAdequateBattery missionDrone1 validWaypointMission1)
+
+;; Required sensors present
+(hasRequiredSensors missionDrone1 validWaypointMission1)
+
+;; Weather permits operation
+(weatherPermits validWaypointMission1)
+
+;;; -------------------------------------------------------------------------
+;;; EXPECTED QUERY RESULTS
+;;; -------------------------------------------------------------------------
+
+;; Query: (isValidMission validWaypointMission1)
+;; Expected: True
+;;
+;; Query: (safeState missionDrone1)
+;; Expected: True (assuming no obstacles present)
+;;
+;; Query: (hasValidLocalization missionDrone1)
+;; Expected: True (high quality position)
+;;
+;; Query: (geofenceViolation missionDrone1)
+;; Expected: False (drone at launch, within geofence)
+
+;;; =========================================================================
+;;; THEOREM TO PROVE
+;;; =========================================================================
+
+;; This mission should be proven valid by the reasoner
+;; (isValidMission validWaypointMission1) should be derivable
+
+;;; =========================================================================
+;;; END OF VALID WAYPOINT MISSION TEST SCENARIO
+;;; =========================================================================

@@ -1,0 +1,45 @@
+{
+  "phase": "phase-07-mission-planner-rl",
+  "required_inputs": {
+    "phase_04_outputs": {
+      "prolog_bridge": "ros2_ws/src/prolog_bridge/",
+      "description": "Prolog query interface for constraint checking"
+    },
+    "phase_05_outputs": {
+      "perception_grounding": "ros2_ws/src/perception_grounding/",
+      "description": "Perception facts for state observation"
+    },
+    "phase_06_outputs": {
+      "phase_transition": "ros2_ws/src/phase_transition/",
+      "description": "Mission handoff from planning mode"
+    },
+    "simulation_environment": {
+      "gazebo_worlds": "simulation/worlds/",
+      "px4_sitl": true,
+      "description": "Simulation for RL training"
+    },
+    "knowledge_requirements": {
+      "reinforcement_learning": "SAC, policy gradients, experience replay",
+      "gymnasium": "OpenAI Gym / Gymnasium environment design",
+      "ros2_actions": "ROS 2 action servers and clients",
+      "pytorch": "PyTorch or TensorFlow for neural networks",
+      "description": "Technical knowledge for RL implementation"
+    }
+  },
+  "optional_inputs": {
+    "pretrained_models": {
+      "default": null,
+      "description": "Pre-trained policies for transfer learning"
+    },
+    "compute_cluster": {
+      "default": false,
+      "description": "Access to GPU cluster for faster training"
+    }
+  },
+  "environment_variables": {
+    "RL_DEVICE": "cuda",
+    "RL_SEED": "42",
+    "MISSION_HORIZON_SECONDS": "10",
+    "SAC_LEARNING_RATE": "3e-4"
+  }
+}

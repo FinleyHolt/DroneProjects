@@ -1,0 +1,53 @@
+{
+  "phase": "phase-13-flyby-f11-integration",
+  "required_outputs": {
+    "flyby_deployment": {
+      "path": "deployment/flyby-f11/",
+      "type": "directory",
+      "description": "Flyby-F11 deployment configuration",
+      "verification": "directory_exists"
+    },
+    "mission_configs": {
+      "path": "deployment/flyby-f11/missions/",
+      "type": "directory",
+      "description": "MCTSSA mission configurations",
+      "verification": "directory_exists"
+    },
+    "flight_logs": {
+      "path": "hardware_validation/flyby-f11/logs/",
+      "type": "directory",
+      "description": "Flyby F-11 flight test logs",
+      "verification": "directory_exists"
+    },
+    "test_results": {
+      "path": "hardware_validation/flyby-f11/test_results.json",
+      "type": "file",
+      "description": "Flight test results",
+      "verification": "file_exists"
+    },
+    "mctssa_demo_package": {
+      "path": "deployment/flyby-f11/mctssa_demo/",
+      "type": "directory",
+      "description": "MCTSSA demonstration package",
+      "verification": "directory_exists"
+    },
+    "compliance_documentation": {
+      "path": "deployment/flyby-f11/compliance/",
+      "type": "directory",
+      "description": "NDAA and regulatory compliance docs",
+      "verification": "directory_exists"
+    }
+  },
+  "success_indicators": {
+    "platform_running": "System runs on Flyby F-11 Orin NX",
+    "outdoor_flights": "Outdoor missions completed",
+    "comms_denied": "Communications-denied operation validated",
+    "mctssa_ready": "Demonstration package complete",
+    "zero_violations": "No safety violations"
+  },
+  "metrics": {
+    "outdoor_flight_count": "Number of outdoor flights",
+    "comms_denied_duration_minutes": "Longest comms-denied operation",
+    "mission_success_rate": "Percentage of missions completed"
+  }
+}

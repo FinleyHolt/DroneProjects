@@ -1,0 +1,38 @@
+{
+  "phase": "phase-14-documentation-release",
+  "phase_number": 14,
+  "depends_on": [
+    "phase-11-simulation-benchmark",
+    "phase-12-project-drone-validation",
+    "phase-13-flyby-f11-integration"
+  ],
+  "required_by": [],
+  "blocking": false,
+  "description": "Phase 14 is the final phase. Creates documentation and prepares open-source release.",
+  "dependency_details": {
+    "phase-11-simulation-benchmark": {
+      "reason": "Benchmark results needed for paper",
+      "artifacts_needed": [
+        "benchmark/results/",
+        "benchmark/results/figures/"
+      ]
+    },
+    "phase-12-project-drone-validation": {
+      "reason": "Hardware validation results for paper",
+      "artifacts_needed": [
+        "hardware_validation/project-drone/"
+      ]
+    },
+    "phase-13-flyby-f11-integration": {
+      "reason": "Final deployment results and MCTSSA deliverables",
+      "artifacts_needed": [
+        "hardware_validation/flyby-f11/",
+        "deployment/flyby-f11/mctssa_demo/"
+      ]
+    }
+  },
+  "parallel_execution": {
+    "can_run_parallel": false,
+    "notes": "Final phase - requires all prior work completed."
+  }
+}

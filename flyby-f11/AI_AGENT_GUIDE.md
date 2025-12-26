@@ -113,16 +113,29 @@ flyby-f11/
 
 Development is organized into 14 sequential phases:
 
-| Phase | Name | Dependencies | Time |
-|-------|------|--------------|------|
-| 01 | ontology-toolchain | None | 2-4h |
-| 02 | uav-ontology | 01 | 8-12h |
-| 03 | translation | 01, 02 | 10-15h |
-| 04 | execution-mode | 01, 02, 03 | 6-8h |
-| 05 | mission-planner | 01-04 | 10-12h |
-| ... | ... | ... | ... |
+| Phase | Name | Dependencies | Time | Description |
+|-------|------|--------------|------|-------------|
+| 01 | ontology-toolchain | None | 2-4h | SUMO + Vampire setup for planning mode |
+| 02 | uav-ontology | 01 | 8-12h | UAV domain knowledge base in KIF |
+| 03 | translation | 01, 02 | 10-15h | SUMO to Prolog translator |
+| 04 | execution-mode | 01-03 | 6-8h | SWI-Prolog runtime for real-time inference |
+| 05 | perception-bridge | 04 | 10-14h | Vision-to-symbolic grounding nodes |
+| 06 | phase-transition | 04, 05 | 8-10h | Planning/execution mode orchestration |
+| 07 | mission-planner-rl | 04-06 | 12-16h | Level 1 SAC agent (10s horizon) |
+| 08 | behavior-selector-rl | 06 | 10-14h | Level 2 PPO agent (1s horizon) |
+| 09 | trajectory-optimizer-rl | 06 | 10-14h | Level 3 TD3 agent (100ms horizon) |
+| 10 | aggm-integration | 05, 07-09 | 12-16h | Automatic Goal Generation Model |
+| 11 | simulation-benchmark | 06, 10 | 15-20h | Benchmark suite and evaluation |
+| 12 | project-drone-validation | 11 | 20-30h | Hardware testing on project-drone |
+| 13 | flyby-f11-integration | 12 | 25-35h | Deployment to Flyby F-11 platform |
+| 14 | documentation-release | 11-13 | 15-25h | Paper, docs, open-source release |
 
-See [IMPLEMENTATION_ROADMAP.qmd](IMPLEMENTATION_ROADMAP.qmd) for complete list.
+**Total estimated time**: 150-220 hours
+
+**Parallelization opportunities**:
+- Phases 7, 8, 9 can run in parallel (all RL agents)
+
+See [APPROACH.qmd](APPROACH.qmd) for architecture details.
 
 ## JSON Specifications
 
@@ -353,10 +366,32 @@ phase-03-translation
   ↓
 phase-04-execution-mode
   ↓
-phase-05-mission-planner
+phase-05-perception-bridge
   ↓
-...
+phase-06-phase-transition
+  ↓
+  ├─────────────────────────────────────┐
+  ↓                   ↓                 ↓
+phase-07-mission    phase-08-behavior  phase-09-trajectory
+-planner-rl         -selector-rl       -optimizer-rl
+  ↓                   ↓                 ↓
+  └─────────────────────────────────────┘
+                      ↓
+         phase-10-aggm-integration
+                      ↓
+         phase-11-simulation-benchmark
+                      ↓
+         phase-12-project-drone-validation
+                      ↓
+         phase-13-flyby-f11-integration
+                      ↓
+         phase-14-documentation-release
 ```
+
+**Notes**:
+- Phases 7, 8, 9 (RL agents) can be developed in parallel
+- Phase 10 (AGGM) integrates all three agents
+- Phases 11-14 are strictly sequential (simulation → hardware → production → release)
 
 Orchestration scripts automatically enforce this order.
 

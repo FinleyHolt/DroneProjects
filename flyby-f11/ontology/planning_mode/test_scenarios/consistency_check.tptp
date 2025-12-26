@@ -1,0 +1,94 @@
+%------------------------------------------------------------------------------
+% UAV Domain Ontology - Consistency Check
+% Verifies the ontology axioms are logically consistent (no contradictions)
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% CORE CLASS HIERARCHY
+% ============================================================================
+
+% UAV class hierarchy (must be acyclic, no class is subclass of itself)
+fof(uav_is_aircraft, axiom, ![X]: (uav(X) => aircraft(X))).
+fof(multirotor_is_uav, axiom, ![X]: (multirotor(X) => uav(X))).
+fof(fixed_wing_is_uav, axiom, ![X]: (fixed_wing_uav(X) => uav(X))).
+fof(hybrid_vtol_is_uav, axiom, ![X]: (hybrid_vtol(X) => uav(X))).
+fof(quadcopter_is_multirotor, axiom, ![X]: (quadcopter(X) => multirotor(X))).
+fof(hexacopter_is_multirotor, axiom, ![X]: (hexacopter(X) => multirotor(X))).
+fof(flyby_f11_is_quadcopter, axiom, ![X]: (flyby_f11(X) => quadcopter(X))).
+
+% Mission class hierarchy
+fof(waypoint_mission_is_mission, axiom, ![X]: (waypoint_mission(X) => uav_mission(X))).
+fof(survey_mission_is_mission, axiom, ![X]: (survey_mission(X) => uav_mission(X))).
+fof(inspection_mission_is_mission, axiom, ![X]: (inspection_mission(X) => uav_mission(X))).
+
+% ============================================================================
+% SPATIAL RELATION AXIOMS
+% ============================================================================
+
+% isWithin and isOutside are mutually exclusive
+fof(within_outside_exclusive, axiom,
+    ![X, R]: (is_within(X, R) => ~is_outside(X, R))).
+
+fof(outside_within_exclusive, axiom,
+    ![X, R]: (is_outside(X, R) => ~is_within(X, R))).
+
+% ============================================================================
+% CAPABILITY AXIOMS
+% ============================================================================
+
+% Multirotors can hover
+fof(multirotor_hover, axiom, ![X]: (multirotor(X) => can_hover(X))).
+
+% Multirotors and hybrid VTOLs can vertical takeoff
+fof(multirotor_vtol, axiom, ![X]: (multirotor(X) => can_vertical_takeoff(X))).
+fof(hybrid_can_vtol, axiom, ![X]: (hybrid_vtol(X) => can_vertical_takeoff(X))).
+
+% Flyby F-11 is NDAA compliant
+fof(flyby_ndaa, axiom, ![X]: (flyby_f11(X) => ndaa_compliant(X))).
+
+% ============================================================================
+% SAFETY AXIOMS
+% ============================================================================
+
+% Geofence violation
+fof(geofence_violation_axiom, axiom,
+    ![UAV, Mission, Geofence]:
+      ((uav(UAV) & uav_mission(Mission) & assigned_uav(Mission, UAV) &
+        has_mission_area(Mission, Geofence) & geofence(Geofence) &
+        is_outside(UAV, Geofence))
+       => geofence_violation(UAV))).
+
+% No-fly zone violation
+fof(nfz_violation_axiom, axiom,
+    ![UAV, NFZ]:
+      ((uav(UAV) & no_fly_zone(NFZ) & is_within(UAV, NFZ))
+       => nfz_violation(UAV))).
+
+% Battery reserve
+fof(battery_reserve_axiom, axiom,
+    ![UAV]:
+      ((uav(UAV) & battery_below_reserve(UAV))
+       => must_return_to_launch(UAV))).
+
+% Lost localization
+fof(localization_axiom, axiom,
+    ![UAV]:
+      ((uav(UAV) & ~has_valid_localization(UAV))
+       => must_land(UAV))).
+
+% ============================================================================
+% CONSISTENCY TEST
+% ============================================================================
+
+% We assert that a Flyby F-11 exists - if the ontology is consistent,
+% this should be satisfiable (no contradiction derived)
+fof(flyby_exists, axiom, flyby_f11(test_drone)).
+
+% The conjecture is that we cannot derive a contradiction (false)
+% Vampire will report "Satisfiable" if consistent, or find a refutation if not
+fof(check_consistency, conjecture, $false).
+
+%------------------------------------------------------------------------------
+% Expected result: CounterSatisfiable (GaveUp or Satisfiable)
+% If Vampire finds a refutation (Theorem), there's a contradiction
+%------------------------------------------------------------------------------

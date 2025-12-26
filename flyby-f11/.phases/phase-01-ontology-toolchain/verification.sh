@@ -1,128 +1,103 @@
 #!/bin/bash
 # Phase 1: Ontology Toolchain Setup - Automated Verification
-# This script verifies that the planning mode container is correctly configured
 
-set -e  # Exit on any error
-
-PHASE_NAME="phase-01-ontology-toolchain"
 PROJECT_ROOT="/home/finley/Github/DroneProjects/flyby-f11"
+cd "$PROJECT_ROOT"
 
 echo "========================================"
-echo "Verifying Phase 1: Ontology Toolchain"
+echo "Phase 1: Ontology Toolchain Verification"
 echo "========================================"
 echo ""
 
-# Track verification status
 PASSED=0
 FAILED=0
 
-# Helper function for checks
-check() {
-    local name="$1"
-    local command="$2"
+pass() { echo "✓ $1"; PASSED=$((PASSED + 1)); }
+fail() { echo "✗ $1"; FAILED=$((FAILED + 1)); }
 
-    echo -n "Checking $name... "
-    if eval "$command" > /dev/null 2>&1; then
-        echo "✓ PASS"
-        ((PASSED++))
-        return 0
-    else
-        echo "✗ FAIL"
-        ((FAILED++))
-        return 1
-    fi
-}
+# File checks
+echo "--- File Structure ---"
+[ -f ontology/Containerfile.planning ] && pass "Containerfile.planning exists" || fail "Containerfile.planning missing"
+[ -f ontology/planning_mode/test_uav.kif ] && pass "test_uav.kif exists" || fail "test_uav.kif missing"
+[ -f ontology/planning_mode/test_theorem.tptp ] && pass "test_theorem.tptp exists" || fail "test_theorem.tptp missing"
+[ -f ontology/planning_mode/validate_kif.py ] && pass "validate_kif.py exists" || fail "validate_kif.py missing"
 
-# 1. Check Containerfile exists
-check "Containerfile.planning exists" \
-    "test -f $PROJECT_ROOT/ontology/Containerfile.planning"
-
-# 2. Check working directory exists
-check "planning_mode directory exists" \
-    "test -d $PROJECT_ROOT/ontology/planning_mode"
-
-# 3. Check test ontology exists
-check "test_uav.kif exists" \
-    "test -f $PROJECT_ROOT/ontology/planning_mode/test_uav.kif"
-
-# 4. Check container image built
-check "flyby-f11-planning image exists" \
-    "podman images | grep -q flyby-f11-planning"
-
-# 5. Verify SUMO in container
-echo -n "Checking SUMO installation in container... "
-if podman run --rm flyby-f11-planning:latest bash -c 'test -d $SUMO_HOME' 2>/dev/null; then
-    echo "✓ PASS"
-    ((PASSED++))
+# Container checks
+echo ""
+echo "--- Container ---"
+if podman images | grep -q flyby-f11-planning; then
+    pass "Container image exists"
+    SIZE=$(podman images flyby-f11-planning --format "{{.Size}}")
+    echo "  Image size: $SIZE"
 else
-    echo "✗ FAIL"
-    ((FAILED++))
+    fail "Container image missing"
 fi
 
-# 6. Verify Vampire in container
-echo -n "Checking Vampire installation in container... "
-if podman run --rm flyby-f11-planning:latest which vampire > /dev/null 2>&1; then
-    echo "✓ PASS"
-    ((PASSED++))
+# SUMO check
+echo ""
+echo "--- SUMO Ontology ---"
+KIF_COUNT=$(podman run --rm flyby-f11-planning:latest sh -c 'ls $SUMO_HOME/*.kif | wc -l' 2>/dev/null)
+if [ "$KIF_COUNT" -gt 50 ]; then
+    pass "SUMO KIF files present ($KIF_COUNT files)"
 else
-    echo "✗ FAIL"
-    ((FAILED++))
+    fail "SUMO KIF files missing or incomplete"
 fi
 
-# 7. Test SUMO can load ontology
-echo -n "Testing SUMO loads test ontology... "
-mkdir -p $PROJECT_ROOT/ontology/planning_mode/logs
-if podman run --rm \
-    -v $PROJECT_ROOT/ontology:/workspace:z \
+# Vampire check
+echo ""
+echo "--- Vampire ATP ---"
+if podman run --rm flyby-f11-planning:latest vampire --version 2>/dev/null | grep -q "Vampire"; then
+    pass "Vampire installed"
+else
+    fail "Vampire not found"
+fi
+
+# KIF syntax validation
+echo ""
+echo "--- KIF Syntax Test ---"
+if python3 ontology/planning_mode/validate_kif.py ontology/planning_mode/test_uav.kif > /dev/null 2>&1; then
+    pass "test_uav.kif syntax valid"
+else
+    fail "test_uav.kif syntax invalid"
+fi
+
+# Vampire proof test
+echo ""
+echo "--- Theorem Proving ---"
+PROOF_RESULT=$(podman run --rm -v "$PROJECT_ROOT/ontology:/workspace:z" \
     flyby-f11-planning:latest \
-    bash -c 'cd /workspace/planning_mode && echo "Testing SUMO load" > logs/sumo_test.log' 2>/dev/null; then
-    echo "✓ PASS"
-    ((PASSED++))
+    vampire --input_syntax tptp /workspace/planning_mode/test_theorem.tptp 2>&1)
+if echo "$PROOF_RESULT" | grep -q "SZS status Theorem"; then
+    pass "Vampire proves test theorem"
 else
-    echo "✗ FAIL"
-    ((FAILED++))
+    fail "Vampire proof failed"
 fi
 
-# 8. Test volume mounting works
-echo -n "Testing volume mount read/write... "
-TEST_FILE="$PROJECT_ROOT/ontology/planning_mode/.verification_test"
-if podman run --rm \
-    -v $PROJECT_ROOT/ontology:/workspace:z \
+# Volume mount test
+echo ""
+echo "--- Volume Mount ---"
+TEST_FILE="ontology/planning_mode/.verify_test"
+if podman run --rm -v "$PROJECT_ROOT/ontology:/workspace:z" \
     flyby-f11-planning:latest \
-    bash -c 'touch /workspace/planning_mode/.verification_test' && \
-   test -f "$TEST_FILE"; then
+    touch /workspace/planning_mode/.verify_test 2>/dev/null && [ -f "$TEST_FILE" ]; then
     rm -f "$TEST_FILE"
-    echo "✓ PASS"
-    ((PASSED++))
+    pass "Volume mount read/write works"
 else
-    echo "✗ FAIL"
-    ((FAILED++))
+    fail "Volume mount failed"
 fi
 
-# Print summary
+# Summary
 echo ""
 echo "========================================"
-echo "Verification Summary"
+echo "Results: $PASSED passed, $FAILED failed"
 echo "========================================"
-echo "Passed: $PASSED"
-echo "Failed: $FAILED"
-echo ""
 
 if [ $FAILED -eq 0 ]; then
-    echo "✓ Phase 1 verification SUCCESSFUL"
+    echo "✓ Phase 1 COMPLETE"
     echo ""
-    echo "Next steps:"
-    echo "  1. Review TASK.md for phase completion checklist"
-    echo "  2. Proceed to Phase 2: UAV Ontology Development"
-    echo "  3. Run: bash scripts/next-phase.sh"
+    echo "Next: bash scripts/next-phase.sh"
     exit 0
 else
-    echo "✗ Phase 1 verification FAILED"
-    echo ""
-    echo "Review failed checks above and:"
-    echo "  1. Ensure Containerfile.planning builds successfully"
-    echo "  2. Verify SUMO and Vampire are installed in container"
-    echo "  3. Check volume mount permissions (use :z suffix)"
-    echo "  4. See TASK.md for detailed troubleshooting"
+    echo "✗ Phase 1 FAILED - fix issues above"
     exit 1
 fi

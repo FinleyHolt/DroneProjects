@@ -1,0 +1,24 @@
+{
+  "phase": "phase-08-behavior-selector-rl",
+  "phase_number": 8,
+  "depends_on": [
+    "phase-06-phase-transition"
+  ],
+  "required_by": [
+    "phase-10-aggm-integration",
+    "phase-11-simulation-benchmark"
+  ],
+  "blocking": false,
+  "description": "Phase 8 implements the Behavior Selector RL agent. Can run in parallel with Phase 7/9.",
+  "dependency_details": {
+    "phase-06-phase-transition": {
+      "reason": "Requires execution mode infrastructure",
+      "artifacts_needed": ["ros2_ws/src/phase_transition/"]
+    }
+  },
+  "parallel_execution": {
+    "can_run_parallel": true,
+    "parallel_with": ["phase-07-mission-planner-rl", "phase-09-trajectory-optimizer-rl"],
+    "notes": "All three RL agents can be developed in parallel. They share ontology_rl package."
+  }
+}

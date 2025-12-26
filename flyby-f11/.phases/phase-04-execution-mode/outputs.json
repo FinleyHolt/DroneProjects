@@ -1,0 +1,68 @@
+{
+  "phase": "phase-04-execution-mode",
+  "required_outputs": {
+    "execution_container": {
+      "path": "ontology/Containerfile.execution",
+      "type": "file",
+      "description": "Multi-arch Containerfile for SWI-Prolog runtime",
+      "verification": "file_exists"
+    },
+    "container_image_x86": {
+      "name": "flyby-f11-execution:latest",
+      "type": "podman_image",
+      "description": "Built x86_64 execution container",
+      "verification": "podman images | grep flyby-f11-execution"
+    },
+    "query_interface": {
+      "path": "ontology/execution_mode/query_interface.py",
+      "type": "file",
+      "description": "Python interface for Prolog queries",
+      "verification": "file_exists",
+      "executable": true
+    },
+    "ros2_bridge_package": {
+      "path": "ros2_ws/src/prolog_bridge/",
+      "type": "directory",
+      "description": "ROS 2 package for Prolog integration",
+      "verification": "directory_exists",
+      "required_files": [
+        "package.xml",
+        "setup.py",
+        "prolog_bridge/prolog_node.py"
+      ]
+    },
+    "benchmark_suite": {
+      "path": "ontology/execution_mode/benchmarks/",
+      "type": "directory",
+      "description": "Performance benchmarking scripts and results",
+      "verification": "directory_exists"
+    },
+    "benchmark_results": {
+      "path": "ontology/execution_mode/benchmarks/results.json",
+      "type": "file",
+      "description": "JSON file with benchmark measurements",
+      "verification": "file_exists"
+    }
+  },
+  "optional_outputs": {
+    "container_image_arm": {
+      "name": "flyby-f11-execution:latest-arm64",
+      "type": "podman_image",
+      "description": "Built ARM64 execution container (if Jetson available)",
+      "verification": "podman images | grep flyby-f11-execution.*arm64"
+    }
+  },
+  "success_indicators": {
+    "container_builds": "Containerfile.execution builds without errors",
+    "prolog_loads": "SWI-Prolog loads uav_rules.pl successfully",
+    "query_latency": "All safety queries complete in <10ms",
+    "memory_usage": "Runtime memory < 100MB",
+    "ros2_bridge_works": "ROS 2 service responds to queries"
+  },
+  "metrics": {
+    "avg_query_latency_ms": "Average query execution time",
+    "max_query_latency_ms": "Maximum query execution time",
+    "memory_footprint_mb": "Peak memory usage during benchmarks",
+    "queries_per_second": "Throughput of query interface"
+  }
+}

@@ -1,0 +1,39 @@
+# Flyby F-11 Planning Mode Container
+# Vampire Theorem Prover + SUMO Ontology (KIF files only)
+#
+# Lightweight container for formal reasoning. Runs on-demand to generate
+# verified mission plans compiled to Prolog for execution mode.
+
+FROM ubuntu:22.04
+
+LABEL maintainer="Finley Holt"
+LABEL description="Planning mode: Vampire ATP + SUMO ontology"
+LABEL version="1.1"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV SUMO_HOME=/opt/sumo
+
+# Minimal dependencies: git for SUMO clone, wget/unzip for Vampire
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    wget \
+    unzip \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Vampire theorem prover (static binary, no dependencies)
+RUN mkdir -p /tmp/vampire && cd /tmp/vampire && \
+    wget -q https://github.com/vprover/vampire/releases/download/v5.0.0/vampire-Linux-X64.zip && \
+    unzip vampire-Linux-X64.zip && \
+    chmod +x vampire && \
+    mv vampire /usr/local/bin/vampire && \
+    rm -rf /tmp/vampire
+
+# Clone SUMO (KIF files only, no Java tools)
+RUN git clone --depth 1 https://github.com/ontologyportal/sumo.git ${SUMO_HOME} && \
+    rm -rf ${SUMO_HOME}/.git
+
+WORKDIR /workspace
+
+# Verify installation
+CMD ["sh", "-c", "echo 'SUMO:' && ls $SUMO_HOME/*.kif | wc -l && echo 'KIF files' && vampire --version"]

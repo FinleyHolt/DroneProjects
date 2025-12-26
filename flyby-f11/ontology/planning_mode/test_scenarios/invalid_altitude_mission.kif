@@ -1,0 +1,137 @@
+;;; =========================================================================
+;;; Test Scenario: Invalid Altitude Mission
+;;; =========================================================================
+;;;
+;;; This test scenario defines a mission where the UAV exceeds the maximum
+;;; operating altitude, which should trigger an altitude violation.
+;;; Used to verify that altitude constraints are properly enforced.
+;;;
+;;; Expected Result: Altitude violation detected, mission not safe
+;;;
+;;; =========================================================================
+
+;;; -------------------------------------------------------------------------
+;;; INSTANCE DEFINITIONS
+;;; -------------------------------------------------------------------------
+
+;; Create a Flyby F-11 UAV instance
+(instance altitudeTestDrone FlybyF11)
+(documentation altitudeTestDrone EnglishLanguage
+  "Test drone for altitude violation scenario.")
+
+;; Current state: flying but too high
+(CurrentBatteryLevel altitudeTestDrone 70.0)
+(hasFlightPhase altitudeTestDrone Transit)
+(hasPositionQuality altitudeTestDrone HighQuality)
+
+;; Sensor states: operational
+(instance altTestGNSS GNSSSensor)
+(hasSensor altitudeTestDrone altTestGNSS Center)
+(hasSensorState altTestGNSS SensorOperational)
+
+;;; -------------------------------------------------------------------------
+;;; MISSION DEFINITION WITH ALTITUDE VIOLATION
+;;; -------------------------------------------------------------------------
+
+;; Define the mission
+(instance invalidAltitudeMission WaypointMission)
+(documentation invalidAltitudeMission EnglishLanguage
+  "A mission where the UAV exceeds maximum altitude limits.")
+
+;; Assign UAV to mission
+(assignedUAV invalidAltitudeMission altitudeTestDrone)
+(hasMissionStatus invalidAltitudeMission MissionActive)
+
+;;; -------------------------------------------------------------------------
+;;; ALTITUDE CONSTRAINT VIOLATION
+;;; -------------------------------------------------------------------------
+
+;; Mission maximum altitude is 100 meters (within Part 107)
+(MaximumOperatingAltitude invalidAltitudeMission (MeasureFn 100 Meter))
+
+;; However, the UAV is currently at 150 meters (violation!)
+(altitudeAGL altitudeTestDrone (MeasureFn 150 Meter))
+
+;; This exceeds both mission limit AND FAA Part 107 (400 feet ~ 122m)
+
+;;; -------------------------------------------------------------------------
+;;; GEOFENCE (Valid)
+;;; -------------------------------------------------------------------------
+
+;; Define the operating geofence
+(instance altMissionGeofence Geofence)
+
+;; Associate mission with geofence
+(hasMissionArea invalidAltitudeMission altMissionGeofence)
+
+;; UAV is within the horizontal geofence boundary
+(isWithin altitudeTestDrone altMissionGeofence)
+
+;; Geofence does not overlap with no-fly zones
+(not (overlapsWithNoFlyZone altMissionGeofence))
+
+;;; -------------------------------------------------------------------------
+;;; ENVIRONMENTAL CONDITIONS (Good)
+;;; -------------------------------------------------------------------------
+
+;; Environment is fine for flying
+(instance altTestArea Region)
+(WindSpeed altTestArea (MeasureFn 3 MetersPerSecond))
+(VisibilityDistance altTestArea (MeasureFn 15 Kilometer))
+(LightingCondition altTestArea Daylight)
+(GNSSAvailability altTestArea HighQuality)
+
+;;; -------------------------------------------------------------------------
+;;; EXPECTED QUERY RESULTS
+;;; -------------------------------------------------------------------------
+
+;; Query: (altitudeViolation altitudeTestDrone)
+;; Expected: True
+;;
+;; The altitude violation axiom should fire because:
+;; - MaximumOperatingAltitude is 100 Meter
+;; - altitudeAGL is 150 Meter
+;; - 150 > 100 is true
+;;
+;; From uav_domain.kif:
+;; (=>
+;;   (and
+;;     (instance ?UAV UAV)
+;;     (instance ?MISSION UAVMission)
+;;     (assignedUAV ?MISSION ?UAV)
+;;     (MaximumOperatingAltitude ?MISSION ?MAX_ALT)
+;;     (altitudeAGL ?UAV ?CURRENT_ALT)
+;;     (greaterThan ?CURRENT_ALT ?MAX_ALT))
+;;   (altitudeViolation ?UAV))
+
+;;; -------------------------------------------------------------------------
+;;; REGULATORY VIOLATION
+;;; -------------------------------------------------------------------------
+
+;; Additionally, this violates FAA Part 107 which limits flight to 400 feet
+;; (approximately 122 meters) AGL unless within 400 feet of a structure.
+;; At 150 meters, this mission is not FAA Part 107 compliant.
+
+;; Query: (FAAPart107Compliant invalidAltitudeMission)
+;; Expected: False
+
+;;; -------------------------------------------------------------------------
+;;; REQUIRED CORRECTIVE ACTION
+;;; -------------------------------------------------------------------------
+
+;; The ontology should recommend:
+;; 1. Immediate descent to compliant altitude (< 100m mission limit)
+;; 2. Transition to ReturnToLaunch if descent cannot be safely executed
+;; 3. Log the violation for post-flight analysis
+
+;;; =========================================================================
+;;; THEOREM TO DISPROVE (Safety)
+;;; =========================================================================
+
+;; This scenario should prove:
+;; - (altitudeViolation altitudeTestDrone) is True
+;; - (safeState altitudeTestDrone) cannot be derived (violation exists)
+
+;;; =========================================================================
+;;; END OF INVALID ALTITUDE MISSION TEST SCENARIO
+;;; =========================================================================

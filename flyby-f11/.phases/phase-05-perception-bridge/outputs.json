@@ -1,0 +1,56 @@
+{
+  "phase": "phase-05-perception-bridge",
+  "required_outputs": {
+    "grounding_package": {
+      "path": "ros2_ws/src/perception_grounding/",
+      "type": "directory",
+      "description": "ROS 2 package for perception-to-reasoning bridge",
+      "verification": "directory_exists",
+      "required_files": [
+        "package.xml",
+        "setup.py",
+        "perception_grounding/object_grounding_node.py",
+        "perception_grounding/terrain_grounding_node.py",
+        "perception_grounding/spatial_relation_node.py",
+        "perception_grounding/event_detection_node.py"
+      ]
+    },
+    "custom_messages": {
+      "path": "ros2_ws/src/perception_grounding/msg/",
+      "type": "directory",
+      "description": "Custom ROS 2 messages for grounded facts",
+      "verification": "directory_exists"
+    },
+    "launch_file": {
+      "path": "ros2_ws/src/perception_grounding/launch/grounding.launch.py",
+      "type": "file",
+      "description": "Launch file for all grounding nodes",
+      "verification": "file_exists"
+    },
+    "integration_tests": {
+      "path": "ros2_ws/src/perception_grounding/test/",
+      "type": "directory",
+      "description": "Integration tests for grounding nodes",
+      "verification": "directory_exists"
+    },
+    "test_data": {
+      "path": "ros2_ws/src/perception_grounding/test/data/",
+      "type": "directory",
+      "description": "Simulated perception data for testing",
+      "verification": "directory_exists"
+    }
+  },
+  "success_indicators": {
+    "package_builds": "colcon build succeeds for perception_grounding",
+    "nodes_launch": "All grounding nodes start without errors",
+    "facts_asserted": "Prolog KB receives grounded facts",
+    "spatial_correct": "Spatial relations computed correctly",
+    "events_detected": "Temporal events detected from tracking",
+    "latency_acceptable": "Perception to fact latency < 50ms"
+  },
+  "metrics": {
+    "avg_grounding_latency_ms": "Average time from perception to fact assertion",
+    "facts_per_frame": "Average number of facts generated per perception frame",
+    "spatial_accuracy_percent": "Accuracy of spatial relation computation"
+  }
+}

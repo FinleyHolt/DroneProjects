@@ -1,0 +1,21 @@
+%------------------------------------------------------------------------------
+% Test: Battery Return to Launch
+% Tests that low battery triggers RTL requirement
+%------------------------------------------------------------------------------
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom, ![X]: (uav(X) => aircraft(X))).
+fof(flyby_f11_is_uav, axiom, ![X]: (flyby_f11(X) => uav(X))).
+
+% Battery reserve axiom - must return if below reserve
+fof(battery_reserve_axiom, axiom,
+    ![UAV]:
+      ((uav(UAV) & battery_below_reserve(UAV))
+       => must_return_to_launch(UAV))).
+
+% Test scenario: battery is below reserve
+fof(test_drone_is_flyby, axiom, flyby_f11(test_drone_battery)).
+fof(battery_is_low, axiom, battery_below_reserve(test_drone_battery)).
+
+% Conjecture: RTL should be required
+fof(prove_must_return, conjecture, must_return_to_launch(test_drone_battery)).

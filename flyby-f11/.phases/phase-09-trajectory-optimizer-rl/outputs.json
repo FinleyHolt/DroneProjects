@@ -1,0 +1,54 @@
+{
+  "phase": "phase-09-trajectory-optimizer-rl",
+  "required_outputs": {
+    "trajectory_optimizer_env": {
+      "path": "ros2_ws/src/ontology_rl/ontology_rl/envs/trajectory_optimizer_env.py",
+      "type": "file",
+      "description": "Gymnasium environment for trajectory optimization",
+      "verification": "file_exists"
+    },
+    "trajectory_optimizer_agent": {
+      "path": "ros2_ws/src/ontology_rl/ontology_rl/agents/trajectory_optimizer_td3.py",
+      "type": "file",
+      "description": "TD3 agent implementation",
+      "verification": "file_exists"
+    },
+    "trajectory_optimizer_node": {
+      "path": "ros2_ws/src/ontology_rl/ontology_rl/nodes/trajectory_optimizer_node.py",
+      "type": "file",
+      "description": "ROS 2 node for runtime execution",
+      "verification": "file_exists"
+    },
+    "dynamics_model": {
+      "path": "ros2_ws/src/ontology_rl/ontology_rl/dynamics/",
+      "type": "directory",
+      "description": "Quadrotor dynamics modeling",
+      "verification": "directory_exists"
+    },
+    "mdp_documentation": {
+      "path": "ros2_ws/src/ontology_rl/docs/trajectory_optimizer_mdp.md",
+      "type": "file",
+      "description": "MDP formulation documentation",
+      "verification": "file_exists"
+    },
+    "trained_model": {
+      "path": "ros2_ws/src/ontology_rl/models/trajectory_optimizer/",
+      "type": "directory",
+      "description": "Trained policy checkpoints",
+      "verification": "directory_exists"
+    }
+  },
+  "success_indicators": {
+    "environment_runs": "Gymnasium environment step() works",
+    "agent_trains": "TD3 training loop executes",
+    "velocity_limits": "Commands within actuator constraints",
+    "control_frequency": "Node runs at 100Hz",
+    "smooth_trajectories": "Low jerk in generated commands"
+  },
+  "metrics": {
+    "training_reward": "Final average training reward",
+    "tracking_error_m": "Average position tracking error",
+    "control_frequency_hz": "Actual control loop frequency",
+    "jerk_metric": "Average jerk magnitude"
+  }
+}

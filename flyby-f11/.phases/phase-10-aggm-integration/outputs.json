@@ -1,0 +1,54 @@
+{
+  "phase": "phase-10-aggm-integration",
+  "required_outputs": {
+    "aggm_module": {
+      "path": "ros2_ws/src/ontology_rl/ontology_rl/aggm/",
+      "type": "directory",
+      "description": "AGGM implementation",
+      "verification": "directory_exists",
+      "required_files": [
+        "__init__.py",
+        "aggm_core.py",
+        "change_detector.py",
+        "goal_reasoner.py",
+        "importance_weighting.py"
+      ]
+    },
+    "aggm_node": {
+      "path": "ros2_ws/src/ontology_rl/ontology_rl/nodes/aggm_node.py",
+      "type": "file",
+      "description": "ROS 2 node for AGGM monitoring",
+      "verification": "file_exists"
+    },
+    "goal_messages": {
+      "path": "ros2_ws/src/ontology_rl/msg/Goal.msg",
+      "type": "file",
+      "description": "ROS 2 message for generated goals",
+      "verification": "file_exists"
+    },
+    "test_scenarios": {
+      "path": "ros2_ws/src/ontology_rl/test/aggm/",
+      "type": "directory",
+      "description": "AGGM test scenarios",
+      "verification": "directory_exists"
+    },
+    "documentation": {
+      "path": "ros2_ws/src/ontology_rl/docs/aggm_integration.md",
+      "type": "file",
+      "description": "AGGM integration documentation",
+      "verification": "file_exists"
+    }
+  },
+  "success_indicators": {
+    "change_detection_works": "Significant changes trigger AGGM",
+    "forward_reasoning": "Goals selected from predefined set",
+    "backward_reasoning": "Novel goals generated for safe return",
+    "agent_integration": "All agents accept AGGM goals",
+    "priority_balancing": "Safety/task tradeoff works"
+  },
+  "metrics": {
+    "aggm_trigger_rate": "Frequency of AGGM activation",
+    "goal_generation_latency_ms": "Time to generate new goal",
+    "novel_scenario_success_rate": "Success in unseen situations"
+  }
+}

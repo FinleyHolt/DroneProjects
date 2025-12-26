@@ -2,8 +2,6 @@
 # Phase 2: UAV Ontology Development - Automated Verification
 # This script verifies that the UAV domain ontology is correctly defined
 
-set -e  # Exit on any error
-
 PHASE_NAME="phase-02-uav-ontology"
 PROJECT_ROOT="/home/finley/Github/DroneProjects/flyby-f11"
 
@@ -24,11 +22,11 @@ check() {
     echo -n "Checking $name... "
     if eval "$command" > /dev/null 2>&1; then
         echo "✓ PASS"
-        ((PASSED++))
+        PASSED=$((PASSED + 1))
         return 0
     else
         echo "✗ FAIL"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         return 1
     fi
 }
@@ -42,10 +40,10 @@ echo -n "Checking uav_domain.kif has substantial content... "
 FILE_SIZE=$(stat -c%s "$PROJECT_ROOT/ontology/planning_mode/uav_domain.kif" 2>/dev/null || echo 0)
 if [ "$FILE_SIZE" -gt 10240 ]; then  # At least 10KB
     echo "✓ PASS ($((FILE_SIZE / 1024))KB)"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo "✗ FAIL (only $((FILE_SIZE / 1024))KB)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # 3. Check test scenarios directory exists
@@ -73,56 +71,64 @@ if [ -f "$PROJECT_ROOT/ontology/planning_mode/uav_domain.kif" ]; then
     CLOSE=$(grep -o ')' "$PROJECT_ROOT/ontology/planning_mode/uav_domain.kif" | wc -l)
     if [ "$OPEN" -eq "$CLOSE" ] && [ "$OPEN" -gt 0 ]; then
         echo "✓ PASS ($OPEN matching pairs)"
-        ((PASSED++))
+        PASSED=$((PASSED + 1))
     else
         echo "✗ FAIL (open: $OPEN, close: $CLOSE)"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
     fi
 else
     echo "✗ FAIL (file not found)"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
-# 7. Test SUMO can load ontology
-echo -n "Testing SUMO loads uav_domain.kif... "
+# 7. Run ontology consistency check with Vampire
+echo -n "Testing ontology consistency with Vampire... "
 mkdir -p $PROJECT_ROOT/ontology/planning_mode/logs
-if podman run --rm \
-    -v $PROJECT_ROOT/ontology:/workspace:z \
-    flyby-f11-planning:latest \
-    bash -c 'cd /workspace/planning_mode && echo "SUMO load test for uav_domain.kif" > logs/consistency_check.log' 2>/dev/null; then
-    echo "✓ PASS"
-    ((PASSED++))
+if [ -f "$PROJECT_ROOT/ontology/planning_mode/test_scenarios/consistency_check.tptp" ]; then
+    VAMPIRE_OUTPUT=$(podman run --rm \
+        -v $PROJECT_ROOT/ontology:/workspace:z \
+        flyby-f11-planning:latest \
+        vampire --input_syntax tptp --time_limit 30 \
+        /workspace/planning_mode/test_scenarios/consistency_check.tptp 2>&1)
+    echo "$VAMPIRE_OUTPUT" > $PROJECT_ROOT/ontology/planning_mode/logs/consistency_check.log
+    if echo "$VAMPIRE_OUTPUT" | grep -q "CounterSatisfiable\|Satisfiable"; then
+        echo "✓ PASS (no contradictions)"
+        PASSED=$((PASSED + 1))
+    else
+        echo "✗ FAIL (inconsistency detected)"
+        FAILED=$((FAILED + 1))
+    fi
 else
-    echo "✗ FAIL"
-    ((FAILED++))
+    echo "✗ FAIL (consistency_check.tptp not found)"
+    FAILED=$((FAILED + 1))
 fi
 
 # 8. Check for key ontology concepts (grep for expected classes)
 echo -n "Checking for UAV class definition... "
 if grep -q '(subclass.*UAV' "$PROJECT_ROOT/ontology/planning_mode/uav_domain.kif" 2>/dev/null; then
     echo "✓ PASS"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo "✗ FAIL"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 echo -n "Checking for Mission class definition... "
 if grep -q '(subclass.*Mission' "$PROJECT_ROOT/ontology/planning_mode/uav_domain.kif" 2>/dev/null; then
     echo "✓ PASS"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo "✗ FAIL"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 echo -n "Checking for Constraint definitions... "
 if grep -q 'Constraint\|constraint' "$PROJECT_ROOT/ontology/planning_mode/uav_domain.kif" 2>/dev/null; then
     echo "✓ PASS"
-    ((PASSED++))
+    PASSED=$((PASSED + 1))
 else
     echo "✗ FAIL"
-    ((FAILED++))
+    FAILED=$((FAILED + 1))
 fi
 
 # Print summary

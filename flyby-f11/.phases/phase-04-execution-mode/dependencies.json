@@ -1,0 +1,29 @@
+{
+  "phase": "phase-04-execution-mode",
+  "phase_number": 4,
+  "depends_on": [
+    "phase-01-ontology-toolchain",
+    "phase-02-uav-ontology",
+    "phase-03-translation"
+  ],
+  "required_by": [
+    "phase-05-perception-bridge",
+    "phase-06-phase-transition",
+    "phase-07-mission-planner-rl"
+  ],
+  "blocking": true,
+  "description": "Phase 4 creates the lightweight Prolog runtime for real-time execution. Requires translated rules from Phase 3.",
+  "dependency_details": {
+    "phase-03-translation": {
+      "reason": "Requires compiled Prolog rules to load into execution runtime",
+      "artifacts_needed": [
+        "ontology/execution_mode/uav_rules.pl",
+        "ontology/execution_mode/templates/"
+      ]
+    }
+  },
+  "parallel_execution": {
+    "can_run_parallel": false,
+    "notes": "Sequential dependency on Phase 3. Blocks perception bridge and RL development."
+  }
+}

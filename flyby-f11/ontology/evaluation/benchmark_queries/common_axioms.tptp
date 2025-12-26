@@ -1,0 +1,194 @@
+%------------------------------------------------------------------------------
+% UAV Domain Ontology - Common Axioms for Benchmarking
+% Shared axioms included by all benchmark queries
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% SECTION 1: Type Hierarchy
+% ============================================================================
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(multirotor_is_uav, axiom,
+    ![X]: (multirotor(X) => uav(X))).
+
+fof(quadcopter_is_multirotor, axiom,
+    ![X]: (quadcopter(X) => multirotor(X))).
+
+fof(flyby_f11_is_quadcopter, axiom,
+    ![X]: (flyby_f11(X) => quadcopter(X))).
+
+fof(fixed_wing_is_uav, axiom,
+    ![X]: (fixed_wing_uav(X) => uav(X))).
+
+fof(hybrid_vtol_is_uav, axiom,
+    ![X]: (hybrid_vtol(X) => uav(X))).
+
+% Region class hierarchy
+fof(geofence_is_region, axiom,
+    ![X]: (geofence(X) => airspace_region(X))).
+
+fof(nfz_is_region, axiom,
+    ![X]: (no_fly_zone(X) => airspace_region(X))).
+
+fof(restricted_is_region, axiom,
+    ![X]: (restricted_airspace(X) => airspace_region(X))).
+
+% ============================================================================
+% SECTION 2: Spatial Axioms
+% ============================================================================
+
+% isWithin and isOutside are mutually exclusive
+fof(within_outside_exclusive, axiom,
+    ![X, R]: (is_within(X, R) => ~is_outside(X, R))).
+
+fof(outside_within_exclusive, axiom,
+    ![X, R]: (is_outside(X, R) => ~is_within(X, R))).
+
+% ============================================================================
+% SECTION 3: Safety Axioms
+% ============================================================================
+
+% Geofence violation axiom
+fof(geofence_violation_axiom, axiom,
+    ![UAV, Mission, Geofence]:
+      ((uav(UAV) &
+        uav_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        has_mission_area(Mission, Geofence) &
+        geofence(Geofence) &
+        is_outside(UAV, Geofence))
+       => geofence_violation(UAV))).
+
+% No-fly zone violation axiom
+fof(nfz_violation_axiom, axiom,
+    ![UAV, NFZ]:
+      ((uav(UAV) & no_fly_zone(NFZ) & is_within(UAV, NFZ))
+       => (nfz_violation(UAV) & ~safe_state(UAV)))).
+
+% Battery reserve axiom
+fof(battery_reserve_axiom, axiom,
+    ![UAV]:
+      ((uav(UAV) & battery_below_reserve(UAV))
+       => must_return_to_launch(UAV))).
+
+% Collision avoidance axiom
+fof(collision_axiom, axiom,
+    ![UAV, OBS]:
+      ((uav(UAV) & obstacle(OBS) & below_min_separation(UAV, OBS))
+       => (collision_imminent(UAV) & ~safe_state(UAV)))).
+
+% Altitude violation axiom
+fof(altitude_violation_axiom, axiom,
+    ![UAV, Mission]:
+      ((uav(UAV) &
+        uav_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        altitude_exceeds_max(UAV, Mission))
+       => altitude_violation(UAV))).
+
+% Lost localization requires landing
+fof(lost_localization_axiom, axiom,
+    ![UAV]: ((uav(UAV) & ~has_valid_localization(UAV))
+             => must_land(UAV))).
+
+% Sensor failure axiom
+fof(sensor_failure_axiom, axiom,
+    ![UAV, Sensor]:
+      ((uav(UAV) & has_sensor(UAV, Sensor) & sensor_failed(Sensor) & critical_sensor(Sensor))
+       => sensor_degraded_critical(UAV))).
+
+% Weather constraint axiom
+fof(weather_violation_axiom, axiom,
+    ![UAV, Region]:
+      ((uav(UAV) & is_within(UAV, Region) & wind_exceeds_limit(Region, UAV))
+       => weather_constraint_violation(UAV))).
+
+% ============================================================================
+% SECTION 4: Capability Axioms
+% ============================================================================
+
+% All multirotors can hover
+fof(multirotor_hover, axiom,
+    ![UAV]: (multirotor(UAV) => can_hover(UAV))).
+
+% All multirotors can vertical takeoff
+fof(multirotor_vtol, axiom,
+    ![UAV]: (multirotor(UAV) => can_vertical_takeoff(UAV))).
+
+% Hybrid VTOLs can vertical takeoff
+fof(hybrid_vtol_capability, axiom,
+    ![UAV]: (hybrid_vtol(UAV) => can_vertical_takeoff(UAV))).
+
+% Fixed-wing cannot hover (by default)
+fof(fixed_wing_no_hover, axiom,
+    ![UAV]: (fixed_wing_uav(UAV) => ~can_hover(UAV))).
+
+% Flyby F-11 is NDAA compliant
+fof(flyby_f11_ndaa, axiom,
+    ![UAV]: (flyby_f11(UAV) => ndaa_compliant(UAV))).
+
+% ============================================================================
+% SECTION 5: Localization Axioms
+% ============================================================================
+
+fof(high_quality_localization, axiom,
+    ![UAV]: ((uav(UAV) & has_position_quality(UAV, high_quality))
+             => has_valid_localization(UAV))).
+
+fof(medium_quality_localization, axiom,
+    ![UAV]: ((uav(UAV) & has_position_quality(UAV, medium_quality))
+             => has_valid_localization(UAV))).
+
+fof(low_quality_localization, axiom,
+    ![UAV]: ((uav(UAV) & has_position_quality(UAV, low_quality))
+             => has_valid_localization(UAV))).
+
+% ============================================================================
+% SECTION 6: Mission Validity Axioms
+% ============================================================================
+
+% Valid waypoint sequence requires all waypoints within geofence
+fof(waypoint_validity, axiom,
+    ![Mission, Geofence]:
+      ((waypoint_mission(Mission) &
+        has_mission_area(Mission, Geofence) &
+        geofence(Geofence) &
+        all_waypoints_within(Mission, Geofence))
+       => valid_waypoint_sequence(Mission))).
+
+% Mission validity composite check
+fof(mission_validity, axiom,
+    ![Mission, UAV]:
+      ((uav_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        uav(UAV) &
+        has_mission_area_valid(Mission) &
+        has_adequate_battery(UAV, Mission) &
+        has_required_sensors(UAV, Mission) &
+        weather_permits(Mission))
+       => is_valid_mission(Mission))).
+
+% ============================================================================
+% SECTION 7: Emergency Response Axioms
+% ============================================================================
+
+fof(low_battery_emergency, axiom,
+    ![UAV]: ((uav(UAV) & low_battery_emergency(UAV))
+             => triggers_action(UAV, immediate_land))).
+
+fof(localization_lost_emergency, axiom,
+    ![UAV]: ((uav(UAV) & localization_lost_emergency(UAV))
+             => triggers_action(UAV, immediate_land))).
+
+fof(collision_imminent_emergency, axiom,
+    ![UAV]: ((uav(UAV) & collision_imminent(UAV))
+             => triggers_action(UAV, avoid_obstacle))).
+
+fof(weather_emergency, axiom,
+    ![UAV]: ((uav(UAV) & weather_constraint_violation(UAV))
+             => triggers_action(UAV, return_to_launch))).
+
+%------------------------------------------------------------------------------

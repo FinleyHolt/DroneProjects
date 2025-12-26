@@ -1,0 +1,90 @@
+{
+  "status": "build_failed",
+  "reasoner": "ELK",
+  "reasoner_version": "0.6.0",
+  "owl_profile": "OWL 2 EL",
+  "timestamp": "2025-12-25T23:55:00Z",
+  "ontology_file": "owl_export/uav_domain.owl",
+
+  "build_failure_reason": "OWLAPI 5.1.20 requires extensive transitive dependencies (RDF4j, hppcrt, Caffeine, javax.inject, commons-rdf-api, etc.) that are not bundled in the distribution JAR. Manual dependency resolution proved complex and error-prone without a build tool like Maven/Gradle.",
+
+  "attempted_dependencies": [
+    "elk-owlapi-library-0.6.0.jar (ELK reasoner)",
+    "owlapi-distribution-5.1.20.jar (OWLAPI core)",
+    "slf4j-api-2.0.13.jar",
+    "slf4j-simple-2.0.13.jar",
+    "guava-31.1-jre.jar",
+    "commons-rdf-api-0.5.0.jar",
+    "javax.inject-1.jar",
+    "javax.annotation-api-1.3.2.jar",
+    "caffeine-2.9.3.jar"
+  ],
+
+  "missing_dependencies_at_failure": [
+    "org.eclipse.rdf4j.rio.RDFFormat (RDF4j library)",
+    "com.carrotsearch.hppcrt.maps.ObjectObjectHashMap (HPPC-RT collections)"
+  ],
+
+  "elk_owl2_el_limitations": [
+    "OWL 2 EL does NOT support negation (owl:complementOf)",
+    "OWL 2 EL does NOT support disjunction (owl:unionOf as superclass)",
+    "OWL 2 EL does NOT support universal restrictions (owl:allValuesFrom)",
+    "OWL 2 EL does NOT support cardinality restrictions (owl:maxCardinality, owl:minCardinality)",
+    "OWL 2 EL does NOT support nominals/oneOf (owl:oneOf)",
+    "OWL 2 EL does NOT support property chains beyond simple transitivity",
+    "OWL 2 EL does NOT support inverse properties (owl:inverseOf)"
+  ],
+
+  "safety_axioms_not_expressible": {
+    "description": "The following safety axioms from the KIF ontology CANNOT be expressed in OWL 2 EL and therefore CANNOT be reasoned over by ELK.",
+    "axioms": [
+      {
+        "kif_axiom": "(=> (and (instance ?UAV UAV) (hasBatteryLevel ?UAV ?Level) (lessThan ?Level 0.20)) (instance ?UAV LowBatteryCondition))",
+        "limitation": "Requires numeric comparison (lessThan) and conditional logic - not expressible in OWL 2 EL"
+      },
+      {
+        "kif_axiom": "(=> (and (instance ?UAV UAV) (hasGNSSStatus ?UAV DegradedGNSS)) (should ?UAV (ExecuteAction ReturnToLaunch)))",
+        "limitation": "Requires deontic logic (should) and conditional implications - not expressible in OWL"
+      },
+      {
+        "kif_axiom": "(=> (instance ?UAV LowBatteryCondition) (mustExecute ?UAV ReturnToLaunch))",
+        "limitation": "Requires modal logic (mustExecute) - not expressible in OWL"
+      },
+      {
+        "kif_axiom": "(=> (and (instance ?X FlightPhase) (during ?X ?M)) (exists (?UAV) (hasFlightPhase ?UAV ?X)))",
+        "limitation": "Requires temporal reasoning (during) - not expressible in OWL 2 EL"
+      },
+      {
+        "kif_axiom": "(=> (and (geofenceViolation ?UAV ?Zone) (instance ?Zone RestrictedAirspace)) (emergencyLand ?UAV))",
+        "limitation": "Requires spatial reasoning about geofence boundaries - not expressible in OWL 2 EL"
+      }
+    ]
+  },
+
+  "comparison_to_prolog": {
+    "summary": "Unlike ELK/OWL, Prolog CAN express all safety axioms from the KIF ontology",
+    "prolog_advantages": [
+      "Full first-order logic with variables and quantifiers",
+      "Numeric comparisons (BatteryLevel < 0.20)",
+      "Conditional rules with arbitrary complexity",
+      "Closed-world assumption for runtime queries",
+      "Efficient pattern matching for real-time safety monitoring"
+    ],
+    "recommendation": "For UAV safety-critical reasoning requiring numeric thresholds and conditional rules, use Prolog rather than OWL 2 EL reasoners"
+  },
+
+  "what_elk_could_do_if_working": {
+    "class_hierarchy_queries": "Get all subclasses of UAV, Sensor, Mission, etc.",
+    "subsumption_checking": "Verify FlybyF11 subClassOf Quadcopter subClassOf Multirotor subClassOf UAV",
+    "instance_retrieval": "Find all instances of FlightPhase, MissionStatus, etc.",
+    "consistency_checking": "Verify ontology has no contradictions",
+    "unsatisfiable_class_detection": "Find classes that cannot have instances"
+  },
+
+  "notes": [
+    "ELK is designed for large-scale biomedical ontologies like SNOMED-CT with millions of classes",
+    "Polynomial-time classification makes ELK extremely fast for what it CAN express",
+    "The UAV domain ontology is small enough that classification would be sub-millisecond",
+    "For drone autonomy with safety constraints, the expressivity limitations are the blocker, not performance"
+  ]
+}

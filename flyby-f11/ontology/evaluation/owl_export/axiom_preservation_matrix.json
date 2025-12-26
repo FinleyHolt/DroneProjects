@@ -1,0 +1,242 @@
+{
+  "metadata": {
+    "source": "ontology/planning_mode/uav_domain.kif",
+    "target": "ontology/evaluation/owl_export/uav_domain.owl",
+    "date": "2024-12-25",
+    "author": "Finley Holt",
+    "description": "Matrix documenting preservation status of axioms during KIF to OWL translation"
+  },
+  "summary": {
+    "total_axioms": 24,
+    "preserved": 7,
+    "modified": 5,
+    "lost": 12
+  },
+  "safety_axioms": [
+    {
+      "id": "SAFETY-001",
+      "name": "Collision Avoidance Axiom",
+      "kif_section": "SECTION 10: SAFETY AXIOMS",
+      "kif_axiom": "(=> (and (instance ?UAV UAV) (instance ?OBS Obstacle) (distanceTo ?UAV ?OBS ?DIST) (MinimumObstacleDistance ?UAV ?MIN_DIST) (lessThan ?DIST ?MIN_DIST)) (not (safeState ?UAV)))",
+      "status": "LOST",
+      "owl_workaround": "CollisionRiskState class created for manual assertion",
+      "reason": "OWL cannot express variable binding, numeric comparison (lessThan), or automatic inference of safety state"
+    },
+    {
+      "id": "SAFETY-002",
+      "name": "Geofence Containment Axiom",
+      "kif_section": "SECTION 10: SAFETY AXIOMS",
+      "kif_axiom": "(=> (and (instance ?UAV UAV) (instance ?MISSION UAVMission) (assignedUAV ?MISSION ?UAV) (hasMissionArea ?MISSION ?GEOFENCE) (instance ?GEOFENCE Geofence) (isOutside ?UAV ?GEOFENCE)) (geofenceViolation ?UAV))",
+      "status": "LOST",
+      "owl_workaround": "GeofenceViolationState class created for manual assertion",
+      "reason": "OWL cannot express multi-step property path with variable binding and automatic violation detection"
+    },
+    {
+      "id": "SAFETY-003",
+      "name": "No-Fly Zone Axiom",
+      "kif_section": "SECTION 10: SAFETY AXIOMS",
+      "kif_axiom": "(=> (and (instance ?UAV UAV) (instance ?NFZ NoFlyZone) (isWithin ?UAV ?NFZ)) (and (not (safeState ?UAV)) (noFlyZoneViolation ?UAV)))",
+      "status": "LOST",
+      "owl_workaround": "NoFlyZoneViolationState class created for manual assertion",
+      "reason": "OWL cannot express automatic inference from spatial relationship to safety violation"
+    },
+    {
+      "id": "SAFETY-004",
+      "name": "Battery Reserve Axiom",
+      "kif_section": "SECTION 9: OPERATIONAL CONSTRAINTS",
+      "kif_axiom": "(=> (and (CurrentBatteryLevel ?UAV ?CURRENT) (BatteryReserveForReturn ?UAV ?RESERVE) (lessThan ?CURRENT ?RESERVE)) (mustReturnToLaunch ?UAV))",
+      "status": "LOST",
+      "owl_workaround": "LowBatteryState class and data properties for manual checking",
+      "reason": "OWL cannot perform numeric comparisons or bind numeric values in implications"
+    },
+    {
+      "id": "SAFETY-005",
+      "name": "Altitude Violation Axiom",
+      "kif_section": "SECTION 10: SAFETY AXIOMS",
+      "kif_axiom": "(=> (and (instance ?UAV UAV) (instance ?MISSION UAVMission) (assignedUAV ?MISSION ?UAV) (MaximumOperatingAltitude ?MISSION ?MAX_ALT) (altitudeAGL ?UAV ?CURRENT_ALT) (greaterThan ?CURRENT_ALT ?MAX_ALT)) (altitudeViolation ?UAV))",
+      "status": "LOST",
+      "owl_workaround": "AltitudeViolationState class created for manual assertion",
+      "reason": "OWL cannot express numeric comparison or automatic violation inference"
+    },
+    {
+      "id": "SAFETY-006",
+      "name": "Lost Localization Safety Rule",
+      "kif_section": "SECTION 10: SAFETY AXIOMS",
+      "kif_axiom": "(=> (and (instance ?UAV UAV) (not (hasValidLocalization ?UAV))) (mustLand ?UAV))",
+      "status": "LOST",
+      "owl_workaround": "LocalizationLostState class created for manual assertion",
+      "reason": "OWL cannot express negation in antecedent or automatic action triggering"
+    },
+    {
+      "id": "SAFETY-007",
+      "name": "Weather Safety Axiom",
+      "kif_section": "SECTION 10: SAFETY AXIOMS",
+      "kif_axiom": "(=> (and (instance ?UAV UAV) (hasMaxWindSpeed ?UAV ?MAX_WIND) (hasLocation ?UAV ?LOC) (WindSpeed ?LOC ?CURRENT_WIND) (greaterThan ?CURRENT_WIND ?MAX_WIND)) (weatherConstraintViolation ?UAV))",
+      "status": "LOST",
+      "owl_workaround": "WeatherEmergency individual in EmergencyCondition class",
+      "reason": "OWL cannot express numeric comparison or location-based constraint checking"
+    }
+  ],
+  "operational_axioms": [
+    {
+      "id": "OP-001",
+      "name": "Multirotor Hover Capability",
+      "kif_section": "SECTION 3: UAV PHYSICAL PROPERTIES",
+      "kif_axiom": "(=> (instance ?UAV Multirotor) (canHover ?UAV))",
+      "status": "MODIFIED",
+      "owl_representation": ":Multirotor rdfs:subClassOf :HoverCapable",
+      "reason": "Converted to class subsumption; predicate-based assertion lost"
+    },
+    {
+      "id": "OP-002",
+      "name": "VTOL Capability Axiom",
+      "kif_section": "SECTION 3: UAV PHYSICAL PROPERTIES",
+      "kif_axiom": "(=> (or (instance ?UAV Multirotor) (instance ?UAV HybridVTOL)) (canVerticalTakeoff ?UAV))",
+      "status": "MODIFIED",
+      "owl_representation": ":Multirotor rdfs:subClassOf :VTOLCapable . :HybridVTOL rdfs:subClassOf :VTOLCapable",
+      "reason": "Split into separate subsumption axioms; disjunction in antecedent lost"
+    },
+    {
+      "id": "OP-003",
+      "name": "FlybyF11 NDAA Compliance",
+      "kif_section": "SECTION 8: REGULATORY CONSTRAINTS",
+      "kif_axiom": "(=> (instance ?UAV FlybyF11) (NDAACompliant ?UAV))",
+      "status": "MODIFIED",
+      "owl_representation": ":FlybyF11 rdfs:subClassOf :NDAACompliant",
+      "reason": "Converted to class subsumption"
+    },
+    {
+      "id": "OP-004",
+      "name": "Valid Localization Inference",
+      "kif_section": "SECTION 12: SENSOR STATE AND QUALITY",
+      "kif_axiom": "(=> (and (instance ?UAV UAV) (or (hasPositionQuality ?UAV HighQuality) (hasPositionQuality ?UAV MediumQuality) (hasPositionQuality ?UAV LowQuality))) (hasValidLocalization ?UAV))",
+      "status": "LOST",
+      "owl_workaround": "hasPositionQuality property preserved; automatic inference of localization validity lost",
+      "reason": "OWL cannot express disjunction in property values or automatic predicate inference"
+    },
+    {
+      "id": "OP-005",
+      "name": "FlybyF11 Default Properties",
+      "kif_section": "SECTION 13: FLYBY F-11 SPECIFIC INSTANCE",
+      "kif_axiom": "(=> (instance ?UAV FlybyF11) (and (hasPayloadCapacity ?UAV (MeasureFn 3.0 Kilogram)) (hasComputer ?UAV JetsonOrinNX16GB) ...))",
+      "status": "MODIFIED",
+      "owl_representation": "Example instance FlybyF11Instance1 with data properties",
+      "reason": "Class-level defaults cannot be expressed; instance-level values used instead"
+    }
+  ],
+  "structural_axioms": [
+    {
+      "id": "STRUCT-001",
+      "name": "Class Hierarchies",
+      "kif_section": "SECTION 1-2: CLASS HIERARCHIES",
+      "kif_axiom": "All (subclass X Y) statements",
+      "status": "PRESERVED",
+      "owl_representation": "rdfs:subClassOf relationships",
+      "reason": "Direct mapping to OWL class hierarchies"
+    },
+    {
+      "id": "STRUCT-002",
+      "name": "Binary Predicates",
+      "kif_section": "SECTIONS 3-12",
+      "kif_axiom": "All (instance X BinaryPredicate) with (domain X 1 Y) (domain X 2 Z)",
+      "status": "PRESERVED",
+      "owl_representation": "owl:ObjectProperty and owl:DatatypeProperty with rdfs:domain",
+      "reason": "Direct mapping to OWL properties"
+    },
+    {
+      "id": "STRUCT-003",
+      "name": "Ternary Predicates",
+      "kif_section": "SECTIONS 3, 4, 6",
+      "kif_axiom": "(instance hasSensor TernaryPredicate), (instance distanceTo TernaryPredicate), etc.",
+      "status": "MODIFIED",
+      "owl_representation": "Binary object properties (third argument lost)",
+      "reason": "OWL only supports binary properties; reification would add complexity"
+    },
+    {
+      "id": "STRUCT-004",
+      "name": "Named Instances (Individuals)",
+      "kif_section": "SECTIONS 4, 5, 12, 15",
+      "kif_axiom": "(instance MissionPending MissionStatus), (instance Preflight FlightPhase), etc.",
+      "status": "PRESERVED",
+      "owl_representation": "owl:NamedIndividual declarations",
+      "reason": "Direct mapping to OWL individuals"
+    },
+    {
+      "id": "STRUCT-005",
+      "name": "Flight Phase Transitions",
+      "kif_section": "SECTION 5: FLIGHT PHASES",
+      "kif_axiom": "(canTransitionTo Preflight Armed), (canTransitionTo Armed Takeoff), etc.",
+      "status": "PRESERVED",
+      "owl_representation": "Object property assertions between FlightPhase individuals",
+      "reason": "Direct mapping of ground facts"
+    },
+    {
+      "id": "STRUCT-006",
+      "name": "Emergency Response Mappings",
+      "kif_section": "SECTION 15: EMERGENCY PROCEDURES",
+      "kif_axiom": "(triggersEmergencyAction LowBatteryEmergency ImmediateLand), etc.",
+      "status": "PRESERVED",
+      "owl_representation": "triggersEmergencyAction property assertions",
+      "reason": "Ground facts preserved as property assertions"
+    },
+    {
+      "id": "STRUCT-007",
+      "name": "Mutual Exclusion (isWithin/isOutside)",
+      "kif_section": "SECTION 6: SPATIAL RELATIONS",
+      "kif_axiom": "(=> (isWithin ?OBJ ?REGION) (not (isOutside ?OBJ ?REGION)))",
+      "status": "MODIFIED",
+      "owl_representation": "owl:propertyDisjointWith between isWithin and isOutside",
+      "reason": "Approximated with property disjointness; full logical semantics lost"
+    }
+  ],
+  "lost_capabilities": [
+    {
+      "capability": "Automatic Safety Violation Detection",
+      "description": "The ability to automatically infer safety violations from sensor data and state",
+      "impact": "HIGH",
+      "mitigation": "Use Vampire theorem prover with KIF ontology for safety reasoning"
+    },
+    {
+      "capability": "Numeric Constraint Checking",
+      "description": "Comparisons like lessThan, greaterThan on numeric values",
+      "impact": "HIGH",
+      "mitigation": "Implement in application logic or use SWRL with numeric built-ins"
+    },
+    {
+      "capability": "Variable Binding Across Predicates",
+      "description": "Universal quantification with variable binding (forall ?x ...)",
+      "impact": "HIGH",
+      "mitigation": "Not expressible in OWL; requires FOL reasoner"
+    },
+    {
+      "capability": "Negation as Failure",
+      "description": "Inferring conclusions from absence of facts",
+      "impact": "MEDIUM",
+      "mitigation": "Use closed-world assumption in application logic"
+    },
+    {
+      "capability": "Units of Measure",
+      "description": "Typed measurements like (MeasureFn 3.0 Kilogram)",
+      "impact": "LOW",
+      "mitigation": "Could use QUDT ontology for units; currently using plain decimals"
+    }
+  ],
+  "elk_compatibility": {
+    "profile": "OWL 2 EL",
+    "supported_features": [
+      "Class hierarchies (rdfs:subClassOf)",
+      "Object property domains/ranges",
+      "Existential quantification (owl:someValuesFrom)",
+      "Object property chains"
+    ],
+    "unsupported_features": [
+      "Universal quantification (owl:allValuesFrom)",
+      "Negation (owl:complementOf)",
+      "Disjointness axioms (limited)",
+      "Cardinality restrictions",
+      "Property disjointness",
+      "Data property restrictions"
+    ],
+    "recommendation": "Ontology should work for ELK classification but safety axioms cannot be expressed in any OWL profile"
+  }
+}

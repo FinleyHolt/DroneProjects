@@ -1,0 +1,14 @@
+%------------------------------------------------------------------------------
+% OPERATIONAL QUERY 05: NDAA Compliance
+% Requirement: Target <100ms
+% Query: Is UAV NDAA compliant for government use?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Test instance: Flyby F-11
+fof(test_uav, axiom, flyby_f11(gov_drone)).
+
+% Query: Prove NDAA compliance
+fof(prove_ndaa_compliant, conjecture,
+    ndaa_compliant(gov_drone)).

@@ -1,0 +1,26 @@
+%------------------------------------------------------------------------------
+% PLANNING QUERY 01: Mission Feasibility
+% Requirement: Acceptable <1s (during mission planning)
+% Query: Can we complete this mission with available resources?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Test instance: Complete mission setup
+fof(test_uav, axiom, flyby_f11(uav_alpha)).
+fof(test_mission, axiom, uav_mission(recon_mission)).
+fof(test_geofence, axiom, geofence(mission_area)).
+
+% Mission configuration
+fof(test_assignment, axiom, assigned_uav(recon_mission, uav_alpha)).
+fof(test_area, axiom, has_mission_area(recon_mission, mission_area)).
+
+% All prerequisites met
+fof(test_area_valid, axiom, has_mission_area_valid(recon_mission)).
+fof(test_battery_ok, axiom, has_adequate_battery(uav_alpha, recon_mission)).
+fof(test_sensors_ok, axiom, has_required_sensors(uav_alpha, recon_mission)).
+fof(test_weather_ok, axiom, weather_permits(recon_mission)).
+
+% Query: Prove mission is valid/feasible
+fof(prove_mission_valid, conjecture,
+    is_valid_mission(recon_mission)).

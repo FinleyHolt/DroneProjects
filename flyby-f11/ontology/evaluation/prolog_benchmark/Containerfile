@@ -1,0 +1,31 @@
+# ==========================================================================
+# SWI-Prolog Benchmark Container for UAV Ontology Evaluation
+# ==========================================================================
+#
+# Runs benchmark queries against the Prolog translation of UAV safety axioms
+# to compare performance with Vampire theorem prover.
+#
+# Build:   podman build -t uav-prolog-benchmark -f Containerfile .
+# Run:     podman run --rm uav-prolog-benchmark
+#
+# ==========================================================================
+
+FROM docker.io/library/swipl:stable
+
+LABEL maintainer="Finley Holt"
+LABEL description="SWI-Prolog benchmark for UAV ontology safety reasoning"
+LABEL version="1.0"
+
+# Create working directory
+WORKDIR /benchmark
+
+# Copy Prolog files
+COPY uav_rules.pl /benchmark/uav_rules.pl
+COPY benchmark.pl /benchmark/benchmark.pl
+COPY run_benchmark.sh /benchmark/run_benchmark.sh
+
+# Make script executable
+RUN chmod +x /benchmark/run_benchmark.sh
+
+# Set default command
+CMD ["/benchmark/run_benchmark.sh"]

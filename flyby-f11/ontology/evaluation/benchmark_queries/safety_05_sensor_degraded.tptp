@@ -1,0 +1,18 @@
+%------------------------------------------------------------------------------
+% SAFETY QUERY 05: Sensor Degraded
+% Requirement: Must complete in <10ms during flight
+% Query: Has critical sensor failed?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Test instance: UAV with failed GPS sensor
+fof(test_uav, axiom, flyby_f11(uav_alpha)).
+fof(test_gps_sensor, axiom, gps_sensor(gnss_unit_1)).
+fof(test_has_sensor, axiom, has_sensor(uav_alpha, gnss_unit_1)).
+fof(test_sensor_failed, axiom, sensor_failed(gnss_unit_1)).
+fof(test_critical, axiom, critical_sensor(gnss_unit_1)).
+
+% Query: Prove critical sensor degradation is detected
+fof(prove_sensor_degraded, conjecture,
+    sensor_degraded_critical(uav_alpha)).

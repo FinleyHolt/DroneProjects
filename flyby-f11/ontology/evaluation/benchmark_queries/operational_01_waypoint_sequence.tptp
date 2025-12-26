@@ -1,0 +1,17 @@
+%------------------------------------------------------------------------------
+% OPERATIONAL QUERY 01: Valid Waypoint Sequence
+% Requirement: Target <100ms
+% Query: Is this mission plan valid?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Test instance: Valid waypoint mission within geofence
+fof(test_mission, axiom, waypoint_mission(mission_survey)).
+fof(test_geofence, axiom, geofence(survey_area)).
+fof(test_mission_area, axiom, has_mission_area(mission_survey, survey_area)).
+fof(test_waypoints_valid, axiom, all_waypoints_within(mission_survey, survey_area)).
+
+% Query: Prove waypoint sequence is valid
+fof(prove_valid_sequence, conjecture,
+    valid_waypoint_sequence(mission_survey)).

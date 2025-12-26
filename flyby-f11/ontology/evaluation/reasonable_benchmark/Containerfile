@@ -1,0 +1,110 @@
+#------------------------------------------------------------------------------
+# Containerfile for Reasonable OWL 2 RL Reasoner
+#
+# Reasonable is a high-performance Rust-based OWL 2 RL reasoner
+# GitHub: https://github.com/gtfierro/reasonable
+#
+# Multi-stage build to minimize final image size
+#------------------------------------------------------------------------------
+
+# =============================================================================
+# STAGE 1: Build environment
+# =============================================================================
+FROM docker.io/library/rust:1.75-bookworm AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    pkg-config \
+    libssl-dev \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone Reasonable from source
+WORKDIR /build
+RUN git clone --depth 1 https://github.com/gtfierro/reasonable.git
+
+# Build Reasonable in release mode
+WORKDIR /build/reasonable
+RUN cargo build --release
+
+# Build the Python bindings if available
+# Note: Reasonable has Python bindings via PyO3
+RUN pip3 install maturin || true
+RUN maturin build --release 2>/dev/null || echo "Python bindings build skipped"
+
+# =============================================================================
+# STAGE 2: Runtime environment
+# =============================================================================
+FROM docker.io/library/python:3.11-slim-bookworm AS runtime
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN useradd -m -s /bin/bash reasoner
+WORKDIR /home/reasoner
+
+# Copy the compiled binary from builder
+COPY --from=builder /build/reasonable/target/release/reasonable /usr/local/bin/reasonable 2>/dev/null || true
+
+# Copy Python wheel if built
+COPY --from=builder /build/reasonable/target/wheels/*.whl /tmp/ 2>/dev/null || true
+RUN pip install /tmp/*.whl 2>/dev/null || echo "No Python wheel to install"
+
+# Install Python dependencies for benchmarking
+RUN pip install --no-cache-dir \
+    rdflib>=7.0.0 \
+    owlrl>=6.0.2 \
+    psutil>=5.9.0
+
+# Create directories for ontology and results
+RUN mkdir -p /home/reasoner/ontology /home/reasoner/results
+RUN chown -R reasoner:reasoner /home/reasoner
+
+# Copy benchmark scripts (will be mounted or copied at runtime)
+COPY --chown=reasoner:reasoner benchmark.py /home/reasoner/
+COPY --chown=reasoner:reasoner run_benchmarks.sh /home/reasoner/
+
+USER reasoner
+
+# Default command runs the benchmark
+ENTRYPOINT ["/bin/bash"]
+CMD ["/home/reasoner/run_benchmarks.sh"]
+
+#------------------------------------------------------------------------------
+# ARM64 (aarch64) Cross-Compilation Notes:
+#------------------------------------------------------------------------------
+#
+# For cross-compilation to ARM64 (Jetson Orin NX):
+#
+# Option 1: Build on ARM64 host directly
+#   podman build -t reasonable-benchmark .
+#
+# Option 2: Use QEMU emulation (slower but works on x86_64)
+#   podman build --platform linux/arm64 -t reasonable-benchmark:arm64 .
+#
+# Option 3: Cross-compile with Rust cross toolchain
+#   # In builder stage, add:
+#   RUN rustup target add aarch64-unknown-linux-gnu
+#   RUN apt-get install -y gcc-aarch64-linux-gnu
+#   ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+#   RUN cargo build --release --target aarch64-unknown-linux-gnu
+#
+# Option 4: Use cross (https://github.com/cross-rs/cross)
+#   # Install cross and build with:
+#   cargo install cross
+#   cross build --release --target aarch64-unknown-linux-gnu
+#
+# Performance Notes:
+# - Rust binaries are natively optimized for the target architecture
+# - For best performance on Jetson, build natively on ARM64
+# - SIMD optimizations may differ between x86_64 and ARM64
+#
+# Known ARM64 Considerations:
+# - Some Rust crates may have different performance characteristics on ARM
+# - Memory alignment requirements may affect performance
+# - Test thoroughly on target hardware
+#------------------------------------------------------------------------------

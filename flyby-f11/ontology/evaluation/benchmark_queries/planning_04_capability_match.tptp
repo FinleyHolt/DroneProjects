@@ -1,0 +1,27 @@
+%------------------------------------------------------------------------------
+% PLANNING QUERY 04: Capability Match
+% Requirement: Acceptable <1s (during mission planning)
+% Query: Does UAV have required capabilities for mission type?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Capability matching axioms
+fof(survey_requires_hover, axiom,
+    ![Mission, UAV]:
+      ((survey_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        can_hover(UAV))
+       => uav_can_execute(UAV, Mission))).
+
+fof(survey_is_mission, axiom,
+    ![X]: (survey_mission(X) => uav_mission(X))).
+
+% Test instance: Flyby F-11 for survey mission
+fof(test_uav, axiom, flyby_f11(f11_unit)).
+fof(test_mission, axiom, survey_mission(area_survey)).
+fof(test_assignment, axiom, assigned_uav(area_survey, f11_unit)).
+
+% Query: Prove UAV can execute mission
+fof(prove_capability_match, conjecture,
+    uav_can_execute(f11_unit, area_survey)).

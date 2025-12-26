@@ -1,0 +1,26 @@
+%------------------------------------------------------------------------------
+% PLANNING QUERY 03: Path Safety Analysis
+% Requirement: Acceptable <1s (during mission planning)
+% Query: Is proposed path free of NFZ intersections?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Path safety axioms
+fof(path_safety_axiom, axiom,
+    ![Path]:
+      ((flight_path(Path) &
+        ~intersects_nfz(Path) &
+        ~intersects_restricted(Path) &
+        within_geofence(Path))
+       => path_is_safe(Path))).
+
+% Test instance: Safe path
+fof(test_path, axiom, flight_path(route_alpha)).
+fof(test_no_nfz, axiom, ~intersects_nfz(route_alpha)).
+fof(test_no_restricted, axiom, ~intersects_restricted(route_alpha)).
+fof(test_in_geofence, axiom, within_geofence(route_alpha)).
+
+% Query: Prove path is safe
+fof(prove_path_safe, conjecture,
+    path_is_safe(route_alpha)).

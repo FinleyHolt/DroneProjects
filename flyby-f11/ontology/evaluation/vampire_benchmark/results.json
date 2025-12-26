@@ -1,0 +1,402 @@
+{
+  "metadata": {
+    "reasoner": "Vampire",
+    "version": "5.0.0",
+    "system": {
+      "platform": "Linux",
+      "architecture": "x86_64",
+      "python_version": "3.13.11"
+    },
+    "timestamp": "2025-12-25T23:05:41.183324",
+    "iterations": 100,
+    "csv_source": "/home/finley/Github/DroneProjects/flyby-f11/ontology/evaluation/vampire_benchmark/raw_timings.csv"
+  },
+  "categories": {
+    "safety": {
+      "queries": [
+        {
+          "name": "safety_01_geofence_check",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 43.918,
+          "mean_ms": 41.043,
+          "median_ms": 40.328,
+          "min_ms": 35.247,
+          "max_ms": 51.567,
+          "stdev_ms": 3.43,
+          "p95_ms": 47.857,
+          "p99_ms": 51.567,
+          "success_rate": 100.0,
+          "statuses": {
+            "COUNTER_SATISFIABLE": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 13.8,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "safety_02_nfz_violation",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 42.203,
+          "mean_ms": 41.2,
+          "median_ms": 40.139,
+          "min_ms": 34.827,
+          "max_ms": 49.741,
+          "stdev_ms": 3.707,
+          "p95_ms": 48.417,
+          "p99_ms": 49.741,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "safety_03_battery_return",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 49.598,
+          "mean_ms": 41.405,
+          "median_ms": 40.469,
+          "min_ms": 35.749,
+          "max_ms": 52.665,
+          "stdev_ms": 4.063,
+          "p95_ms": 50.161,
+          "p99_ms": 52.665,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "safety_04_collision_imminent",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 41.422,
+          "mean_ms": 40.372,
+          "median_ms": 39.602,
+          "min_ms": 34.148,
+          "max_ms": 49.468,
+          "stdev_ms": 3.951,
+          "p95_ms": 48.076,
+          "p99_ms": 49.468,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "safety_05_sensor_degraded",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 44.523,
+          "mean_ms": 41.461,
+          "median_ms": 40.727,
+          "min_ms": 35.756,
+          "max_ms": 51.769,
+          "stdev_ms": 3.782,
+          "p95_ms": 49.234,
+          "p99_ms": 51.769,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "safety_06_safe_state_check",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 52.924,
+          "mean_ms": 40.866,
+          "median_ms": 40.544,
+          "min_ms": 35.104,
+          "max_ms": 52.924,
+          "stdev_ms": 3.571,
+          "p95_ms": 48.374,
+          "p99_ms": 52.924,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        }
+      ],
+      "requirement_ms": 10,
+      "total": 6,
+      "passed": 0
+    },
+    "operational": {
+      "queries": [
+        {
+          "name": "operational_01_waypoint_sequence",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 38.436,
+          "mean_ms": 40.11,
+          "median_ms": 39.698,
+          "min_ms": 33.957,
+          "max_ms": 48.033,
+          "stdev_ms": 3.338,
+          "p95_ms": 46.804,
+          "p99_ms": 48.033,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "operational_02_hover_capability",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 38.971,
+          "mean_ms": 40.458,
+          "median_ms": 40.291,
+          "min_ms": 35.017,
+          "max_ms": 48.704,
+          "stdev_ms": 3.374,
+          "p95_ms": 47.575,
+          "p99_ms": 48.704,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "operational_03_terrain_traversable",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 36.797,
+          "mean_ms": 41.645,
+          "median_ms": 40.836,
+          "min_ms": 35.384,
+          "max_ms": 55.763,
+          "stdev_ms": 3.906,
+          "p95_ms": 49.102,
+          "p99_ms": 55.763,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "operational_04_weather_constraint",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 38.182,
+          "mean_ms": 40.933,
+          "median_ms": 40.26,
+          "min_ms": 35.119,
+          "max_ms": 53.947,
+          "stdev_ms": 4.015,
+          "p95_ms": 51.167,
+          "p99_ms": 53.947,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "operational_05_ndaa_compliance",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 43.885,
+          "mean_ms": 40.612,
+          "median_ms": 40.011,
+          "min_ms": 35.186,
+          "max_ms": 48.517,
+          "stdev_ms": 3.542,
+          "p95_ms": 47.342,
+          "p99_ms": 48.517,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        }
+      ],
+      "requirement_ms": 100,
+      "total": 5,
+      "passed": 5
+    },
+    "planning": {
+      "queries": [
+        {
+          "name": "planning_01_mission_feasibility",
+          "category": "planning",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 40.679,
+          "mean_ms": 41.008,
+          "median_ms": 40.788,
+          "min_ms": 35.367,
+          "max_ms": 49.785,
+          "stdev_ms": 3.844,
+          "p95_ms": 48.874,
+          "p99_ms": 49.785,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 1000,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "planning_02_regulatory_compliance",
+          "category": "planning",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 35.741,
+          "mean_ms": 40.311,
+          "median_ms": 39.973,
+          "min_ms": 35.412,
+          "max_ms": 50.329,
+          "stdev_ms": 3.154,
+          "p95_ms": 47.159,
+          "p99_ms": 50.329,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 1000,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "planning_03_path_safety",
+          "category": "planning",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 38.027,
+          "mean_ms": 40.567,
+          "median_ms": 40.067,
+          "min_ms": 35.221,
+          "max_ms": 50.51,
+          "stdev_ms": 3.512,
+          "p95_ms": 47.674,
+          "p99_ms": 50.51,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 1000,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        },
+        {
+          "name": "planning_04_capability_match",
+          "category": "planning",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 41.442,
+          "mean_ms": 41.631,
+          "median_ms": 40.736,
+          "min_ms": 35.634,
+          "max_ms": 52.606,
+          "stdev_ms": 3.952,
+          "p95_ms": 49.607,
+          "p99_ms": 52.606,
+          "success_rate": 100.0,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 1000,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0
+        }
+      ],
+      "requirement_ms": 1000,
+      "total": 4,
+      "passed": 4
+    }
+  },
+  "summary": {
+    "total_queries": 15,
+    "queries_meeting_requirements": 9,
+    "overall_pass_rate": 60.0,
+    "safety": {
+      "count": 6,
+      "passed": 0,
+      "pass_rate": 0.0,
+      "requirement_ms": 10,
+      "avg_p95_ms": 48.687,
+      "max_p95_ms": 50.161,
+      "avg_mean_ms": 41.058,
+      "meets_requirement": false
+    },
+    "operational": {
+      "count": 5,
+      "passed": 5,
+      "pass_rate": 100.0,
+      "requirement_ms": 100,
+      "avg_p95_ms": 48.398,
+      "max_p95_ms": 51.167,
+      "avg_mean_ms": 40.752,
+      "meets_requirement": true
+    },
+    "planning": {
+      "count": 4,
+      "passed": 4,
+      "pass_rate": 100.0,
+      "requirement_ms": 1000,
+      "avg_p95_ms": 48.328,
+      "max_p95_ms": 49.607,
+      "avg_mean_ms": 40.879,
+      "meets_requirement": true
+    }
+  }
+}

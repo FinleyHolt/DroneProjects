@@ -1,0 +1,766 @@
+@prefix : <http://flyby-robotics.com/ontology/uav#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xml: <http://www.w3.org/XML/1998/namespace> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sumo: <http://www.ontologyportal.org/SUMO.owl#> .
+@base <http://flyby-robotics.com/ontology/uav> .
+
+<http://flyby-robotics.com/ontology/uav> rdf:type owl:Ontology ;
+    rdfs:label "Flyby F-11 UAV Domain Ontology"@en ;
+    rdfs:comment """OWL translation of the UAV Domain Ontology for the Flyby F-11 autonomous UAV platform.
+
+    Original format: KIF/SUMO
+    Translated to: OWL 2 (Turtle syntax)
+    Author: Finley Holt
+    Date: 2024-12-25
+
+    NOTE: This translation preserves class hierarchies, object properties, data properties,
+    and some constraints. First-order logic axioms with variables, quantifiers, and complex
+    conditionals have been approximated or noted as lost in translation."""@en ;
+    owl:versionInfo "1.0-owl" .
+
+# =============================================================================
+# SECTION 1: UAV CLASS HIERARCHY
+# =============================================================================
+# Preserved: Full class hierarchy with subclass relationships
+
+:Aircraft rdf:type owl:Class ;
+    rdfs:label "Aircraft"@en ;
+    rdfs:comment "Base class for all aircraft (from SUMO)."@en .
+
+:UAV rdf:type owl:Class ;
+    rdfs:subClassOf :Aircraft ;
+    rdfs:label "UAV"@en ;
+    rdfs:comment "An Unmanned Aerial Vehicle is an aircraft capable of autonomous or remotely piloted flight without a human pilot onboard."@en .
+
+:Multirotor rdf:type owl:Class ;
+    rdfs:subClassOf :UAV ;
+    rdfs:label "Multirotor"@en ;
+    rdfs:comment "A UAV that generates lift and thrust using multiple rotors. Capable of VTOL and hover."@en .
+
+:FixedWingUAV rdf:type owl:Class ;
+    rdfs:subClassOf :UAV ;
+    rdfs:label "Fixed Wing UAV"@en ;
+    rdfs:comment "A UAV with fixed wings that generates lift through forward motion."@en .
+
+:HybridVTOL rdf:type owl:Class ;
+    rdfs:subClassOf :UAV ;
+    rdfs:label "Hybrid VTOL"@en ;
+    rdfs:comment "A UAV combining fixed-wing efficiency with vertical takeoff/landing capability."@en .
+
+:Quadcopter rdf:type owl:Class ;
+    rdfs:subClassOf :Multirotor ;
+    rdfs:label "Quadcopter"@en ;
+    rdfs:comment "A multirotor aircraft with exactly four rotors."@en .
+
+:Hexacopter rdf:type owl:Class ;
+    rdfs:subClassOf :Multirotor ;
+    rdfs:label "Hexacopter"@en ;
+    rdfs:comment "A multirotor aircraft with six rotors."@en .
+
+:Octocopter rdf:type owl:Class ;
+    rdfs:subClassOf :Multirotor ;
+    rdfs:label "Octocopter"@en ;
+    rdfs:comment "A multirotor aircraft with eight rotors."@en .
+
+:FlybyF11 rdf:type owl:Class ;
+    rdfs:subClassOf :Quadcopter ;
+    rdfs:label "Flyby F-11"@en ;
+    rdfs:comment "The Flyby Robotics F-11 Developer Quadcopter with Jetson Orin NX 16GB. NDAA-compliant."@en .
+
+# =============================================================================
+# SECTION 2: UAV COMPONENT CLASSES
+# =============================================================================
+
+:Device rdf:type owl:Class ;
+    rdfs:label "Device"@en ;
+    rdfs:comment "Base class for physical devices."@en .
+
+# Sensor hierarchy
+:UAVSensor rdf:type owl:Class ;
+    rdfs:subClassOf :Device ;
+    rdfs:label "UAV Sensor"@en ;
+    rdfs:comment "A sensor used on a UAV for perception, navigation, or state estimation."@en .
+
+:PositioningSensor rdf:type owl:Class ;
+    rdfs:subClassOf :UAVSensor ;
+    rdfs:label "Positioning Sensor"@en ;
+    rdfs:comment "A sensor that provides position information for the UAV."@en .
+
+:GNSSSensor rdf:type owl:Class ;
+    rdfs:subClassOf :PositioningSensor ;
+    rdfs:label "GNSS Sensor"@en ;
+    rdfs:comment "A Global Navigation Satellite System sensor (GPS, GLONASS, Galileo, BeiDou)."@en .
+
+:VisualOdometrySensor rdf:type owl:Class ;
+    rdfs:subClassOf :PositioningSensor ;
+    rdfs:label "Visual Odometry Sensor"@en ;
+    rdfs:comment "A sensor using visual features to track relative motion."@en .
+
+:PerceptionSensor rdf:type owl:Class ;
+    rdfs:subClassOf :UAVSensor ;
+    rdfs:label "Perception Sensor"@en ;
+    rdfs:comment "A sensor used for environmental perception and obstacle detection."@en .
+
+:DepthCamera rdf:type owl:Class ;
+    rdfs:subClassOf :PerceptionSensor ;
+    rdfs:label "Depth Camera"@en ;
+    rdfs:comment "A camera providing depth information for each pixel."@en .
+
+:RGBCamera rdf:type owl:Class ;
+    rdfs:subClassOf :PerceptionSensor ;
+    rdfs:label "RGB Camera"@en ;
+    rdfs:comment "A standard color camera providing visual imagery."@en .
+
+:LiDARSensor rdf:type owl:Class ;
+    rdfs:subClassOf :PerceptionSensor ;
+    rdfs:label "LiDAR Sensor"@en ;
+    rdfs:comment "Light Detection and Ranging sensor providing precise distance measurements."@en .
+
+:InertialMeasurementUnit rdf:type owl:Class ;
+    rdfs:subClassOf :UAVSensor ;
+    rdfs:label "IMU"@en ;
+    rdfs:comment "IMU sensor containing accelerometers and gyroscopes."@en .
+
+# Compute modules
+:UAVComputer rdf:type owl:Class ;
+    rdfs:subClassOf :Device ;
+    rdfs:label "UAV Computer"@en ;
+    rdfs:comment "An onboard computer for UAV autonomy, perception, and decision-making."@en .
+
+:JetsonModule rdf:type owl:Class ;
+    rdfs:subClassOf :UAVComputer ;
+    rdfs:label "Jetson Module"@en ;
+    rdfs:comment "NVIDIA Jetson embedded AI compute module."@en .
+
+# Propulsion
+:UAVPropulsionSystem rdf:type owl:Class ;
+    rdfs:subClassOf :Device ;
+    rdfs:label "UAV Propulsion System"@en ;
+    rdfs:comment "The propulsion system of a UAV."@en .
+
+:BrushlessMotor rdf:type owl:Class ;
+    rdfs:subClassOf :UAVPropulsionSystem ;
+    rdfs:label "Brushless Motor"@en ;
+    rdfs:comment "An electric brushless motor used for UAV propulsion."@en .
+
+:Propeller rdf:type owl:Class ;
+    rdfs:subClassOf :UAVPropulsionSystem ;
+    rdfs:label "Propeller"@en ;
+    rdfs:comment "A rotating blade assembly that generates thrust or lift."@en .
+
+# Power systems
+:UAVBattery rdf:type owl:Class ;
+    rdfs:subClassOf :Device ;
+    rdfs:label "UAV Battery"@en ;
+    rdfs:comment "A battery providing electrical power for UAV operations."@en .
+
+:LiPoBattery rdf:type owl:Class ;
+    rdfs:subClassOf :UAVBattery ;
+    rdfs:label "LiPo Battery"@en ;
+    rdfs:comment "Lithium Polymer battery commonly used in UAVs."@en .
+
+# =============================================================================
+# SECTION 3: OBJECT PROPERTIES (Binary/Ternary Predicates)
+# =============================================================================
+
+# Physical properties
+:hasMaxTakeoffMass rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:label "has max takeoff mass"@en ;
+    rdfs:comment "The maximum mass at which the UAV can safely take off."@en .
+
+:hasEmptyMass rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:label "has empty mass"@en ;
+    rdfs:comment "The UAV empty (no payload/fuel) mass."@en .
+
+:hasPayloadCapacity rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:label "has payload capacity"@en ;
+    rdfs:comment "Maximum payload the UAV can carry."@en .
+
+:hasSensor rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range :UAVSensor ;
+    rdfs:label "has sensor"@en ;
+    rdfs:comment "UAV is equipped with a sensor."@en .
+
+:hasComputer rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range :UAVComputer ;
+    rdfs:label "has computer"@en ;
+    rdfs:comment "UAV uses an onboard computer for processing."@en .
+
+# Performance properties
+:hasMaxAltitude rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:label "has max altitude"@en ;
+    rdfs:comment "Maximum safe operating altitude AGL."@en .
+
+:hasMaxSpeed rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:label "has max speed"@en ;
+    rdfs:comment "Maximum horizontal speed."@en .
+
+:hasMaxFlightTime rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:label "has max flight time"@en ;
+    rdfs:comment "Maximum flight duration under normal conditions."@en .
+
+:hasMaxRange rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:label "has max range"@en ;
+    rdfs:comment "Maximum horizontal range from launch."@en .
+
+# =============================================================================
+# SECTION 4: DATA PROPERTIES
+# =============================================================================
+
+:currentBatteryLevel rdf:type owl:DatatypeProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "current battery level"@en ;
+    rdfs:comment "Current battery percentage (0-100)."@en .
+
+:minimumBatteryLevel rdf:type owl:DatatypeProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "minimum battery level"@en ;
+    rdfs:comment "Minimum battery percentage required for continued flight."@en .
+
+:batteryReserveForReturn rdf:type owl:DatatypeProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "battery reserve for return"@en ;
+    rdfs:comment "Battery percentage reserved to safely return to launch."@en .
+
+:altitudeAGL rdf:type owl:DatatypeProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "altitude AGL"@en ;
+    rdfs:comment "Altitude above ground level in meters."@en .
+
+:minimumObstacleDistanceValue rdf:type owl:DatatypeProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "minimum obstacle distance"@en ;
+    rdfs:comment "Minimum separation distance from obstacles in meters."@en .
+
+:minimumPersonDistanceValue rdf:type owl:DatatypeProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "minimum person distance"@en ;
+    rdfs:comment "Minimum horizontal distance from non-participating persons in meters."@en .
+
+# =============================================================================
+# SECTION 5: MISSION CLASSES
+# =============================================================================
+
+:Process rdf:type owl:Class ;
+    rdfs:label "Process"@en ;
+    rdfs:comment "Base class for processes (from SUMO)."@en .
+
+:UAVMission rdf:type owl:Class ;
+    rdfs:subClassOf :Process ;
+    rdfs:label "UAV Mission"@en ;
+    rdfs:comment "A planned sequence of actions to achieve specified objectives."@en .
+
+:WaypointMission rdf:type owl:Class ;
+    rdfs:subClassOf :UAVMission ;
+    rdfs:label "Waypoint Mission"@en ;
+    rdfs:comment "A mission navigating through specified waypoints."@en .
+
+:SurveyMission rdf:type owl:Class ;
+    rdfs:subClassOf :UAVMission ;
+    rdfs:label "Survey Mission"@en ;
+    rdfs:comment "A mission to systematically cover an area."@en .
+
+:InspectionMission rdf:type owl:Class ;
+    rdfs:subClassOf :UAVMission ;
+    rdfs:label "Inspection Mission"@en ;
+    rdfs:comment "A mission to closely examine a structure or target."@en .
+
+:SearchAndRescueMission rdf:type owl:Class ;
+    rdfs:subClassOf :UAVMission ;
+    rdfs:label "Search and Rescue Mission"@en ;
+    rdfs:comment "A mission to locate persons or objects in distress."@en .
+
+:DeliveryMission rdf:type owl:Class ;
+    rdfs:subClassOf :UAVMission ;
+    rdfs:label "Delivery Mission"@en ;
+    rdfs:comment "A mission to transport payload from origin to destination."@en .
+
+:ReconnaissanceMission rdf:type owl:Class ;
+    rdfs:subClassOf :UAVMission ;
+    rdfs:label "Reconnaissance Mission"@en ;
+    rdfs:comment "A mission to gather information about an area or target."@en .
+
+# Mission status as named individuals
+:MissionStatus rdf:type owl:Class ;
+    rdfs:label "Mission Status"@en ;
+    rdfs:comment "Status of mission execution."@en .
+
+:MissionPending rdf:type owl:NamedIndividual , :MissionStatus ;
+    rdfs:label "Mission Pending"@en .
+
+:MissionActive rdf:type owl:NamedIndividual , :MissionStatus ;
+    rdfs:label "Mission Active"@en .
+
+:MissionPaused rdf:type owl:NamedIndividual , :MissionStatus ;
+    rdfs:label "Mission Paused"@en .
+
+:MissionCompleted rdf:type owl:NamedIndividual , :MissionStatus ;
+    rdfs:label "Mission Completed"@en .
+
+:MissionAborted rdf:type owl:NamedIndividual , :MissionStatus ;
+    rdfs:label "Mission Aborted"@en .
+
+:MissionFailed rdf:type owl:NamedIndividual , :MissionStatus ;
+    rdfs:label "Mission Failed"@en .
+
+:hasMissionStatus rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAVMission ;
+    rdfs:range :MissionStatus ;
+    rdfs:label "has mission status"@en .
+
+:assignedUAV rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAVMission ;
+    rdfs:range :UAV ;
+    rdfs:label "assigned UAV"@en ;
+    rdfs:comment "UAV assigned to execute the mission."@en .
+
+# Waypoint
+:Waypoint rdf:type owl:Class ;
+    rdfs:label "Waypoint"@en ;
+    rdfs:comment "A defined point in 3D space for the UAV to reach."@en .
+
+:hasWaypoint rdf:type owl:ObjectProperty ;
+    rdfs:domain :WaypointMission ;
+    rdfs:range :Waypoint ;
+    rdfs:label "has waypoint"@en .
+
+# =============================================================================
+# SECTION 6: FLIGHT PHASES
+# =============================================================================
+
+:FlightPhase rdf:type owl:Class ;
+    rdfs:label "Flight Phase"@en ;
+    rdfs:comment "A distinct phase in UAV flight operation."@en .
+
+:Preflight rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Preflight"@en ;
+    rdfs:comment "System checks and initialization before arming."@en .
+
+:Armed rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Armed"@en ;
+    rdfs:comment "Motors enabled and ready for flight."@en .
+
+:Takeoff rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Takeoff"@en ;
+    rdfs:comment "Transition from ground to airborne state."@en .
+
+:Hover rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Hover"@en ;
+    rdfs:comment "Stationary flight at fixed position."@en .
+
+:Transit rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Transit"@en ;
+    rdfs:comment "Navigation between waypoints."@en .
+
+:Loiter rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Loiter"@en ;
+    rdfs:comment "Maintaining position over a point."@en .
+
+:MissionExecution rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Mission Execution"@en ;
+    rdfs:comment "Active execution of mission-specific tasks."@en .
+
+:ReturnToLaunch rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Return To Launch"@en ;
+    rdfs:comment "Automatic return to launch/home position."@en .
+
+:Landing rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Landing"@en ;
+    rdfs:comment "Controlled descent to ground."@en .
+
+:EmergencyLanding rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Emergency Landing"@en ;
+    rdfs:comment "Immediate descent to nearest safe landing zone."@en .
+
+:Disarmed rdf:type owl:NamedIndividual , :FlightPhase ;
+    rdfs:label "Disarmed"@en ;
+    rdfs:comment "Post-flight state with motors disabled."@en .
+
+:hasFlightPhase rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range :FlightPhase ;
+    rdfs:label "has flight phase"@en .
+
+:canTransitionTo rdf:type owl:ObjectProperty ;
+    rdfs:domain :FlightPhase ;
+    rdfs:range :FlightPhase ;
+    rdfs:label "can transition to"@en ;
+    rdfs:comment "Defines valid flight phase transitions."@en .
+
+# Flight phase transition facts
+:Preflight :canTransitionTo :Armed .
+:Armed :canTransitionTo :Takeoff , :Disarmed .
+:Takeoff :canTransitionTo :Hover , :EmergencyLanding .
+:Hover :canTransitionTo :Transit , :Loiter , :MissionExecution , :Landing , :EmergencyLanding .
+:Transit :canTransitionTo :Hover , :Loiter , :MissionExecution , :ReturnToLaunch , :EmergencyLanding .
+:Loiter :canTransitionTo :Transit , :Hover , :MissionExecution , :EmergencyLanding .
+:MissionExecution :canTransitionTo :Hover , :Transit , :ReturnToLaunch , :EmergencyLanding .
+:ReturnToLaunch :canTransitionTo :Hover , :Landing , :EmergencyLanding .
+:Landing :canTransitionTo :Disarmed .
+:EmergencyLanding :canTransitionTo :Disarmed .
+
+# =============================================================================
+# SECTION 7: SPATIAL REGIONS
+# =============================================================================
+
+:Region rdf:type owl:Class ;
+    rdfs:label "Region"@en ;
+    rdfs:comment "A defined spatial region."@en .
+
+:AirspaceRegion rdf:type owl:Class ;
+    rdfs:subClassOf :Region ;
+    rdfs:label "Airspace Region"@en ;
+    rdfs:comment "A defined 3-dimensional region of airspace."@en .
+
+:Geofence rdf:type owl:Class ;
+    rdfs:subClassOf :AirspaceRegion ;
+    rdfs:label "Geofence"@en ;
+    rdfs:comment "A virtual boundary defining the permitted operating area."@en .
+
+:NoFlyZone rdf:type owl:Class ;
+    rdfs:subClassOf :AirspaceRegion ;
+    rdfs:label "No-Fly Zone"@en ;
+    rdfs:comment "An airspace region where UAV flight is prohibited."@en .
+
+:RestrictedAirspace rdf:type owl:Class ;
+    rdfs:subClassOf :AirspaceRegion ;
+    rdfs:label "Restricted Airspace"@en ;
+    rdfs:comment "Airspace with access restrictions."@en .
+
+:ControlledAirspace rdf:type owl:Class ;
+    rdfs:subClassOf :AirspaceRegion ;
+    rdfs:label "Controlled Airspace"@en ;
+    rdfs:comment "Airspace under ATC jurisdiction."@en .
+
+:UncontrolledAirspace rdf:type owl:Class ;
+    rdfs:subClassOf :AirspaceRegion ;
+    rdfs:label "Uncontrolled Airspace"@en ;
+    rdfs:comment "Class G airspace without active ATC."@en .
+
+:LandingZone rdf:type owl:Class ;
+    rdfs:subClassOf :Region ;
+    rdfs:label "Landing Zone"@en ;
+    rdfs:comment "A designated safe area for landing."@en .
+
+:LaunchPoint rdf:type owl:Class ;
+    rdfs:subClassOf :Region ;
+    rdfs:label "Launch Point"@en ;
+    rdfs:comment "The designated takeoff location."@en .
+
+# Obstacles
+:Obstacle rdf:type owl:Class ;
+    rdfs:label "Obstacle"@en ;
+    rdfs:comment "Any object that a UAV must avoid."@en .
+
+:StaticObstacle rdf:type owl:Class ;
+    rdfs:subClassOf :Obstacle ;
+    rdfs:label "Static Obstacle"@en ;
+    rdfs:comment "An obstacle that does not move."@en .
+
+:DynamicObstacle rdf:type owl:Class ;
+    rdfs:subClassOf :Obstacle ;
+    rdfs:label "Dynamic Obstacle"@en ;
+    rdfs:comment "An obstacle that can move."@en .
+
+# Spatial relations
+:isWithin rdf:type owl:ObjectProperty ;
+    rdfs:label "is within"@en ;
+    rdfs:comment "Object is located inside region."@en .
+
+:isOutside rdf:type owl:ObjectProperty ;
+    rdfs:label "is outside"@en ;
+    rdfs:comment "Object is located outside region."@en .
+
+:hasMissionArea rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAVMission ;
+    rdfs:range :Region ;
+    rdfs:label "has mission area"@en .
+
+# =============================================================================
+# SECTION 8: SAFETY STATE CLASSES
+# =============================================================================
+
+# Safety violation classes (replacing FOL predicates)
+:SafetyState rdf:type owl:Class ;
+    rdfs:label "Safety State"@en ;
+    rdfs:comment "Represents safety-related state of a UAV."@en .
+
+:SafeState rdf:type owl:Class ;
+    rdfs:subClassOf :SafetyState ;
+    rdfs:label "Safe State"@en ;
+    rdfs:comment "UAV is in a safe operational state."@en .
+
+:UnsafeState rdf:type owl:Class ;
+    rdfs:subClassOf :SafetyState ;
+    owl:disjointWith :SafeState ;
+    rdfs:label "Unsafe State"@en ;
+    rdfs:comment "UAV is in an unsafe state."@en .
+
+:GeofenceViolationState rdf:type owl:Class ;
+    rdfs:subClassOf :UnsafeState ;
+    rdfs:label "Geofence Violation State"@en ;
+    rdfs:comment "UAV has violated its geofence boundary."@en .
+
+:NoFlyZoneViolationState rdf:type owl:Class ;
+    rdfs:subClassOf :UnsafeState ;
+    rdfs:label "No-Fly Zone Violation State"@en ;
+    rdfs:comment "UAV has entered a no-fly zone."@en .
+
+:AltitudeViolationState rdf:type owl:Class ;
+    rdfs:subClassOf :UnsafeState ;
+    rdfs:label "Altitude Violation State"@en ;
+    rdfs:comment "UAV has exceeded maximum operating altitude."@en .
+
+:CollisionRiskState rdf:type owl:Class ;
+    rdfs:subClassOf :UnsafeState ;
+    rdfs:label "Collision Risk State"@en ;
+    rdfs:comment "UAV is too close to an obstacle."@en .
+
+:LowBatteryState rdf:type owl:Class ;
+    rdfs:subClassOf :UnsafeState ;
+    rdfs:label "Low Battery State"@en ;
+    rdfs:comment "UAV battery is below safe reserve level."@en .
+
+:LocalizationLostState rdf:type owl:Class ;
+    rdfs:subClassOf :UnsafeState ;
+    rdfs:label "Localization Lost State"@en ;
+    rdfs:comment "UAV has lost valid position estimate."@en .
+
+:hasSafetyState rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range :SafetyState ;
+    rdfs:label "has safety state"@en .
+
+# =============================================================================
+# SECTION 9: UAV ACTIONS
+# =============================================================================
+
+:UAVAction rdf:type owl:Class ;
+    rdfs:subClassOf :Process ;
+    rdfs:label "UAV Action"@en ;
+    rdfs:comment "An action that a UAV can execute."@en .
+
+# Navigation actions
+:NavigateToWaypoint rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Navigate To Waypoint"@en .
+
+:MoveToPosition rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Move To Position"@en .
+
+:FollowPath rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Follow Path"@en .
+
+# Maneuver actions
+:Ascend rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Ascend"@en .
+
+:Descend rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Descend"@en .
+
+:TurnToHeading rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Turn To Heading"@en .
+
+:OrbitPoint rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Orbit Point"@en .
+
+# Safety actions
+:EmergencyStop rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Emergency Stop"@en .
+
+:AvoidObstacle rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Avoid Obstacle"@en .
+
+:ReturnToLaunchAction rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Return To Launch Action"@en .
+
+:ImmediateLand rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Immediate Land"@en .
+
+# Perception actions
+:CaptureImage rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Capture Image"@en .
+
+:RecordVideo rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Record Video"@en .
+
+:ScanArea rdf:type owl:Class ;
+    rdfs:subClassOf :UAVAction ;
+    rdfs:label "Scan Area"@en .
+
+# =============================================================================
+# SECTION 10: SENSOR STATES
+# =============================================================================
+
+:SensorState rdf:type owl:Class ;
+    rdfs:label "Sensor State"@en .
+
+:SensorOperational rdf:type owl:NamedIndividual , :SensorState ;
+    rdfs:label "Sensor Operational"@en .
+
+:SensorDegraded rdf:type owl:NamedIndividual , :SensorState ;
+    rdfs:label "Sensor Degraded"@en .
+
+:SensorFailed rdf:type owl:NamedIndividual , :SensorState ;
+    rdfs:label "Sensor Failed"@en .
+
+:hasSensorState rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAVSensor ;
+    rdfs:range :SensorState ;
+    rdfs:label "has sensor state"@en .
+
+# Data quality
+:DataQuality rdf:type owl:Class ;
+    rdfs:label "Data Quality"@en .
+
+:HighQuality rdf:type owl:NamedIndividual , :DataQuality ;
+    rdfs:label "High Quality"@en .
+
+:MediumQuality rdf:type owl:NamedIndividual , :DataQuality ;
+    rdfs:label "Medium Quality"@en .
+
+:LowQuality rdf:type owl:NamedIndividual , :DataQuality ;
+    rdfs:label "Low Quality"@en .
+
+:NoData rdf:type owl:NamedIndividual , :DataQuality ;
+    rdfs:label "No Data"@en .
+
+:hasPositionQuality rdf:type owl:ObjectProperty ;
+    rdfs:domain :UAV ;
+    rdfs:range :DataQuality ;
+    rdfs:label "has position quality"@en .
+
+# =============================================================================
+# SECTION 11: EMERGENCY CONDITIONS
+# =============================================================================
+
+:EmergencyCondition rdf:type owl:Class ;
+    rdfs:label "Emergency Condition"@en ;
+    rdfs:comment "A condition requiring immediate emergency response."@en .
+
+:LowBatteryEmergency rdf:type owl:NamedIndividual , :EmergencyCondition ;
+    rdfs:label "Low Battery Emergency"@en .
+
+:LostLinkEmergency rdf:type owl:NamedIndividual , :EmergencyCondition ;
+    rdfs:label "Lost Link Emergency"@en .
+
+:LocalizationLostEmergency rdf:type owl:NamedIndividual , :EmergencyCondition ;
+    rdfs:label "Localization Lost Emergency"@en .
+
+:ObstacleCollisionImminent rdf:type owl:NamedIndividual , :EmergencyCondition ;
+    rdfs:label "Obstacle Collision Imminent"@en .
+
+:WeatherEmergency rdf:type owl:NamedIndividual , :EmergencyCondition ;
+    rdfs:label "Weather Emergency"@en .
+
+:triggersEmergencyAction rdf:type owl:ObjectProperty ;
+    rdfs:domain :EmergencyCondition ;
+    rdfs:range :UAVAction ;
+    rdfs:label "triggers emergency action"@en .
+
+# =============================================================================
+# SECTION 12: REGULATORY COMPLIANCE
+# =============================================================================
+
+:RegulatoryConstraint rdf:type owl:Class ;
+    rdfs:label "Regulatory Constraint"@en .
+
+:FAAPart107Constraint rdf:type owl:NamedIndividual , :RegulatoryConstraint ;
+    rdfs:label "FAA Part 107 Constraint"@en .
+
+:NDAACompliant rdf:type owl:Class ;
+    rdfs:label "NDAA Compliant"@en ;
+    rdfs:comment "UAVs that meet NDAA requirements for government use."@en .
+
+# FlybyF11 is NDAA compliant (expressed as class equivalence)
+:FlybyF11 rdfs:subClassOf :NDAACompliant .
+
+# =============================================================================
+# SECTION 13: CAPABILITY CLASSES (for hover/VTOL)
+# =============================================================================
+
+:HoverCapable rdf:type owl:Class ;
+    rdfs:label "Hover Capable"@en ;
+    rdfs:comment "UAVs capable of sustained stationary flight."@en .
+
+:VTOLCapable rdf:type owl:Class ;
+    rdfs:label "VTOL Capable"@en ;
+    rdfs:comment "UAVs capable of vertical takeoff and landing."@en .
+
+# All Multirotors are hover and VTOL capable
+:Multirotor rdfs:subClassOf :HoverCapable , :VTOLCapable .
+
+# HybridVTOL is VTOL capable
+:HybridVTOL rdfs:subClassOf :VTOLCapable .
+
+# =============================================================================
+# SECTION 14: OWL 2 CONSTRAINTS (Limited expressivity)
+# =============================================================================
+# NOTE: The following are OWL 2 approximations of FOL safety axioms.
+# Full FOL axioms with variable quantification are NOT expressible in OWL.
+
+# Disjointness axioms
+[ rdf:type owl:AllDisjointClasses ;
+  owl:members ( :Multirotor :FixedWingUAV :HybridVTOL ) ] .
+
+[ rdf:type owl:AllDisjointClasses ;
+  owl:members ( :Quadcopter :Hexacopter :Octocopter ) ] .
+
+[ rdf:type owl:AllDisjointClasses ;
+  owl:members ( :SafeState :UnsafeState ) ] .
+
+[ rdf:type owl:AllDisjointClasses ;
+  owl:members ( :StaticObstacle :DynamicObstacle ) ] .
+
+# isWithin and isOutside are disjoint (mutual exclusion approximation)
+:isWithin owl:propertyDisjointWith :isOutside .
+
+# Functional properties (UAV can have at most one of each)
+:hasFlightPhase rdf:type owl:FunctionalProperty .
+:hasMissionStatus rdf:type owl:FunctionalProperty .
+:hasSafetyState rdf:type owl:FunctionalProperty .
+
+# =============================================================================
+# SECTION 15: FLYBY F-11 INSTANCE EXAMPLE
+# =============================================================================
+
+:FlybyF11Instance1 rdf:type owl:NamedIndividual , :FlybyF11 ;
+    rdfs:label "Flyby F-11 Instance 1"@en ;
+    :minimumObstacleDistanceValue "3.0"^^xsd:decimal ;
+    :minimumPersonDistanceValue "15.0"^^xsd:decimal ;
+    :minimumBatteryLevel "20.0"^^xsd:decimal ;
+    :batteryReserveForReturn "25.0"^^xsd:decimal .
+
+# =============================================================================
+# END OF OWL ONTOLOGY
+# =============================================================================

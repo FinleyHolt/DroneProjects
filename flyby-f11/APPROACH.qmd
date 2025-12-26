@@ -51,79 +51,77 @@ This approach addresses critical failures in pure learning systems (37-65% colli
 
 ## Architecture Overview
 
-### Two-Phase Compute Strategy
+### Single-Reasoner Architecture (Vampire Only)
 
-To maximize both planning rigor and runtime performance within the Jetson Orin NX's 16GB unified memory constraint, the system operates in two distinct compute modes:
+**Architectural Decision (Phase 3 Evaluation, 2024-12-25)**
 
-#### Phase 1: Mission Planning Mode (Pre-Flight)
+After comprehensive empirical benchmarking ([Phase 3 Evaluation Report](ontology/evaluation/EVALUATION_REPORT.qmd)), we determined that a **single-reasoner architecture using Vampire** is optimal:
 
-**Duration**: Seconds to minutes (acceptable before flight)
-**Compute Allocation**: 100% resources dedicated to heavyweight reasoning
-**Trigger Events**: Mission receipt, major replanning needs
+| Finding | Impact |
+|---------|--------|
+| Vampire ~50ms p95 latency | Acceptable for 20Hz navigation loop |
+| OWL reasoners cannot express safety axioms | ELK/Reasonable rejected (DL limitations) |
+| Prolog 4,700x faster but adds complexity | Rejected to avoid translation/maintenance burden |
+| KIF/SUMO remains single source of truth | 0% translation loss |
+
+**Key Insight**: Ontological reasoning belongs in the navigation layer (20Hz), not the flight control layer (400Hz). Real-time safety (<10ms) is handled by the classical control layer, not symbolic reasoning.
+
+### Tiered Safety Architecture
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  TIER 1: Classical Control (<1ms)                              │
+│  ├─ PX4/ArduPilot attitude control                             │
+│  ├─ Motor mixing, PID loops                                    │
+│  └─ Sensor filtering, state estimation                         │
+├────────────────────────────────────────────────────────────────┤
+│  TIER 2: Pre-computed Safety (<10ms)                           │
+│  ├─ Obstacle costmaps (baked from depth)                       │
+│  ├─ Geofence boundary polygons                                 │
+│  └─ Velocity limits, acceleration constraints                  │
+├────────────────────────────────────────────────────────────────┤
+│  TIER 3: Tactical Reasoning (~50ms) - VAMPIRE                  │
+│  ├─ "Am I violating a no-fly zone?"                            │
+│  ├─ "Is battery critical for return?"                          │
+│  ├─ "Does this waypoint sequence satisfy constraints?"         │
+│  └─ Runs at 20Hz navigation rate                               │
+├────────────────────────────────────────────────────────────────┤
+│  TIER 4: Mission Planning (~100ms-1s) - VAMPIRE                │
+│  ├─ Route verification and regulatory compliance               │
+│  ├─ Mission feasibility analysis                               │
+│  └─ Pre-flight or during mission replanning                    │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### Unified Compute Architecture
+
+With the single-reasoner decision, there is no mode swapping between planning and execution:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           PLANNING MODE (All 16GB Available)                 │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  SUMO Ontology (Full) - ~500 MB                             │
-│  ├─ Mission constraints & objectives                        │
-│  ├─ Spatial/temporal relations (n-ary)                      │
-│  ├─ Regulatory compliance (FAA Part 107, NDAA)              │
-│  └─ Safety properties & invariants                          │
-│                                                              │
-│  Vampire / E-Prover - ~2-4 GB                               │
-│  ├─ First-order logic theorem proving                       │
-│  ├─ Mission plan verification                               │
-│  └─ Safety property checking                                │
-│                                                              │
-│  Clingo (Answer Set Programming) - ~1-2 GB                  │
-│  ├─ Optimal path planning                                   │
-│  ├─ Multi-objective optimization                            │
-│  └─ Resource allocation                                     │
-│                                                              │
-│  Working Memory & JVM - ~8-10 GB                            │
-│                                                              │
-├─────────────────────────────────────────────────────────────┤
-│  OUTPUTS (Compiled for Execution Phase):                    │
-│  ✓ Verified mission plan (waypoints, phases, constraints)   │
-│  ✓ Compiled Prolog rules (lightweight runtime inference)    │
-│  ✓ Behavior tree structure for execution                    │
-│  ✓ Safety invariants to monitor                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-#### Phase 2: Adaptive Execution Mode (In-Flight)
-
-**Duration**: Entire mission (minutes to hours)
-**Compute Allocation**: Optimized for concurrent vision + reasoning
-**Trigger Events**: Mission start, transition to autonomous flight
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│       EXECUTION MODE (Memory-Optimized for Real-Time)       │
+│             UNIFIED EXECUTION MODE                           │
 ├──────────────────────┬──────────────────────────────────────┤
-│  Vision/Perception   │  Symbolic Reasoning                  │
-│  (~12-14 GB)         │  (~100-200 MB)                       │
+│  Vision/Perception   │  Vampire Reasoning                   │
+│  (~12-14 GB)         │  (~50-100 MB)                        │
 ├──────────────────────┼──────────────────────────────────────┤
 │                      │                                      │
-│  YOLO11 (TensorRT)   │  SWI-Prolog Runtime                 │
-│  ~2-3 GB             │  ~50-100 MB                         │
-│  - Object detection  │  - Compiled mission rules           │
-│  - 20-50ms latency   │  - Reactive constraint checking     │
-│                      │  - Spatial reasoning (simplified)   │
-│  Segmentation Model  │  - <10ms query latency              │
+│  YOLO11 (TensorRT)   │  Vampire Theorem Prover              │
+│  ~2-3 GB             │  ~14 MB (typical)                    │
+│  - Object detection  │  - Full FOL reasoning                │
+│  - 20-50ms latency   │  - Safety queries: ~50ms             │
+│                      │  - Planning queries: ~100ms          │
+│  Segmentation Model  │  - Query caching for repeated        │
 │  ~1-2 GB             │                                      │
-│  - Terrain types     │  Perception → Symbolic Bridge       │
-│  - Traversability    │  ~50 MB                             │
-│                      │  - Vision facts (objects, terrain)  │
-│  VLM (Optional)      │  - Sensor facts (pose, state)       │
-│  ~3-5 GB (7B model)  │  - World state updates              │
-│  - Scene understanding│  - Event detection                 │
-│  - Semantic grounding│                                      │
-│                      │                                      │
-│  Depth Processing    │                                      │
-│  ~500 MB             │                                      │
+│  - Terrain types     │  Perception → TPTP Bridge            │
+│  - Traversability    │  ~50 MB                              │
+│                      │  - Vision facts → TPTP format        │
+│  VLM (Optional)      │  - Spatial relations computed        │
+│  ~3-5 GB (7B model)  │  - Event detection                   │
+│  - Scene understanding│                                     │
+│  - Semantic grounding│  ROS 2 vampire_bridge Package        │
+│                      │  - Query service (100ms timeout)     │
+│  Depth Processing    │  - Result caching (LRU + TTL)        │
+│  ~500 MB             │  - 20Hz safety monitoring            │
 │  - Obstacle maps     │                                      │
 │  - Clearance calc    │                                      │
 ├──────────────────────┴──────────────────────────────────────┤
@@ -131,7 +129,11 @@ To maximize both planning rigor and runtime performance within the Jetson Orin N
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Key Advantage**: Heavyweight reasoning runs offline when compute is unconstrained, then mission executes with minimal reasoning overhead, freeing memory for vision models and real-time perception.
+**Key Advantages**:
+- **No translation needed**: KIF/SUMO is the single source of truth
+- **Full expressivity**: All safety axioms preserved (0% loss)
+- **Simplified architecture**: One reasoner for planning AND runtime
+- **Acceptable latency**: ~50ms fits within 20Hz navigation loop
 
 ### Three-Level Hierarchy (Execution Mode)
 
@@ -139,7 +141,7 @@ To maximize both planning rigor and runtime performance within the Jetson Orin N
 ┌─────────────────────────────────────────────────────────────┐
 │ LEVEL 1: MISSION PLANNING (10-second horizon)               │
 │ ┌─────────────────────┐         ┌─────────────────────┐    │
-│ │ Prolog KB (Compiled)│────────▶│ RL Agent: Mission   │    │
+│ │ Vampire (TPTP)      │────────▶│ RL Agent: Mission   │    │
 │ │ - Mission rules     │         │ - Select waypoints  │    │
 │ │ - Constraints       │         │ - Adapt mission     │    │
 │ │ - Airspace rules    │         │ - Resource planning │    │
@@ -151,7 +153,7 @@ To maximize both planning rigor and runtime performance within the Jetson Orin N
 ┌──────────────────────────▼──────────────────────────────────┐
 │ LEVEL 2: BEHAVIOR SELECTION (1-second horizon)              │
 │ ┌─────────────────────┐         ┌─────────────────────┐    │
-│ │ Prolog KB (Compiled)│────────▶│ RL Agent: Behavior  │    │
+│ │ Vampire (TPTP)      │────────▶│ RL Agent: Behavior  │    │
 │ │ - Behavior rules    │         │ - Navigate          │    │
 │ │ - Transitions       │         │ - Loiter            │    │
 │ │ - Safety rules      │         │ - Land              │    │
@@ -163,7 +165,7 @@ To maximize both planning rigor and runtime performance within the Jetson Orin N
 ┌──────────────────────────▼──────────────────────────────────┐
 │ LEVEL 3: TRAJECTORY OPTIMIZATION (100-ms horizon)           │
 │ ┌─────────────────────┐         ┌─────────────────────┐    │
-│ │ Prolog KB (Compiled)│────────▶│ RL Agent: Trajectory│    │
+│ │ Vampire (TPTP)      │────────▶│ RL Agent: Trajectory│    │
 │ │ - Actuator limits   │         │ - Velocity commands │    │
 │ │ - Safety margins    │         │ - Obstacle avoid    │    │
 │ │ - Clearances        │         │ - Energy optimize   │    │
@@ -180,16 +182,16 @@ To maximize both planning rigor and runtime performance within the Jetson Orin N
 
 ### Integration Points
 
-**Planning Mode → Execution Mode** (Phase Transition):
-- Heavyweight reasoners (Vampire, Clingo) verify mission safety
-- SUMO axioms compiled to lightweight Prolog rules
-- Behavior trees generated from verified mission plan
-- Vision models loaded after reasoning engines unloaded
+**Single Reasoner (No Mode Swapping)**:
+- Vampire handles both planning and runtime tactical queries
+- Different query types distinguished by timeout (planning: 5s, tactical: 100ms)
+- Query caching reduces repeated query overhead (LRU + TTL)
+- KIF/SUMO remains single source of truth with 0% translation loss
 
 **Ontology → RL** (Constraint Enforcement):
-- Filters action spaces: only valid actions per compiled rules
-- Shapes rewards: penalties for constraint violations
-- Structures state: semantic abstractions instead of raw sensors
+- Filters action spaces: Vampire proves which actions satisfy constraints
+- Shapes rewards: penalties for ontology-detected violations
+- Structures state: semantic abstractions from TPTP facts
 
 **RL → Ontology** (Experience-Based Learning):
 - Optimizes within safe boundaries defined by ontology
@@ -977,6 +979,10 @@ flyby-f11 (Deployment Platform)
 
 ---
 
-**Document Version**: 1.0
-**Last Updated**: 2024-12-25
-**Status**: Architecture defined, implementation pending (Phase 1 start)
+**Document Version**: 2.0
+**Last Updated**: 2024-12-26
+**Status**: Architecture updated based on Phase 3 evaluation. Phases 1-3 complete, Phase 4+ updated for single-reasoner (Vampire) architecture.
+
+**Changelog**:
+- v2.0 (2024-12-26): Updated to single-reasoner architecture (Vampire only) based on Phase 3 evaluation
+- v1.0 (2024-12-25): Initial architecture with two-phase compute (SUMO+Vampire planning, SWI-Prolog execution)

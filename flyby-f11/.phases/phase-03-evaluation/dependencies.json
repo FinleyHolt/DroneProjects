@@ -1,0 +1,72 @@
+{
+  "phase": "phase-03-evaluation",
+  "phase_number": 3,
+  "depends_on": [
+    "phase-01-ontology-toolchain",
+    "phase-02-uav-ontology"
+  ],
+  "required_by": [
+    "phase-04-execution-mode",
+    "phase-05-perception-bridge"
+  ],
+  "blocking": true,
+  "description": "Phase 3 evaluates all candidate reasoners before committing to a runtime architecture. Results determine whether Phase 4+ use Vampire, OWL, or Prolog.",
+  "dependency_details": {
+    "phase-01-ontology-toolchain": {
+      "reason": "Uses Vampire from planning container as benchmark baseline",
+      "artifacts_needed": [
+        "flyby-f11-planning:latest container image",
+        "Vampire theorem prover installation"
+      ]
+    },
+    "phase-02-uav-ontology": {
+      "reason": "Benchmarks are run against the UAV domain ontology",
+      "artifacts_needed": [
+        "ontology/planning_mode/uav_domain.kif",
+        "ontology/planning_mode/test_scenarios/",
+        "Verified safety axioms"
+      ]
+    }
+  },
+  "downstream_impact": {
+    "vampire_fast_enough": {
+      "condition": "Safety-critical queries <10ms with Vampire",
+      "phases_affected": ["phase-04-execution-mode", "phase-05-perception-bridge", "phase-06-phase-transition"],
+      "impact": "Dramatically simplifies architecture - no translation needed, eliminates phases or merges them"
+    },
+    "owl_reasoner_best": {
+      "condition": "OWL reasoner faster than Vampire with acceptable translation loss",
+      "phases_affected": ["phase-04-execution-mode"],
+      "impact": "Phase 4 becomes OWL integration instead of Prolog, uses Sigma export"
+    },
+    "prolog_best": {
+      "condition": "Prolog fastest with manageable translation effort",
+      "phases_affected": [],
+      "impact": "Proceed with original SUMO-to-Prolog translation plan"
+    }
+  },
+  "parallel_execution": {
+    "can_run_parallel": false,
+    "notes": "Depends on Phase 1 and 2 completion. Results gate downstream architecture decisions."
+  },
+  "new_dependencies_for_phase": {
+    "containerization": [
+      "Podman for containerized benchmarking"
+    ],
+    "reasoners_to_build": [
+      "ELK (Java, OWL 2 EL)",
+      "Reasonable (Rust, OWL 2 RL)",
+      "LiRot (C, OWL-Lite) - optional",
+      "SWI-Prolog"
+    ],
+    "tools": [
+      "Sigma Knowledge Engineering Environment (for OWL export)",
+      "Python 3 (for benchmark scripts)",
+      "QEMU (for ARM emulation if Jetson unavailable)"
+    ],
+    "arm_build_requirements": [
+      "All recommended reasoners must build for aarch64",
+      "Cross-compilation or ARM container builds"
+    ]
+  }
+}

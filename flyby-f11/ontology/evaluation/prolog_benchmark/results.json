@@ -1,0 +1,220 @@
+{
+  "benchmark": "prolog_uav_ontology",
+  "reasoner": "SWI-Prolog",
+  "version": "stable",
+  "timestamp": "2024-12-25T23:45:00Z",
+  "iterations": 100,
+  "platform": "x86_64 (Podman container)",
+  "container_image": "uav-prolog-benchmark",
+  "methodology": {
+    "warmup_iterations": 0,
+    "measurement_iterations": 100,
+    "timing_method": "get_time/1 wall clock + statistics/2 CPU time"
+  },
+  "categories": {
+    "safety": {
+      "requirement_ms": 10,
+      "queries": [
+        {
+          "name": "geofence_violation",
+          "avg_wall_ms": 0.005255,
+          "avg_cpu_ms": 0.005247,
+          "total_wall_ms": 0.525,
+          "solutions": 0,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "No violations in test scenario"
+        },
+        {
+          "name": "nfz_violation",
+          "avg_wall_ms": 0.006773,
+          "avg_cpu_ms": 0.006734,
+          "total_wall_ms": 0.677,
+          "solutions": 1,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Detected 1 no-fly zone violation"
+        },
+        {
+          "name": "battery_return",
+          "avg_wall_ms": 0.004463,
+          "avg_cpu_ms": 0.004456,
+          "total_wall_ms": 0.446,
+          "solutions": 2,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Battery threshold check"
+        },
+        {
+          "name": "collision_imminent",
+          "avg_wall_ms": 0.010078,
+          "avg_cpu_ms": 0.010020,
+          "total_wall_ms": 1.008,
+          "solutions": 1,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Collision detection query"
+        },
+        {
+          "name": "altitude_violation",
+          "avg_wall_ms": 0.005627,
+          "avg_cpu_ms": 0.005573,
+          "total_wall_ms": 0.563,
+          "solutions": 2,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Altitude limit violations"
+        },
+        {
+          "name": "must_land",
+          "avg_wall_ms": 0.008690,
+          "avg_cpu_ms": 0.008369,
+          "total_wall_ms": 0.869,
+          "solutions": 1,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Emergency landing condition"
+        }
+      ],
+      "summary": {
+        "total": 6,
+        "passed": 6,
+        "max_latency_ms": 0.010078,
+        "avg_latency_ms": 0.006814
+      }
+    },
+    "operational": {
+      "requirement_ms": 100,
+      "queries": [
+        {
+          "name": "can_hover",
+          "avg_wall_ms": 0.005133,
+          "avg_cpu_ms": 0.005128,
+          "total_wall_ms": 0.513,
+          "solutions": 4,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Capability inference"
+        },
+        {
+          "name": "can_vtol",
+          "avg_wall_ms": 0.009062,
+          "avg_cpu_ms": 0.008997,
+          "total_wall_ms": 0.906,
+          "solutions": 4,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "VTOL capability inference"
+        },
+        {
+          "name": "ndaa_compliant",
+          "avg_wall_ms": 0.005035,
+          "avg_cpu_ms": 0.004993,
+          "total_wall_ms": 0.504,
+          "solutions": 2,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Compliance check"
+        },
+        {
+          "name": "valid_localization",
+          "avg_wall_ms": 0.006413,
+          "avg_cpu_ms": 0.006354,
+          "total_wall_ms": 0.641,
+          "solutions": 4,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Localization source check"
+        },
+        {
+          "name": "safe_state",
+          "avg_wall_ms": 0.020516,
+          "avg_cpu_ms": 0.020420,
+          "total_wall_ms": 2.052,
+          "solutions": 2,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Composite safety state check"
+        }
+      ],
+      "summary": {
+        "total": 5,
+        "passed": 5,
+        "max_latency_ms": 0.020516,
+        "avg_latency_ms": 0.009232
+      }
+    },
+    "planning": {
+      "requirement_ms": 1000,
+      "queries": [
+        {
+          "name": "subclass_traversal",
+          "avg_wall_ms": 0.003982,
+          "avg_cpu_ms": 0.003969,
+          "total_wall_ms": 0.398,
+          "solutions": 6,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Taxonomy traversal"
+        },
+        {
+          "name": "find_all_uavs",
+          "avg_wall_ms": 0.005400,
+          "avg_cpu_ms": 0.005340,
+          "total_wall_ms": 0.540,
+          "solutions": 5,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Instance enumeration"
+        },
+        {
+          "name": "valid_mission",
+          "avg_wall_ms": 0.004120,
+          "avg_cpu_ms": 0.004112,
+          "total_wall_ms": 0.412,
+          "solutions": 2,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Mission validation"
+        },
+        {
+          "name": "deep_inheritance",
+          "avg_wall_ms": 0.002487,
+          "avg_cpu_ms": 0.002407,
+          "total_wall_ms": 0.249,
+          "solutions": 2,
+          "success": true,
+          "meets_requirement": true,
+          "notes": "Deep class hierarchy traversal"
+        }
+      ],
+      "summary": {
+        "total": 4,
+        "passed": 4,
+        "max_latency_ms": 0.005400,
+        "avg_latency_ms": 0.003997
+      }
+    }
+  },
+  "summary": {
+    "total_queries": 15,
+    "all_passed": true,
+    "safety_passed": "6/6",
+    "operational_passed": "5/5",
+    "planning_passed": "4/4",
+    "overall_max_latency_ms": 0.020516,
+    "overall_avg_latency_ms": 0.006616
+  },
+  "limitations": [
+    "Negation-as-failure semantics differ from classical FOL negation",
+    "Manual translation from KIF required (~30% semantic loss for complex axioms)",
+    "No automatic consistency checking like theorem provers",
+    "Closed-world assumption may miss edge cases in safety reasoning"
+  ],
+  "advantages": [
+    "Sub-millisecond query latency - 4700x faster than Vampire for safety queries",
+    "Minimal memory footprint (~50MB)",
+    "Mature tooling and well-understood semantics",
+    "Easy to debug and trace rule execution"
+  ]
+}

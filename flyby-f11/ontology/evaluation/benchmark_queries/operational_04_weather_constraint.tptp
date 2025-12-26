@@ -1,0 +1,17 @@
+%------------------------------------------------------------------------------
+% OPERATIONAL QUERY 04: Weather Constraint Violated
+% Requirement: Target <100ms
+% Query: Do conditions exceed limits?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Test instance: UAV in high wind area
+fof(test_uav, axiom, flyby_f11(uav_alpha)).
+fof(test_region, axiom, airspace_region(windy_area)).
+fof(test_uav_location, axiom, is_within(uav_alpha, windy_area)).
+fof(test_high_wind, axiom, wind_exceeds_limit(windy_area, uav_alpha)).
+
+% Query: Prove weather constraint is violated
+fof(prove_weather_violation, conjecture,
+    weather_constraint_violation(uav_alpha)).

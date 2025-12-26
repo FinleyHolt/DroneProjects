@@ -1,68 +1,71 @@
 {
-  "phase": "phase-04-execution-mode",
+  "phase": "phase-04-vampire-runtime",
   "required_outputs": {
-    "execution_container": {
-      "path": "ontology/Containerfile.execution",
-      "type": "file",
-      "description": "Multi-arch Containerfile for SWI-Prolog runtime",
-      "verification": "file_exists"
-    },
-    "container_image_x86": {
-      "name": "flyby-f11-execution:latest",
-      "type": "podman_image",
-      "description": "Built x86_64 execution container",
-      "verification": "podman images | grep flyby-f11-execution"
-    },
-    "query_interface": {
-      "path": "ontology/execution_mode/query_interface.py",
-      "type": "file",
-      "description": "Python interface for Prolog queries",
-      "verification": "file_exists",
-      "executable": true
-    },
-    "ros2_bridge_package": {
-      "path": "ros2_ws/src/prolog_bridge/",
+    "arm64_vampire_binary": {
+      "path": "ontology/arm64_build/",
       "type": "directory",
-      "description": "ROS 2 package for Prolog integration",
+      "description": "ARM64 cross-compiled Vampire binary and build artifacts",
+      "verification": "directory_exists",
+      "required_files": [
+        "Containerfile.vampire-arm64",
+        "vampire_aarch64"
+      ]
+    },
+    "ros2_vampire_bridge": {
+      "path": "ros2_ws/src/vampire_bridge/",
+      "type": "directory",
+      "description": "ROS 2 package for Vampire integration",
       "verification": "directory_exists",
       "required_files": [
         "package.xml",
-        "setup.py",
-        "prolog_bridge/prolog_node.py"
+        "CMakeLists.txt",
+        "vampire_bridge/vampire_node.py",
+        "vampire_bridge/query_builder.py",
+        "vampire_bridge/result_parser.py",
+        "vampire_bridge/cache_manager.py",
+        "msg/ReasoningQuery.msg",
+        "msg/ReasoningResult.msg",
+        "srv/VampireQuery.srv",
+        "launch/vampire_bridge.launch.py"
       ]
     },
-    "benchmark_suite": {
-      "path": "ontology/execution_mode/benchmarks/",
-      "type": "directory",
-      "description": "Performance benchmarking scripts and results",
-      "verification": "directory_exists"
-    },
-    "benchmark_results": {
-      "path": "ontology/execution_mode/benchmarks/results.json",
+    "quadlet_container": {
+      "path": "quadlet/vampire-reasoning.container",
       "type": "file",
-      "description": "JSON file with benchmark measurements",
+      "description": "Quadlet container specification for Jetson deployment",
       "verification": "file_exists"
-    }
-  },
-  "optional_outputs": {
-    "container_image_arm": {
-      "name": "flyby-f11-execution:latest-arm64",
-      "type": "podman_image",
-      "description": "Built ARM64 execution container (if Jetson available)",
-      "verification": "podman images | grep flyby-f11-execution.*arm64"
+    },
+    "arm64_benchmark_results": {
+      "path": "ontology/arm64_build/arm64_benchmark_results.json",
+      "type": "file",
+      "description": "ARM64 performance benchmark results",
+      "verification": "file_exists",
+      "expected_metrics": {
+        "safety_p95_ms": "<100",
+        "operational_p95_ms": "<100",
+        "planning_p95_ms": "<200"
+      }
     }
   },
   "success_indicators": {
-    "container_builds": "Containerfile.execution builds without errors",
-    "prolog_loads": "SWI-Prolog loads uav_rules.pl successfully",
-    "query_latency": "All safety queries complete in <10ms",
-    "memory_usage": "Runtime memory < 100MB",
-    "ros2_bridge_works": "ROS 2 service responds to queries"
+    "arm64_builds": "Vampire ARM64 binary builds successfully",
+    "arm64_runs": "Binary executes on Jetson or QEMU ARM64",
+    "ros2_package_builds": "vampire_bridge package compiles with colcon",
+    "service_responds": "VampireQuery service responds within 100ms",
+    "cache_effective": "Cached queries return in <1ms",
+    "quadlet_starts": "Container auto-starts on boot"
   },
   "metrics": {
-    "avg_query_latency_ms": "Average query execution time",
-    "max_query_latency_ms": "Maximum query execution time",
-    "memory_footprint_mb": "Peak memory usage during benchmarks",
-    "queries_per_second": "Throughput of query interface"
+    "arm64_safety_p95_ms": "Safety query p95 latency on ARM64 (target <100ms)",
+    "arm64_vs_x86_ratio": "ARM64/x86 performance ratio (target <2.0)",
+    "cache_hit_rate": "Percentage of queries served from cache",
+    "cache_latency_reduction": "Latency reduction from caching (target >90%)"
+  },
+  "verification_tests": {
+    "arm64_build_test": "Build Vampire for ARM64 in container",
+    "arm64_execution_test": "Run benchmark queries on ARM64/QEMU",
+    "ros2_service_test": "Call VampireQuery service and verify response",
+    "cache_test": "Verify cache hit returns <1ms",
+    "quadlet_test": "Start container via systemd and verify health"
   }
 }

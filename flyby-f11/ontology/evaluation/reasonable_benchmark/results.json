@@ -1,0 +1,248 @@
+{
+  "reasoner": "Reasonable (OWL 2 RL)",
+  "backend": "placeholder",
+  "version": "pending",
+  "platform": "x86_64",
+  "python_version": "3.11",
+  "timestamp": "2024-12-25T00:00:00.000000",
+  "iterations": 100,
+  "ontology_path": "../owl_export/uav_domain.owl",
+  "note": "PLACEHOLDER RESULTS - Actual benchmarks pending ontology export and container build",
+  "ontology_stats": {
+    "load_time_ms": null,
+    "triple_count": null
+  },
+  "materialization": {
+    "time_ms": null,
+    "triple_count": null,
+    "memory_mb": null,
+    "success": false,
+    "note": "Pending ontology creation"
+  },
+  "categories": {
+    "safety": [
+      {
+        "name": "geofence_violations",
+        "description": "Find all UAVs with geofence violations",
+        "requirement_ms": 10,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "1-5ms (OWL 2 RL class membership query)"
+      },
+      {
+        "name": "nfz_violations",
+        "description": "Find UAVs in no-fly zones",
+        "requirement_ms": 10,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "1-5ms"
+      },
+      {
+        "name": "low_battery",
+        "description": "Find UAVs with low battery",
+        "requirement_ms": 10,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "1-3ms"
+      },
+      {
+        "name": "collision_risk",
+        "description": "Find UAVs with imminent collision",
+        "requirement_ms": 10,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "2-5ms"
+      },
+      {
+        "name": "sensor_degraded",
+        "description": "Find UAVs with degraded sensors",
+        "requirement_ms": 10,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "3-8ms (property chain)"
+      },
+      {
+        "name": "safe_state_check",
+        "description": "Find UAVs in safe state",
+        "requirement_ms": 10,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "2-5ms"
+      }
+    ],
+    "operational": [
+      {
+        "name": "hover_capable",
+        "description": "Find UAVs that can hover",
+        "requirement_ms": 100,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "5-15ms"
+      },
+      {
+        "name": "valid_localization",
+        "description": "Find UAVs with valid localization",
+        "requirement_ms": 100,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "10-30ms"
+      },
+      {
+        "name": "ndaa_compliant",
+        "description": "Find NDAA-compliant UAVs",
+        "requirement_ms": 100,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "5-10ms"
+      },
+      {
+        "name": "weather_ok",
+        "description": "Find UAVs without weather violations",
+        "requirement_ms": 100,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "15-40ms (negation query)"
+      },
+      {
+        "name": "terrain_traversable",
+        "description": "Find traversable paths",
+        "requirement_ms": 100,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "20-50ms"
+      }
+    ],
+    "planning": [
+      {
+        "name": "mission_feasibility",
+        "description": "Check if mission is feasible",
+        "requirement_ms": 1000,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "50-150ms"
+      },
+      {
+        "name": "regulatory_compliance",
+        "description": "Check regulatory compliance",
+        "requirement_ms": 1000,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "30-100ms"
+      },
+      {
+        "name": "capability_match",
+        "description": "Match UAV capabilities to mission requirements",
+        "requirement_ms": 1000,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "50-200ms (join query)"
+      },
+      {
+        "name": "path_safety",
+        "description": "Verify path safety",
+        "requirement_ms": 1000,
+        "cold_start_ms": null,
+        "mean_ms": null,
+        "p95_ms": null,
+        "p99_ms": null,
+        "success_rate": 0,
+        "meets_requirement": false,
+        "expected_p95_ms": "80-250ms (spatial reasoning)"
+      }
+    ]
+  },
+  "summary": {
+    "total_queries": 15,
+    "queries_meeting_requirements": 0,
+    "pass_rate": 0,
+    "peak_memory_mb": null,
+    "safety_avg_p95_ms": null,
+    "safety_max_p95_ms": null,
+    "operational_avg_p95_ms": null,
+    "operational_max_p95_ms": null,
+    "planning_avg_p95_ms": null,
+    "planning_max_p95_ms": null,
+    "notes": [
+      "Placeholder results - awaiting ontology export phase completion",
+      "Expected performance: OWL 2 RL should be significantly faster than Vampire",
+      "Reasonable claims 7x speedup over Allegro GraphDB for materialization",
+      "Real benchmarks require: (1) OWL ontology, (2) Container build, (3) Hardware test"
+    ]
+  },
+  "comparison_notes": {
+    "vs_vampire": {
+      "paradigm_difference": "Vampire uses refutation proving; Reasonable uses forward chaining",
+      "expected_speedup": "10-100x for simple class queries after materialization",
+      "tradeoff": "OWL 2 RL has expressivity limitations vs full FOL",
+      "use_case": "Reasonable better for runtime queries; Vampire better for complex proofs"
+    },
+    "vs_allegro": {
+      "claimed_speedup": "7x faster for certain workloads (per Reasonable documentation)",
+      "implementation": "Native Rust vs Java/C++",
+      "memory": "Expected lower memory footprint"
+    }
+  },
+  "build_status": {
+    "containerfile": "created",
+    "benchmark_script": "created",
+    "ontology_export": "pending",
+    "container_build": "pending",
+    "arm64_cross_compile": "documented"
+  }
+}

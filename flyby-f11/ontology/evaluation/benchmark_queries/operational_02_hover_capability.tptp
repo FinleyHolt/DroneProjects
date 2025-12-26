@@ -1,0 +1,14 @@
+%------------------------------------------------------------------------------
+% OPERATIONAL QUERY 02: Hover Capability
+% Requirement: Target <100ms
+% Query: Can this UAV type hover?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Test instance: Flyby F-11 quadcopter
+fof(test_uav, axiom, flyby_f11(my_drone)).
+
+% Query: Prove Flyby F-11 can hover (via quadcopter -> multirotor -> can_hover)
+fof(prove_can_hover, conjecture,
+    can_hover(my_drone)).

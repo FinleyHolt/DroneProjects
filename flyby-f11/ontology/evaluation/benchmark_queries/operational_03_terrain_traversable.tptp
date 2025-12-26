@@ -1,0 +1,23 @@
+%------------------------------------------------------------------------------
+% OPERATIONAL QUERY 03: Terrain Traversable
+% Requirement: Target <100ms
+% Query: Is this terrain safe to fly over?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Additional axioms for terrain
+fof(terrain_clearance_axiom, axiom,
+    ![Region]: ((terrain_region(Region) &
+                 adequate_clearance(Region) &
+                 ~contains_obstacles(Region))
+                => terrain_traversable(Region))).
+
+% Test instance: Open field with good clearance
+fof(test_region, axiom, terrain_region(open_field)).
+fof(test_clearance, axiom, adequate_clearance(open_field)).
+fof(test_no_obstacles, axiom, ~contains_obstacles(open_field)).
+
+% Query: Prove terrain is traversable
+fof(prove_traversable, conjecture,
+    terrain_traversable(open_field)).

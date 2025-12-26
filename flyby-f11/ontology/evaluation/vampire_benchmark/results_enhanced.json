@@ -1,0 +1,776 @@
+{
+  "metadata": {
+    "reasoner": "Vampire",
+    "version": "5.0.0",
+    "system": {
+      "platform": "Linux",
+      "architecture": "x86_64",
+      "python_version": "3.13.11"
+    },
+    "timestamp": "2025-12-25T23:05:41.183324",
+    "iterations": 100,
+    "csv_source": "/home/finley/Github/DroneProjects/flyby-f11/ontology/evaluation/vampire_benchmark/raw_timings.csv"
+  },
+  "statistical_analysis": {
+    "method": "frequentist",
+    "confidence_level": 0.95,
+    "outlier_method": "IQR_1.5x",
+    "notes": [
+      "95% CI uses z-distribution (n=100 is sufficiently large)",
+      "CV < 10% indicates low variability; > 20% indicates high variability",
+      "Outliers detected using Tukey's fences (1.5 * IQR from quartiles)"
+    ]
+  },
+  "categories": {
+    "safety": {
+      "queries": [
+        {
+          "name": "safety_01_geofence_check",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 43.918,
+          "statuses": {
+            "COUNTER_SATISFIABLE": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 13.8,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 41.043,
+            "median_ms": 40.328,
+            "min_ms": 35.247,
+            "max_ms": 51.567,
+            "stdev_ms": 3.43,
+            "p95_ms": 47.856,
+            "p99_ms": 49.307,
+            "standard_error_ms": 0.343,
+            "confidence_interval_95": {
+              "lower_ms": 40.37,
+              "upper_ms": 41.715,
+              "margin_of_error_ms": 0.672
+            },
+            "coefficient_of_variation_percent": 8.36,
+            "interquartile_range": {
+              "q1_ms": 38.699,
+              "q3_ms": 42.882,
+              "iqr_ms": 4.183
+            },
+            "outliers": {
+              "lower_fence_ms": 32.425,
+              "upper_fence_ms": 49.157,
+              "count": 3,
+              "values_ms": [
+                49.164,
+                49.284,
+                51.567
+              ]
+            }
+          }
+        },
+        {
+          "name": "safety_02_nfz_violation",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 42.203,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 41.2,
+            "median_ms": 40.139,
+            "min_ms": 34.827,
+            "max_ms": 49.741,
+            "stdev_ms": 3.707,
+            "p95_ms": 48.376,
+            "p99_ms": 49.58,
+            "standard_error_ms": 0.371,
+            "confidence_interval_95": {
+              "lower_ms": 40.474,
+              "upper_ms": 41.927,
+              "margin_of_error_ms": 0.727
+            },
+            "coefficient_of_variation_percent": 9.0,
+            "interquartile_range": {
+              "q1_ms": 38.868,
+              "q3_ms": 43.547,
+              "iqr_ms": 4.679
+            },
+            "outliers": {
+              "lower_fence_ms": 31.849,
+              "upper_fence_ms": 50.566,
+              "count": 0,
+              "values_ms": []
+            }
+          }
+        },
+        {
+          "name": "safety_03_battery_return",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 49.598,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 41.405,
+            "median_ms": 40.469,
+            "min_ms": 35.749,
+            "max_ms": 52.665,
+            "stdev_ms": 4.063,
+            "p95_ms": 49.626,
+            "p99_ms": 51.172,
+            "standard_error_ms": 0.406,
+            "confidence_interval_95": {
+              "lower_ms": 40.609,
+              "upper_ms": 42.201,
+              "margin_of_error_ms": 0.796
+            },
+            "coefficient_of_variation_percent": 9.81,
+            "interquartile_range": {
+              "q1_ms": 38.087,
+              "q3_ms": 43.453,
+              "iqr_ms": 5.367
+            },
+            "outliers": {
+              "lower_fence_ms": 30.036,
+              "upper_fence_ms": 51.503,
+              "count": 1,
+              "values_ms": [
+                52.665
+              ]
+            }
+          }
+        },
+        {
+          "name": "safety_04_collision_imminent",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 41.422,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 40.372,
+            "median_ms": 39.602,
+            "min_ms": 34.148,
+            "max_ms": 49.468,
+            "stdev_ms": 3.951,
+            "p95_ms": 48.066,
+            "p99_ms": 49.136,
+            "standard_error_ms": 0.395,
+            "confidence_interval_95": {
+              "lower_ms": 39.597,
+              "upper_ms": 41.146,
+              "margin_of_error_ms": 0.774
+            },
+            "coefficient_of_variation_percent": 9.79,
+            "interquartile_range": {
+              "q1_ms": 36.89,
+              "q3_ms": 42.79,
+              "iqr_ms": 5.9
+            },
+            "outliers": {
+              "lower_fence_ms": 28.039,
+              "upper_fence_ms": 51.641,
+              "count": 0,
+              "values_ms": []
+            }
+          }
+        },
+        {
+          "name": "safety_05_sensor_degraded",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 44.523,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 41.461,
+            "median_ms": 40.727,
+            "min_ms": 35.756,
+            "max_ms": 51.769,
+            "stdev_ms": 3.782,
+            "p95_ms": 48.806,
+            "p99_ms": 49.669,
+            "standard_error_ms": 0.378,
+            "confidence_interval_95": {
+              "lower_ms": 40.72,
+              "upper_ms": 42.202,
+              "margin_of_error_ms": 0.741
+            },
+            "coefficient_of_variation_percent": 9.12,
+            "interquartile_range": {
+              "q1_ms": 38.895,
+              "q3_ms": 43.95,
+              "iqr_ms": 5.055
+            },
+            "outliers": {
+              "lower_fence_ms": 31.312,
+              "upper_fence_ms": 51.533,
+              "count": 1,
+              "values_ms": [
+                51.769
+              ]
+            }
+          }
+        },
+        {
+          "name": "safety_06_safe_state_check",
+          "category": "safety",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 52.924,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 10,
+          "meets_requirement": false,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 40.866,
+            "median_ms": 40.544,
+            "min_ms": 35.104,
+            "max_ms": 52.924,
+            "stdev_ms": 3.571,
+            "p95_ms": 47.534,
+            "p99_ms": 49.349,
+            "standard_error_ms": 0.357,
+            "confidence_interval_95": {
+              "lower_ms": 40.166,
+              "upper_ms": 41.566,
+              "margin_of_error_ms": 0.7
+            },
+            "coefficient_of_variation_percent": 8.74,
+            "interquartile_range": {
+              "q1_ms": 38.264,
+              "q3_ms": 42.819,
+              "iqr_ms": 4.555
+            },
+            "outliers": {
+              "lower_fence_ms": 31.431,
+              "upper_fence_ms": 49.652,
+              "count": 1,
+              "values_ms": [
+                52.924
+              ]
+            }
+          }
+        }
+      ],
+      "requirement_ms": 10,
+      "total": 6,
+      "passed": 0,
+      "category_statistics": {
+        "average_cv_percent": 9.14,
+        "total_outliers": 6,
+        "measurement_stability": "excellent"
+      }
+    },
+    "operational": {
+      "queries": [
+        {
+          "name": "operational_01_waypoint_sequence",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 38.436,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 40.11,
+            "median_ms": 39.698,
+            "min_ms": 33.957,
+            "max_ms": 48.033,
+            "stdev_ms": 3.338,
+            "p95_ms": 46.709,
+            "p99_ms": 47.97,
+            "standard_error_ms": 0.334,
+            "confidence_interval_95": {
+              "lower_ms": 39.456,
+              "upper_ms": 40.765,
+              "margin_of_error_ms": 0.654
+            },
+            "coefficient_of_variation_percent": 8.32,
+            "interquartile_range": {
+              "q1_ms": 37.612,
+              "q3_ms": 41.458,
+              "iqr_ms": 3.846
+            },
+            "outliers": {
+              "lower_fence_ms": 31.843,
+              "upper_fence_ms": 47.227,
+              "count": 3,
+              "values_ms": [
+                47.733,
+                47.969,
+                48.033
+              ]
+            }
+          }
+        },
+        {
+          "name": "operational_02_hover_capability",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 38.971,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 40.458,
+            "median_ms": 40.291,
+            "min_ms": 35.017,
+            "max_ms": 48.704,
+            "stdev_ms": 3.374,
+            "p95_ms": 47.533,
+            "p99_ms": 48.444,
+            "standard_error_ms": 0.337,
+            "confidence_interval_95": {
+              "lower_ms": 39.796,
+              "upper_ms": 41.119,
+              "margin_of_error_ms": 0.661
+            },
+            "coefficient_of_variation_percent": 8.34,
+            "interquartile_range": {
+              "q1_ms": 37.816,
+              "q3_ms": 41.757,
+              "iqr_ms": 3.941
+            },
+            "outliers": {
+              "lower_fence_ms": 31.905,
+              "upper_fence_ms": 47.669,
+              "count": 4,
+              "values_ms": [
+                47.672,
+                47.956,
+                48.441,
+                48.704
+              ]
+            }
+          }
+        },
+        {
+          "name": "operational_03_terrain_traversable",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 36.797,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 41.645,
+            "median_ms": 40.836,
+            "min_ms": 35.384,
+            "max_ms": 55.763,
+            "stdev_ms": 3.906,
+            "p95_ms": 48.99,
+            "p99_ms": 51.975,
+            "standard_error_ms": 0.391,
+            "confidence_interval_95": {
+              "lower_ms": 40.88,
+              "upper_ms": 42.411,
+              "margin_of_error_ms": 0.766
+            },
+            "coefficient_of_variation_percent": 9.38,
+            "interquartile_range": {
+              "q1_ms": 39.195,
+              "q3_ms": 43.424,
+              "iqr_ms": 4.229
+            },
+            "outliers": {
+              "lower_fence_ms": 32.851,
+              "upper_fence_ms": 49.768,
+              "count": 3,
+              "values_ms": [
+                50.043,
+                51.937,
+                55.763
+              ]
+            }
+          }
+        },
+        {
+          "name": "operational_04_weather_constraint",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 38.182,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 40.933,
+            "median_ms": 40.26,
+            "min_ms": 35.119,
+            "max_ms": 53.947,
+            "stdev_ms": 4.015,
+            "p95_ms": 49.134,
+            "p99_ms": 53.943,
+            "standard_error_ms": 0.402,
+            "confidence_interval_95": {
+              "lower_ms": 40.146,
+              "upper_ms": 41.72,
+              "margin_of_error_ms": 0.787
+            },
+            "coefficient_of_variation_percent": 9.81,
+            "interquartile_range": {
+              "q1_ms": 38.629,
+              "q3_ms": 41.52,
+              "iqr_ms": 2.891
+            },
+            "outliers": {
+              "lower_fence_ms": 34.292,
+              "upper_fence_ms": 45.857,
+              "count": 10,
+              "values_ms": [
+                46.289,
+                46.569,
+                46.833,
+                49.013,
+                49.027,
+                51.167,
+                51.28,
+                52.937,
+                53.943,
+                53.947
+              ]
+            }
+          }
+        },
+        {
+          "name": "operational_05_ndaa_compliance",
+          "category": "operational",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 43.885,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 100,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 40.612,
+            "median_ms": 40.011,
+            "min_ms": 35.186,
+            "max_ms": 48.517,
+            "stdev_ms": 3.542,
+            "p95_ms": 47.299,
+            "p99_ms": 48.312,
+            "standard_error_ms": 0.354,
+            "confidence_interval_95": {
+              "lower_ms": 39.918,
+              "upper_ms": 41.306,
+              "margin_of_error_ms": 0.694
+            },
+            "coefficient_of_variation_percent": 8.72,
+            "interquartile_range": {
+              "q1_ms": 37.687,
+              "q3_ms": 42.807,
+              "iqr_ms": 5.12
+            },
+            "outliers": {
+              "lower_fence_ms": 30.006,
+              "upper_fence_ms": 50.487,
+              "count": 0,
+              "values_ms": []
+            }
+          }
+        }
+      ],
+      "requirement_ms": 100,
+      "total": 5,
+      "passed": 5,
+      "category_statistics": {
+        "average_cv_percent": 8.91,
+        "total_outliers": 20,
+        "measurement_stability": "excellent"
+      }
+    },
+    "planning": {
+      "queries": [
+        {
+          "name": "planning_01_mission_feasibility",
+          "category": "planning",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 40.679,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 1000,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 41.008,
+            "median_ms": 40.788,
+            "min_ms": 35.367,
+            "max_ms": 49.785,
+            "stdev_ms": 3.844,
+            "p95_ms": 48.314,
+            "p99_ms": 49.529,
+            "standard_error_ms": 0.384,
+            "confidence_interval_95": {
+              "lower_ms": 40.255,
+              "upper_ms": 41.762,
+              "margin_of_error_ms": 0.753
+            },
+            "coefficient_of_variation_percent": 9.37,
+            "interquartile_range": {
+              "q1_ms": 37.513,
+              "q3_ms": 43.417,
+              "iqr_ms": 5.905
+            },
+            "outliers": {
+              "lower_fence_ms": 28.656,
+              "upper_fence_ms": 52.275,
+              "count": 0,
+              "values_ms": []
+            }
+          }
+        },
+        {
+          "name": "planning_02_regulatory_compliance",
+          "category": "planning",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 35.741,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 1000,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 40.311,
+            "median_ms": 39.973,
+            "min_ms": 35.412,
+            "max_ms": 50.329,
+            "stdev_ms": 3.154,
+            "p95_ms": 46.688,
+            "p99_ms": 48.135,
+            "standard_error_ms": 0.315,
+            "confidence_interval_95": {
+              "lower_ms": 39.693,
+              "upper_ms": 40.929,
+              "margin_of_error_ms": 0.618
+            },
+            "coefficient_of_variation_percent": 7.82,
+            "interquartile_range": {
+              "q1_ms": 37.876,
+              "q3_ms": 42.153,
+              "iqr_ms": 4.277
+            },
+            "outliers": {
+              "lower_fence_ms": 31.461,
+              "upper_fence_ms": 48.568,
+              "count": 1,
+              "values_ms": [
+                50.329
+              ]
+            }
+          }
+        },
+        {
+          "name": "planning_03_path_safety",
+          "category": "planning",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 38.027,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 1000,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 40.567,
+            "median_ms": 40.067,
+            "min_ms": 35.221,
+            "max_ms": 50.51,
+            "stdev_ms": 3.512,
+            "p95_ms": 46.675,
+            "p99_ms": 49.174,
+            "standard_error_ms": 0.351,
+            "confidence_interval_95": {
+              "lower_ms": 39.879,
+              "upper_ms": 41.255,
+              "margin_of_error_ms": 0.688
+            },
+            "coefficient_of_variation_percent": 8.66,
+            "interquartile_range": {
+              "q1_ms": 37.729,
+              "q3_ms": 42.465,
+              "iqr_ms": 4.735
+            },
+            "outliers": {
+              "lower_fence_ms": 30.626,
+              "upper_fence_ms": 49.567,
+              "count": 1,
+              "values_ms": [
+                50.51
+              ]
+            }
+          }
+        },
+        {
+          "name": "planning_04_capability_match",
+          "category": "planning",
+          "iterations": 100,
+          "successful_runs": 100,
+          "cold_start_ms": 41.442,
+          "statuses": {
+            "THEOREM": 100
+          },
+          "requirement_ms": 1000,
+          "meets_requirement": true,
+          "memory_mean_mb": 14.0,
+          "memory_max_mb": 14.0,
+          "statistics": {
+            "n": 100,
+            "mean_ms": 41.631,
+            "median_ms": 40.736,
+            "min_ms": 35.634,
+            "max_ms": 52.606,
+            "stdev_ms": 3.952,
+            "p95_ms": 49.088,
+            "p99_ms": 49.898,
+            "standard_error_ms": 0.395,
+            "confidence_interval_95": {
+              "lower_ms": 40.856,
+              "upper_ms": 42.406,
+              "margin_of_error_ms": 0.775
+            },
+            "coefficient_of_variation_percent": 9.49,
+            "interquartile_range": {
+              "q1_ms": 38.694,
+              "q3_ms": 43.219,
+              "iqr_ms": 4.526
+            },
+            "outliers": {
+              "lower_fence_ms": 31.905,
+              "upper_fence_ms": 50.008,
+              "count": 1,
+              "values_ms": [
+                52.606
+              ]
+            }
+          }
+        }
+      ],
+      "requirement_ms": 1000,
+      "total": 4,
+      "passed": 4,
+      "category_statistics": {
+        "average_cv_percent": 8.84,
+        "total_outliers": 3,
+        "measurement_stability": "excellent"
+      }
+    }
+  },
+  "summary": {
+    "total_queries": 15,
+    "queries_meeting_requirements": 9,
+    "overall_pass_rate": 60.0,
+    "safety": {
+      "count": 6,
+      "passed": 0,
+      "pass_rate": 0.0,
+      "requirement_ms": 10,
+      "avg_p95_ms": 48.687,
+      "max_p95_ms": 50.161,
+      "avg_mean_ms": 41.058,
+      "meets_requirement": false
+    },
+    "operational": {
+      "count": 5,
+      "passed": 5,
+      "pass_rate": 100.0,
+      "requirement_ms": 100,
+      "avg_p95_ms": 48.398,
+      "max_p95_ms": 51.167,
+      "avg_mean_ms": 40.752,
+      "meets_requirement": true
+    },
+    "planning": {
+      "count": 4,
+      "passed": 4,
+      "pass_rate": 100.0,
+      "requirement_ms": 1000,
+      "avg_p95_ms": 48.328,
+      "max_p95_ms": 49.607,
+      "avg_mean_ms": 40.879,
+      "meets_requirement": true
+    },
+    "statistical_overview": {
+      "average_cv_percent": 8.98,
+      "cv_range": {
+        "min_percent": 7.82,
+        "max_percent": 9.81
+      },
+      "total_outliers_detected": 29,
+      "overall_measurement_stability": "excellent"
+    }
+  }
+}

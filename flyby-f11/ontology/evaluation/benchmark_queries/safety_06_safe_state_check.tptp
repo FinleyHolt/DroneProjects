@@ -1,0 +1,16 @@
+%------------------------------------------------------------------------------
+% SAFETY QUERY 06: Safe State Composite Check
+% Requirement: Must complete in <10ms during flight
+% Query: Is UAV currently in safe operational state?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Test instance: UAV with NFZ violation should NOT be safe
+fof(test_uav, axiom, flyby_f11(uav_alpha)).
+fof(test_nfz, axiom, no_fly_zone(restricted_zone)).
+fof(test_violation, axiom, is_within(uav_alpha, restricted_zone)).
+
+% Query: Prove UAV is NOT in safe state
+fof(prove_not_safe, conjecture,
+    ~safe_state(uav_alpha)).

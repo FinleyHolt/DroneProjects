@@ -1,0 +1,16 @@
+%------------------------------------------------------------------------------
+% SAFETY QUERY 04: Collision Imminent
+% Requirement: Must complete in <10ms during flight
+% Query: Is evasive action needed?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Test instance: UAV approaching obstacle
+fof(test_uav, axiom, flyby_f11(uav_alpha)).
+fof(test_obstacle, axiom, obstacle(tree_obstacle)).
+fof(test_close_proximity, axiom, below_min_separation(uav_alpha, tree_obstacle)).
+
+% Query: Prove collision is imminent
+fof(prove_collision_imminent, conjecture,
+    collision_imminent(uav_alpha)).

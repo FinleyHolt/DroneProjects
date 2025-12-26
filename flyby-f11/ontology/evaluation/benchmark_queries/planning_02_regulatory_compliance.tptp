@@ -1,0 +1,28 @@
+%------------------------------------------------------------------------------
+% PLANNING QUERY 02: Regulatory Compliance
+% Requirement: Acceptable <1s (during mission planning)
+% Query: Does mission comply with FAA Part 107?
+%------------------------------------------------------------------------------
+
+include('common_axioms.tptp').
+
+% Additional regulatory axioms
+fof(part107_altitude_rule, axiom,
+    ![Mission]:
+      ((uav_mission(Mission) &
+        max_altitude_below_400ft(Mission) &
+        daylight_operations(Mission) &
+        vlos_maintained(Mission) &
+        no_restricted_airspace(Mission))
+       => faa_part107_compliant(Mission))).
+
+% Test instance: Compliant survey mission
+fof(test_mission, axiom, uav_mission(survey_mission)).
+fof(test_altitude_ok, axiom, max_altitude_below_400ft(survey_mission)).
+fof(test_daylight, axiom, daylight_operations(survey_mission)).
+fof(test_vlos, axiom, vlos_maintained(survey_mission)).
+fof(test_no_restricted, axiom, no_restricted_airspace(survey_mission)).
+
+% Query: Prove FAA Part 107 compliance
+fof(prove_part107_compliant, conjecture,
+    faa_part107_compliant(survey_mission)).

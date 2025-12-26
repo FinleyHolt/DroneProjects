@@ -1,0 +1,69 @@
+# Flyby F-11 SITL Simulation Container (Quadlet)
+# Location: ~/.config/containers/systemd/flyby-f11-sitl.container
+#
+# This container runs ArduPilot Software-in-the-Loop simulation:
+# - ArduPilot autopilot firmware
+# - MAVProxy ground station
+# - Gazebo 3D simulation (with GPU rendering)
+# - MAVSDK for programmatic control
+#
+# NOTE: Typically used for development/testing, not deployed on actual drone
+#
+# Usage:
+#   systemctl --user enable flyby-f11-sitl.service
+#   systemctl --user start flyby-f11-sitl.service
+#   systemctl --user status flyby-f11-sitl.service
+
+[Unit]
+Description=Flyby F-11 ArduPilot SITL Simulation
+Documentation=https://github.com/finleyholt/DroneProjects/flyby-f11
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+# Image built from simulation/Containerfile.sitl
+Image=localhost/flyby-f11-sitl:latest
+
+# Mount simulation assets
+Volume=%h/flyby-f11/simulation:/simulation:z
+
+# Working directory
+WorkingDir=/simulation
+
+# Environment variables for SITL
+Environment=SITL_HOME_LAT=37.7749
+Environment=SITL_HOME_LON=-122.4194
+Environment=SITL_HOME_ALT=0
+Environment=GAZEBO_MODEL_PATH=/simulation/models
+
+# GPU for Gazebo rendering
+Device=nvidia.com/gpu=all
+
+# Resource limits (simulation is compute-intensive)
+Memory=8G
+MemorySwap=10G
+
+# Host network for MAVLink telemetry
+Network=host
+
+# X11 display for Gazebo GUI (optional)
+Environment=DISPLAY=${DISPLAY}
+Volume=/tmp/.X11-unix:/tmp/.X11-unix:ro
+
+[Service]
+# Don't auto-restart SITL (interactive development tool)
+Restart=on-failure
+RestartSec=10s
+
+# SITL can be slow to start
+TimeoutStartSec=180
+
+# Run as user service
+Type=simple
+
+# Launch SITL with console
+ExecStart=/bin/bash -c "cd /ardupilot/ArduCopter && sim_vehicle.py -w --console --map"
+
+[Install]
+# Don't auto-start (development tool, not production)
+# WantedBy=multi-user.target default.target

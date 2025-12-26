@@ -1,0 +1,31 @@
+{
+  "phase": "phase-01-ontology-toolchain",
+  "required_inputs": {
+    "system_requirements": {
+      "podman_installed": true,
+      "internet_access": true,
+      "disk_space_gb": 5,
+      "description": "Podman must be installed and functional on development machine"
+    },
+    "base_files": {
+      "containerfile_template": null,
+      "description": "No prior files required - this is Phase 1"
+    }
+  },
+  "optional_inputs": {
+    "sumo_version": {
+      "default": "latest",
+      "description": "Specific SUMO version to install (default: latest from GitHub)"
+    },
+    "vampire_version": {
+      "default": "4.8",
+      "description": "Vampire theorem prover version"
+    }
+  },
+  "environment_variables": {
+    "SUMO_HOME": "/opt/sumo",
+    "VAMPIRE_PATH": "/usr/local/bin/vampire",
+    "ONTOLOGY_MODE": "planning",
+    "LOG_LEVEL": "debug"
+  }
+}

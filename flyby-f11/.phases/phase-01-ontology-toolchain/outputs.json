@@ -1,0 +1,47 @@
+{
+  "phase": "phase-01-ontology-toolchain",
+  "required_outputs": {
+    "containerfile": {
+      "path": "ontology/Containerfile.planning",
+      "type": "file",
+      "description": "Container definition for planning mode with SUMO and Vampire",
+      "verification": "file_exists"
+    },
+    "container_image": {
+      "name": "flyby-f11-planning:latest",
+      "type": "podman_image",
+      "description": "Built container image ready to run",
+      "verification": "podman images | grep flyby-f11-planning"
+    },
+    "test_ontology": {
+      "path": "ontology/planning_mode/test_uav.kif",
+      "type": "file",
+      "description": "Minimal test ontology in KIF format",
+      "verification": "file_exists"
+    },
+    "working_directory": {
+      "path": "ontology/planning_mode/",
+      "type": "directory",
+      "description": "Directory structure for planning mode workspace",
+      "verification": "directory_exists"
+    }
+  },
+  "verification_artifacts": {
+    "sumo_test_output": {
+      "path": "ontology/planning_mode/logs/sumo_test.log",
+      "type": "file",
+      "description": "Log output from SUMO test run"
+    },
+    "vampire_test_output": {
+      "path": "ontology/planning_mode/logs/vampire_test.log",
+      "type": "file",
+      "description": "Log output from Vampire proof attempt"
+    }
+  },
+  "success_indicators": {
+    "container_builds": "podman build exit code 0",
+    "sumo_loads": "SUMO initialization without errors",
+    "vampire_proves": "Vampire successfully proves test theorem",
+    "volume_mounts": "Container can read/write to ontology workspace"
+  }
+}

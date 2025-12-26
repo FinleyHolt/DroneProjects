@@ -1,0 +1,28 @@
+{
+  "phase": "phase-02-uav-ontology",
+  "phase_number": 2,
+  "depends_on": [
+    "phase-01-ontology-toolchain"
+  ],
+  "required_by": [
+    "phase-03-translation",
+    "phase-04-execution-mode",
+    "phase-05-mission-planner"
+  ],
+  "blocking": true,
+  "description": "Phase 2 requires Phase 1 (SUMO toolchain) and is required by all subsequent reasoning phases",
+  "dependency_details": {
+    "phase-01-ontology-toolchain": {
+      "reason": "Requires SUMO installation and planning container to develop and test ontology",
+      "artifacts_needed": [
+        "flyby-f11-planning:latest container image",
+        "SUMO installation",
+        "Vampire theorem prover"
+      ]
+    }
+  },
+  "parallel_execution": {
+    "can_run_parallel": false,
+    "notes": "Depends on Phase 1 completion. Blocks all subsequent reasoning phases."
+  }
+}

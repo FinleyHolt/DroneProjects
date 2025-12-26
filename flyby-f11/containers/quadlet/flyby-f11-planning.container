@@ -1,0 +1,56 @@
+# Flyby F-11 Planning Mode Container (Quadlet)
+# Location: ~/.config/containers/systemd/flyby-f11-planning.container
+#
+# This container runs heavyweight reasoning for mission planning:
+# - SUMO ontology (full expressivity)
+# - Vampire theorem prover
+# - Clingo answer set programming
+# - E-Prover for safety verification
+#
+# Usage:
+#   systemctl --user enable flyby-f11-planning.service
+#   systemctl --user start flyby-f11-planning.service
+#   systemctl --user status flyby-f11-planning.service
+
+[Unit]
+Description=Flyby F-11 Planning Mode - Heavyweight Ontology Reasoning
+Documentation=https://github.com/finleyholt/DroneProjects/flyby-f11
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+# Image built from ontology/Containerfile.planning
+Image=localhost/flyby-f11-planning:latest
+
+# Mount ontology workspace
+Volume=%h/flyby-f11/ontology:/workspace:z
+
+# Working directory
+WorkingDir=/workspace
+
+# Environment variables
+Environment=ONTOLOGY_MODE=planning
+Environment=LOG_LEVEL=info
+
+# Resource limits (planning can be memory-intensive)
+Memory=8G
+MemorySwap=10G
+
+# No GPU needed for symbolic reasoning
+# Network not strictly required (offline reasoning)
+Network=none
+
+[Service]
+# Restart policy - don't auto-restart (planning is on-demand)
+Restart=on-failure
+RestartSec=10s
+
+# Timeout for planning operations (can take minutes)
+TimeoutStartSec=900
+
+# Run as user service
+Type=notify
+
+[Install]
+# Don't auto-start on boot (planning is on-demand)
+# WantedBy=multi-user.target default.target

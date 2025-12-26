@@ -31,23 +31,27 @@ format:
 
 **Architecture**: Two-phase system - Planning Mode (SUMO + Vampire theorem prover) validates mission safety, Execution Mode (Prolog runtime) enforces constraints in real-time.
 
+**Container Strategy**: All development fully self-contained in Podman containers with GPU passthrough. No host-level dependencies required beyond Podman and NVIDIA drivers.
+
 ---
 
 # Phase 1: Ontology Toolchain Foundation
 
-## Task 1.1: Build and Verify Vampire Theorem Prover
+## Task 1.1: Build and Verify Vampire Theorem Prover (Podman Container)
 
-**Objective**: Set up automated theorem proving capability for safety verification.
+**Objective**: Set up automated theorem proving capability for safety verification in self-contained Podman container.
 
 **Implementation Steps**:
 
-1. Clone and build Vampire from source
-2. Create test suite for basic first-order logic proofs
-3. Verify installation with UAV-relevant axioms
+1. Create Containerfile with Vampire build dependencies
+2. Clone and build Vampire from source inside container
+3. Create test suite for basic first-order logic proofs
+4. Verify installation with UAV-relevant axioms
 
 **Success Criteria**:
 
-- [ ] `vampire` binary executes without errors
+- [ ] Containerfile builds successfully with all Vampire dependencies
+- [ ] `vampire` binary executes without errors inside container
 - [ ] Test proof file proves: `uav(drone1) ∧ (∀X: uav(X) ⇒ vehicle(X)) ⊢ vehicle(drone1)`
 - [ ] Vampire returns "Refutation found" or "Theorem proved" status
 - [ ] Execution time < 1 second for simple proofs
@@ -55,12 +59,17 @@ format:
 **Verification Commands**:
 
 ```bash
-cd flyby-f11/ontology/tools/vampire/build
-./bin/vampire --version
-./bin/vampire ../test/simple_uav.tptp
+# Build container
+podman build -f ontology/Containerfile.planning -t flyby-f11-planning .
+
+# Run Vampire inside container
+podman run --rm -v ./ontology:/workspace flyby-f11-planning \
+  vampire /workspace/tools/vampire/test/simple_uav.tptp
 ```
 
-**Deliverable**: `flyby-f11/ontology/tools/vampire/test/simple_uav.tptp` with successful proof output
+**Deliverable**:
+- `flyby-f11/ontology/Containerfile.planning` with Vampire build
+- `flyby-f11/ontology/tools/vampire/test/simple_uav.tptp` with successful proof output
 
 ---
 
@@ -87,20 +96,21 @@ cd flyby-f11/ontology/tools/vampire/build
 
 ---
 
-## Task 1.3: Install and Test SWI-Prolog Runtime
+## Task 1.3: Install and Test SWI-Prolog Runtime (Podman Container)
 
-**Objective**: Set up execution mode runtime environment.
+**Objective**: Set up execution mode runtime environment in self-contained container.
 
 **Implementation Steps**:
 
-1. Install SWI-Prolog system package
-2. Install Python bindings (pyswip)
-3. Create test suite for Prolog queries
+1. Create Containerfile with SWI-Prolog and Python bindings
+2. Install SWI-Prolog from official sources
+3. Install Python bindings (pyswip) via pip
+4. Create test suite for Prolog queries
 
 **Success Criteria**:
 
-- [ ] `swipl --version` returns version ≥8.0
-- [ ] Python imports `from pyswip import Prolog` without errors
+- [ ] Containerfile builds with SWI-Prolog ≥8.0
+- [ ] Python imports `from pyswip import Prolog` without errors inside container
 - [ ] Test query `uav(X)` returns expected results
 - [ ] Assertion and retraction operations work correctly
 
@@ -117,7 +127,20 @@ assert {'X': 'drone1'} in results
 print("✅ SWI-Prolog test passed")
 ```
 
-**Deliverable**: `flyby-f11/ontology/execution_mode/test_prolog.py` with passing tests
+**Container Commands**:
+
+```bash
+# Build execution container
+podman build -f ontology/Containerfile.execution -t flyby-f11-execution .
+
+# Run test inside container
+podman run --rm -v ./ontology:/workspace flyby-f11-execution \
+  python3 /workspace/execution_mode/test_prolog.py
+```
+
+**Deliverable**:
+- `flyby-f11/ontology/Containerfile.execution` with SWI-Prolog
+- `flyby-f11/ontology/execution_mode/test_prolog.py` with passing tests
 
 ---
 
@@ -321,19 +344,21 @@ Scenario 2: Normal Takeoff
 
 # Phase 4: Simulation Environment Integration
 
-## Task 4.1: ArduPilot SITL Setup
+## Task 4.1: ArduPilot SITL Setup (Podman Container)
 
-**Objective**: Establish software-in-the-loop simulation environment.
+**Objective**: Establish software-in-the-loop simulation environment in self-contained container.
 
 **Implementation Steps**:
 
-1. Clone and build ArduPilot
-2. Install dependencies (MAVProxy, pymavlink)
-3. Launch SITL and verify telemetry
+1. Create Containerfile with ArduPilot build dependencies
+2. Clone and build ArduPilot inside container
+3. Install dependencies (MAVProxy, pymavlink)
+4. Launch SITL and verify telemetry
 
 **Success Criteria**:
 
-- [ ] `sim_vehicle.py` launches without errors
+- [ ] Containerfile builds ArduPilot successfully
+- [ ] `sim_vehicle.py` launches without errors inside container
 - [ ] MAVProxy console shows GPS lock and EKF healthy
 - [ ] Telemetry streams on UDP port 14550
 - [ ] Can arm vehicle and receive mode changes
@@ -341,15 +366,22 @@ Scenario 2: Normal Takeoff
 **Verification Commands**:
 
 ```bash
-cd ardupilot/ArduCopter
-sim_vehicle.py -w --console --map
+# Build simulation container
+podman build -f simulation/Containerfile.sitl -t flyby-f11-sitl .
+
+# Run SITL with network passthrough
+podman run --rm --network=host -it flyby-f11-sitl \
+  sim_vehicle.py -w --console --map
+
 # In MAVProxy console:
 # mode GUIDED
 # arm throttle
 # Should see "APM: ARMED"
 ```
 
-**Deliverable**: Screenshot of MAVProxy showing armed vehicle with EKF healthy
+**Deliverable**:
+- `flyby-f11/simulation/Containerfile.sitl` with ArduPilot build
+- Screenshot of MAVProxy showing armed vehicle with EKF healthy
 
 ---
 
@@ -425,18 +457,22 @@ Checking constraints for: takeoff
 
 # Phase 5: ROS 2 Perception Grounding
 
-## Task 5.1: ROS 2 Workspace Setup
+## Task 5.1: ROS 2 Workspace Setup (Podman Container with GPU Passthrough)
 
-**Objective**: Create ROS 2 development environment for ontology integration.
+**Objective**: Create ROS 2 development environment for ontology integration in self-contained container with GPU access.
 
 **Implementation Steps**:
 
-1. Initialize ROS 2 workspace
-2. Create dummy packages to verify build system
-3. Test inter-node communication
+1. Create Containerfile with ROS 2 Humble base
+2. Configure GPU passthrough for vision models
+3. Initialize ROS 2 workspace
+4. Create dummy packages to verify build system
+5. Test inter-node communication
 
 **Success Criteria**:
 
+- [ ] Containerfile builds with ROS 2 Humble successfully
+- [ ] GPU passthrough verified (nvidia-smi works inside container)
 - [ ] `colcon build` completes without errors
 - [ ] `source install/setup.bash` works
 - [ ] Talker/listener demo shows message passing
@@ -445,15 +481,30 @@ Checking constraints for: takeoff
 **Verification**:
 
 ```bash
-cd flyby-f11/ros2_ws
+# Build ROS 2 development container with GPU support
+podman build -f ros2_ws/Containerfile.ros2 -t flyby-f11-ros2 .
+
+# Run with GPU passthrough
+podman run --rm -it \
+  --device nvidia.com/gpu=all \
+  -v ./ros2_ws:/workspace \
+  flyby-f11-ros2 bash
+
+# Inside container
+cd /workspace
 colcon build --symlink-install
 source install/setup.bash
 ros2 run demo_nodes_cpp talker &
 ros2 run demo_nodes_cpp listener
 # Should see messages received
+
+# Verify GPU access
+nvidia-smi
 ```
 
-**Deliverable**: `flyby-f11/ros2_ws/` with clean build
+**Deliverable**:
+- `flyby-f11/ros2_ws/Containerfile.ros2` with GPU passthrough
+- `flyby-f11/ros2_ws/` with clean build
 
 ---
 
@@ -618,19 +669,21 @@ prolog.assertz("batteryLevel(0.05)")
 
 # Phase 7: Real Perception Integration
 
-## Task 7.1: YOLO11 TensorRT Optimization
+## Task 7.1: YOLO11 TensorRT Optimization (Podman with GPU Passthrough)
 
-**Objective**: Deploy optimized object detection for RTX 5090.
+**Objective**: Deploy optimized object detection for RTX 5090 inside GPU-enabled container.
 
 **Implementation Steps**:
 
-1. Export YOLO11n to TensorRT format
-2. Benchmark inference speed
-3. Verify accuracy on COCO validation set
+1. Create Containerfile with TensorRT and CUDA toolkit
+2. Export YOLO11n to TensorRT format inside container
+3. Benchmark inference speed with GPU passthrough
+4. Verify accuracy on COCO validation set
 
 **Success Criteria**:
 
-- [ ] `yolo11n.engine` file generated successfully
+- [ ] Containerfile includes TensorRT and CUDA dependencies
+- [ ] `yolo11n.engine` file generated successfully inside container
 - [ ] Inference speed ≥100 FPS at 640x640 resolution on RTX 5090
 - [ ] mAP@0.5 ≥ 45% on COCO validation set
 - [ ] FP16 precision enabled
@@ -638,14 +691,33 @@ prolog.assertz("batteryLevel(0.05)")
 
 **Verification**:
 
-```python
+```bash
+# Build vision container with TensorRT
+podman build -f ros2_ws/Containerfile.vision -t flyby-f11-vision .
+
+# Run with GPU passthrough for TensorRT optimization
+podman run --rm -it \
+  --device nvidia.com/gpu=all \
+  -v ./models:/models \
+  flyby-f11-vision bash
+
+# Inside container - export and benchmark
+python3 << EOF
 from ultralytics import YOLO
-model = YOLO("yolo11n.engine")
-results = model.val(data="coco.yaml")
+# Export to TensorRT
+model = YOLO("yolo11n.pt")
+model.export(format="engine", device=0, half=True)
+
+# Validate
+engine_model = YOLO("yolo11n.engine")
+results = engine_model.val(data="coco.yaml")
 print(f"mAP@0.5: {results.box.map50}")
+EOF
 ```
 
-**Deliverable**: `flyby-f11/models/yolo11n.engine` with benchmark report
+**Deliverable**:
+- `flyby-f11/ros2_ws/Containerfile.vision` with TensorRT
+- `flyby-f11/models/yolo11n.engine` with benchmark report
 
 ---
 

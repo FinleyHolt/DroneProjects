@@ -1,0 +1,63 @@
+# Flyby F-11 Execution Mode Container (Quadlet)
+# Location: ~/.config/containers/systemd/flyby-f11-execution.container
+#
+# This container runs lightweight runtime reasoning:
+# - SWI-Prolog runtime (~50-100MB)
+# - Compiled safety rules from planning phase
+# - <10ms query latency for real-time constraint checking
+#
+# Usage:
+#   systemctl --user enable flyby-f11-execution.service
+#   systemctl --user start flyby-f11-execution.service
+#   systemctl --user status flyby-f11-execution.service
+
+[Unit]
+Description=Flyby F-11 Execution Mode - Prolog Runtime Reasoning
+Documentation=https://github.com/finleyholt/DroneProjects/flyby-f11
+After=network-online.target flyby-f11-planning.service
+Wants=network-online.target
+# Optionally require planning to complete first
+# Requires=flyby-f11-planning.service
+
+[Container]
+# Image built from ontology/Containerfile.execution
+Image=localhost/flyby-f11-execution:latest
+
+# Mount ontology workspace (read compiled rules)
+Volume=%h/flyby-f11/ontology:/workspace:z
+
+# Working directory
+WorkingDir=/workspace/execution_mode
+
+# Environment variables
+Environment=ONTOLOGY_MODE=execution
+Environment=PROLOG_STACK_LIMIT=1G
+Environment=LOG_LEVEL=info
+
+# Resource limits (lightweight runtime)
+Memory=512M
+MemorySwap=1G
+CPUQuota=50%
+
+# No GPU needed
+# Host network for ROS 2 communication
+Network=host
+
+[Service]
+# Auto-restart for mission-critical runtime
+Restart=always
+RestartSec=5s
+
+# Fast startup required
+TimeoutStartSec=30
+
+# Run as user service
+Type=notify
+
+# Health check (optional - requires custom health endpoint)
+# ExecStartPost=/usr/bin/sleep 5
+# ExecStartPost=/usr/bin/curl -f http://localhost:8080/health || exit 1
+
+[Install]
+# Auto-start on boot for mission readiness
+WantedBy=multi-user.target default.target

@@ -1,0 +1,34 @@
+{
+  "phase": "phase-03-translation",
+  "phase_number": 3,
+  "depends_on": [
+    "phase-01-ontology-toolchain",
+    "phase-02-uav-ontology"
+  ],
+  "required_by": [
+    "phase-04-execution-mode",
+    "phase-05-mission-planner"
+  ],
+  "blocking": true,
+  "description": "Phase 3 requires both SUMO toolchain (Phase 1) and UAV ontology (Phase 2). It produces the translation pipeline needed for execution mode.",
+  "dependency_details": {
+    "phase-01-ontology-toolchain": {
+      "reason": "Requires SUMO to validate translation correctness",
+      "artifacts_needed": [
+        "flyby-f11-planning:latest container image",
+        "SUMO installation"
+      ]
+    },
+    "phase-02-uav-ontology": {
+      "reason": "Translates the UAV ontology from KIF to Prolog",
+      "artifacts_needed": [
+        "ontology/planning_mode/uav_domain.kif",
+        "ontology/planning_mode/test_scenarios/"
+      ]
+    }
+  },
+  "parallel_execution": {
+    "can_run_parallel": false,
+    "notes": "Depends on Phase 1 and 2 completion. Blocks execution mode development."
+  }
+}

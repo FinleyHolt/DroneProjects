@@ -725,12 +725,14 @@ RL Policy outputs action → Ontology Reasoner
 ### Phase 1: Ontology Foundation & Two-Phase Architecture (Weeks 1-6)
 
 #### Part A: Planning Mode Infrastructure (Weeks 1-3)
-- Install SUMO ontology (SUO-KIF format), Vampire, Clingo, E-Prover
+- Create Podman container with SUMO ontology (SUO-KIF format), Vampire, Clingo, E-Prover
+- All dependencies fully documented in `Containerfile.planning`
 - Develop UAV domain ontology in SUMO (flight phases, spatial relations, sensors)
 - Create Flyby-F11 application ontology (missions, constraints, NDAA compliance)
 - Implement safety axioms in SUO-KIF, verify with Vampire
 
 **Deliverables**:
+- `/flyby-f11/ontology/Containerfile.planning` (self-contained planning environment)
 - `/flyby-f11/ontology/planning_mode/sumo_base.kif`
 - `/flyby-f11/ontology/planning_mode/uav_domain.kif`
 - `/flyby-f11/ontology/planning_mode/flyby_mission.kif`
@@ -738,12 +740,14 @@ RL Policy outputs action → Ontology Reasoner
 - Verification scripts (Vampire proofs for safety properties)
 
 #### Part B: Execution Mode Infrastructure (Weeks 4-6)
-- Install SWI-Prolog (ARM build for Jetson)
+- Create Podman container with SWI-Prolog (ARM build for Jetson compatibility)
+- All dependencies documented in `Containerfile.execution`
 - Develop SUMO → Prolog translation tools (manual + semi-automatic)
 - Compile critical safety axioms to Prolog rules
-- Benchmark Prolog inference latency and memory footprint on Jetson
+- Benchmark Prolog inference latency and memory footprint (both x86 dev + ARM Jetson)
 
 **Deliverables**:
+- `/flyby-f11/ontology/Containerfile.execution` (self-contained execution environment)
 - `/flyby-f11/ontology/execution_mode/compiled_rules.pl`
 - `/flyby-f11/scripts/sumo_to_prolog_translator.py`
 - Translation validation tests (SUMO proofs ↔ Prolog queries)
@@ -752,6 +756,8 @@ RL Policy outputs action → Ontology Reasoner
 ### Phase 2: Perception-to-Reasoning Bridge (Weeks 7-10)
 
 #### Part A: Symbolic Abstraction Layer (Weeks 7-8)
+- Create Podman container with ROS 2 Humble + GPU passthrough
+- All ROS 2 and perception dependencies in `Containerfile.ros2`
 - Create ROS 2 grounding nodes package
 - Implement ObjectGroundingNode (YOLO → Prolog facts)
 - Implement TerrainGroundingNode (Segmentation → traversability facts)
@@ -759,19 +765,22 @@ RL Policy outputs action → Ontology Reasoner
 - Implement EventDetectionNode (tracking → temporal events)
 
 **Deliverables**:
+- `flyby_f11_ros2_ws/Containerfile.ros2` (ROS 2 + GPU passthrough)
+- `flyby_f11_ros2_ws/Containerfile.vision` (TensorRT + vision models)
 - `flyby_f11_ros2_ws/src/perception_grounding/`
 - Unit tests for each grounding node
 - Integration tests (vision models → Prolog assertions)
 
 #### Part B: Phase Transition Manager (Weeks 9-10)
-- Implement mission planner node (runs heavyweight reasoners)
-- Implement phase transition controller (unload/load models)
+- Implement mission planner node (runs heavyweight reasoners in planning container)
+- Implement phase transition controller (container orchestration: planning → execution)
 - Develop memory profiling and monitoring tools
-- Test full planning → execution workflow
+- Test full planning → execution workflow with container switching
 
 **Deliverables**:
 - `flyby_f11_ros2_ws/src/mission_planner/`
 - `flyby_f11_ros2_ws/src/phase_transition_manager/`
+- `podman-compose.yml` (orchestrates planning + execution containers)
 - Memory allocation tests (16GB budget validation)
 - Latency benchmarks (phase transition time)
 

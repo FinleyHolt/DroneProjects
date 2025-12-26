@@ -1,0 +1,148 @@
+# Flyby F-11 Development Environment - Podman Compose
+#
+# This configuration is for DEVELOPMENT workflows on your dev machine.
+# For PRODUCTION deployment on Jetson, use Quadlet (see quadlet/ directory).
+#
+# Quick Start:
+#   podman-compose up              # Start all services
+#   podman-compose up --build      # Rebuild and start
+#   podman-compose logs -f         # Follow logs
+#   podman-compose down            # Stop all
+#   podman-compose down -v         # Stop and remove volumes
+#
+# Interactive Development:
+#   podman exec -it flyby-f11-ros2-dev bash
+
+version: '3'
+
+services:
+  # Planning Mode - Heavyweight Ontology Reasoning
+  # On-demand service for mission planning and safety verification
+  planning:
+    container_name: flyby-f11-planning-dev
+    build:
+      context: .
+      dockerfile: ontology/Containerfile.planning
+    image: flyby-f11-planning:latest
+    volumes:
+      - ./ontology:/workspace:z
+    working_dir: /workspace
+    environment:
+      - ONTOLOGY_MODE=planning
+      - LOG_LEVEL=debug
+    networks:
+      - flyby-net
+    # No auto-start - run manually when planning needed
+    profiles:
+      - planning
+
+  # Execution Mode - Lightweight Prolog Runtime
+  # Always running - provides real-time constraint checking
+  execution:
+    container_name: flyby-f11-execution-dev
+    build:
+      context: .
+      dockerfile: ontology/Containerfile.execution
+    image: flyby-f11-execution:latest
+    volumes:
+      - ./ontology:/workspace:z
+    working_dir: /workspace/execution_mode
+    environment:
+      - ONTOLOGY_MODE=execution
+      - PROLOG_STACK_LIMIT=1G
+      - LOG_LEVEL=debug
+    networks:
+      - flyby-net
+    # Port for Prolog query API (if implemented)
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  # ROS 2 Development - Core Autonomy Stack
+  # Main development container with full ROS 2 workspace
+  ros2:
+    container_name: flyby-f11-ros2-dev
+    build:
+      context: .
+      dockerfile: ros2_ws/Containerfile.ros2
+    image: flyby-f11-ros2:latest
+    volumes:
+      - ./ros2_ws:/workspace:z
+    working_dir: /workspace
+    environment:
+      - ROS_DOMAIN_ID=42
+      - ROS_LOCALHOST_ONLY=0
+      - RCUTILS_LOGGING_USE_STDOUT=1
+      - RCUTILS_LOGGING_BUFFERED_STREAM=0
+    devices:
+      - nvidia.com/gpu=all
+    network_mode: host
+    depends_on:
+      - execution
+    restart: unless-stopped
+    # Keep container running for interactive development
+    stdin_open: true
+    tty: true
+
+  # Vision Pipeline - GPU-Accelerated Perception
+  # YOLO, segmentation, depth processing
+  vision:
+    container_name: flyby-f11-vision-dev
+    build:
+      context: .
+      dockerfile: ros2_ws/Containerfile.vision
+    image: flyby-f11-vision:latest
+    volumes:
+      - ./models:/models:z
+      - ./ros2_ws:/workspace:z
+    working_dir: /workspace
+    environment:
+      - ROS_DOMAIN_ID=42
+      - CUDA_VISIBLE_DEVICES=0
+      - TENSORRT_OPTIMIZATION_LEVEL=3
+    devices:
+      - nvidia.com/gpu=all
+      # Uncomment for camera access during development
+      # - /dev/video0:/dev/video0
+    network_mode: host
+    depends_on:
+      - ros2
+    restart: unless-stopped
+
+  # ArduPilot SITL - Software-in-the-Loop Simulation
+  # Development and testing only
+  sitl:
+    container_name: flyby-f11-sitl-dev
+    build:
+      context: .
+      dockerfile: simulation/Containerfile.sitl
+    image: flyby-f11-sitl:latest
+    volumes:
+      - ./simulation:/simulation:z
+    working_dir: /simulation
+    environment:
+      - SITL_HOME_LAT=37.7749
+      - SITL_HOME_LON=-122.4194
+      - SITL_HOME_ALT=0
+      - GAZEBO_MODEL_PATH=/simulation/models
+      - DISPLAY=${DISPLAY}
+    devices:
+      - nvidia.com/gpu=all  # For Gazebo GPU rendering
+    volumes:
+      # X11 socket for Gazebo GUI
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+    network_mode: host
+    stdin_open: true
+    tty: true
+    # SITL typically run separately during testing
+    profiles:
+      - simulation
+
+networks:
+  flyby-net:
+    driver: bridge
+
+# Volume definitions (optional - for persistent data)
+# volumes:
+#   ontology_data:
+#   ros2_build:

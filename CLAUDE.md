@@ -15,7 +15,10 @@ Personal drone autonomy development portfolio showcasing edge AI, computer visio
 
 - **Edge-First Autonomy**: All processing runs locally on embedded compute; no cloud dependency required
 - **Modular Stack**: ROS 2 for inter-component communication, MAVSDK for MAVLink/flight control, PX4 for autopilot firmware
-- **Docker-First Development**: All platforms use Docker Compose for consistent development and deployment
+- **Podman-First Development**: All platforms use Podman (rootless containers) for self-contained, portable development and deployment
+  - GPU passthrough support for vision models and simulation
+  - All dependencies documented and versioned in container specifications
+  - No host-level dependency conflicts; completely reproducible environments
 - **External Dependencies**: PX4-Autopilot and Gazebo binaries managed via setup scripts (not committed to reduce repo size)
 - **Configuration Management**: Custom configs (params, mixers, launch files) versioned per drone variant
 - **Workspace Separation**: Each platform has its own ROS 2 workspace; shared packages linked as needed
@@ -30,27 +33,33 @@ Personal drone autonomy development portfolio showcasing edge AI, computer visio
 Development assumes:
 - NVIDIA/graphics drivers for GPU acceleration (simulation and vision models)
 - Network access during setup for fetching PX4, ROS dependencies
-- Python 3.10+ for vision and autonomy frameworks
-- Docker and Docker Compose for containerized workflows
+- Podman for rootless containerized workflows with GPU passthrough
+- All language runtimes and tools managed inside containers (no host dependencies)
 
 ## Build, Setup, and Development Commands
 
 ### Working with project-drone
 
-The primary development platform is `project-drone/` (Jetson Nano with T265 + D455):
+The primary development platform is `project-drone/` (Jetson Orin Nano Super with T265 + D455):
 
 ```bash
 # Navigate to project-drone
 cd project-drone
 
-# Using Docker (recommended)
-docker compose up
+# Using Podman (recommended - fully self-contained)
+podman-compose up
 
-# OR building locally
-cd ros2_ws
+# OR build and run with GPU passthrough for vision models
+podman-compose up --build
+
+# Enter container for interactive development
+podman exec -it project-drone-dev bash
+
+# Inside container - build ROS 2 workspace
+cd /workspace/ros2_ws
 colcon build --symlink-install
 
-# Launch simulation
+# Launch simulation (GPU passthrough enabled)
 source install/setup.bash
 ros2 launch project_drone_bringup simulation.launch.py
 
@@ -65,11 +74,14 @@ When flyby-f11 hardware becomes available:
 ```bash
 cd flyby-f11
 
-# Using Docker
-docker compose up
+# Using Podman (self-contained development)
+podman-compose up
 
-# OR building locally
-cd ros2_ws
+# Enter container for development
+podman exec -it flyby-f11-dev bash
+
+# Inside container
+cd /workspace/ros2_ws
 colcon build --symlink-install
 source install/setup.bash
 ros2 launch flyby_f11_bringup simulation.launch.py
@@ -77,9 +89,14 @@ ros2 launch flyby_f11_bringup simulation.launch.py
 
 ### Testing
 
+All tests run inside Podman containers for consistent, reproducible results:
+
 ```bash
-# Run tests for specific ROS 2 package
-cd <platform>/ros2_ws
+# Enter development container
+podman exec -it <platform>-dev bash
+
+# Inside container - run tests for specific ROS 2 package
+cd /workspace/ros2_ws
 colcon test --packages-select <pkg>
 
 # Run all ROS 2 tests
@@ -136,7 +153,8 @@ DroneProjects/
    - Has its own ROS 2 workspace with all needed packages
    - Hardware-specific packages live only in that platform
    - Can be independently built, tested, and deployed
-   - Uses Docker Compose for consistent environments
+   - Uses Podman for fully self-contained, reproducible environments
+   - All dependencies documented in container specifications (no hidden host dependencies)
 
 2. **Shared Components**:
    - Core autonomy packages developed in `project-drone/ros2_ws/src/`
@@ -262,11 +280,13 @@ Key variables set by Docker or local environment:
 
 ## Common Pitfalls
 
-- **Docker Volumes**: Docker containers maintain persistent volumes; use `docker compose down -v` to reset
+- **Podman Volumes**: Containers maintain persistent volumes; use `podman-compose down -v` to reset
+- **GPU Passthrough**: If GPU not accessible, verify `nvidia-ctk cdi generate` was run and `/etc/cdi/nvidia.yaml` exists
 - **PX4 Build**: First build can take 10+ minutes; subsequent builds are incremental
-- **ROS 2 Overlay**: Remember to source `ros2_ws/install/setup.bash` in addition to ROS 2 base installation
-- **Gazebo Models**: Custom models must be in `GAZEBO_MODEL_PATH`; verify with `echo $GAZEBO_MODEL_PATH`
+- **ROS 2 Overlay**: Remember to source `ros2_ws/install/setup.bash` inside container
+- **Gazebo Models**: Custom models must be in `GAZEBO_MODEL_PATH`; verify with `echo $GAZEBO_MODEL_PATH` inside container
 - **DDS Domain**: If nodes can't discover each other, check `ROS_DOMAIN_ID` is consistent
+- **Host vs Container**: All development commands run inside containers; don't install ROS 2/Python packages on host
 
 ## Development Platforms
 
@@ -286,23 +306,74 @@ Key variables set by Docker or local environment:
 - **Status**: Development planning (hardware access via MCTSSA)
 - **Strategy**: Shared autonomy components developed on project-drone will be adapted and deployed
 
-## Docker-First Development
+## Podman-First Development
 
-All platforms use Docker Compose as the primary development method:
+All platforms use Podman for fully self-contained, rootless container development.
+
+We use **two tools for different phases**:
+- **Development** (dev machine): **Podman Compose** - fast iteration, easy orchestration
+- **Deployment** (Jetson): **Quadlet** - systemd integration, auto-start on boot, production-grade
 
 **Benefits**:
-- Consistent environment across development machines
-- No need for manual ROS 2 installation
-- Pre-configured PX4 SITL and Gazebo setup
-- Easy deployment to target hardware
+- **Complete portability**: All dependencies documented in container specs
+- **No host pollution**: No manual ROS 2, Python, or library installation on host
+- **GPU passthrough**: NVIDIA GPU access for vision models and simulation
+- **Rootless security**: No daemon, containers run as user processes
+- **Reproducibility**: Identical environment on any machine with Podman
+- **Production-ready**: Systemd-managed services with auto-restart and logging
+- **Easy deployment**: Same containers run on dev machine and target hardware
 
-**Usage**:
+**GPU Passthrough Setup**:
+```bash
+# Install nvidia-container-toolkit (one-time setup)
+sudo apt install nvidia-container-toolkit
+
+# Configure CDI for Podman GPU access
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+
+# Verify GPU access
+podman run --rm --device nvidia.com/gpu=all ubuntu nvidia-smi
+```
+
+**Development Usage** (Podman Compose):
 ```bash
 cd <platform>
-docker compose up          # Start all services
-docker compose down        # Stop services
-docker compose down -v     # Stop and remove volumes (reset state)
+podman-compose up          # Start all services with GPU passthrough
+podman-compose up --build  # Rebuild and start
+podman-compose down        # Stop services
+podman-compose down -v     # Stop and remove volumes (reset state)
+
+# Interactive development
+podman exec -it <platform>-dev bash
+
+# View logs
+podman-compose logs -f
 ```
+
+**Production Usage** (Quadlet on Jetson):
+```bash
+# One-time setup: install Quadlet files
+cp quadlet/*.container ~/.config/containers/systemd/
+systemctl --user daemon-reload
+
+# Enable auto-start on boot
+systemctl --user enable flyby-f11-ros2.service
+
+# Manage services
+systemctl --user start flyby-f11-ros2.service
+systemctl --user status flyby-f11-ros2.service
+systemctl --user restart flyby-f11-ros2.service
+
+# View logs
+journalctl --user -u flyby-f11-ros2.service -f
+```
+
+**Container Structure**:
+- `Containerfile` (Podman equivalent of Dockerfile): Defines environment
+- `podman-compose.yml`: Development orchestration with GPU passthrough
+- `quadlet/*.container`: Production systemd service definitions
+- All ROS 2, PX4, Gazebo dependencies specified in containers
+- Host only needs Podman + NVIDIA drivers
 
 ## Platform-Specific Notes
 

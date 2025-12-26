@@ -1,0 +1,68 @@
+# Flyby F-11 ROS 2 Runtime Container (Quadlet)
+# Location: ~/.config/containers/systemd/flyby-f11-ros2.container
+#
+# This container runs the core ROS 2 autonomy stack:
+# - ROS 2 Humble nodes
+# - Perception grounding nodes
+# - Safety monitor
+# - Mission planner integration
+# - GPU access for vision models (optional, if vision in separate container)
+#
+# Usage:
+#   systemctl --user enable flyby-f11-ros2.service
+#   systemctl --user start flyby-f11-ros2.service
+#   systemctl --user status flyby-f11-ros2.service
+
+[Unit]
+Description=Flyby F-11 ROS 2 Autonomy Stack
+Documentation=https://github.com/finleyholt/DroneProjects/flyby-f11
+After=network-online.target flyby-f11-execution.service
+Wants=network-online.target
+Requires=flyby-f11-execution.service
+
+[Container]
+# Image built from ros2_ws/Containerfile.ros2
+Image=localhost/flyby-f11-ros2:latest
+
+# Mount ROS 2 workspace
+Volume=%h/flyby-f11/ros2_ws:/workspace:z
+
+# Working directory
+WorkingDir=/workspace
+
+# Environment variables
+Environment=ROS_DOMAIN_ID=42
+Environment=ROS_LOCALHOST_ONLY=0
+Environment=RCUTILS_LOGGING_USE_STDOUT=1
+Environment=RCUTILS_LOGGING_BUFFERED_STREAM=0
+
+# GPU passthrough for vision models (if not using separate vision container)
+Device=nvidia.com/gpu=all
+
+# Resource limits
+Memory=6G
+MemorySwap=8G
+
+# Host network required for ROS 2 DDS discovery
+Network=host
+
+# Security - allow access to hardware devices
+SecurityLabelDisable=true
+
+[Service]
+# Auto-restart for mission-critical service
+Restart=always
+RestartSec=10s
+
+# Allow time for ROS 2 nodes to initialize
+TimeoutStartSec=300
+
+# Run as user service
+Type=notify
+
+# Ensure workspace is sourced and launch bringup
+ExecStart=/bin/bash -c "source /workspace/install/setup.bash && ros2 launch flyby_f11_bringup mission.launch.py"
+
+[Install]
+# Auto-start on boot for mission readiness
+WantedBy=multi-user.target default.target

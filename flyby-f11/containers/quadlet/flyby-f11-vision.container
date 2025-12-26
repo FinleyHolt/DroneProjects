@@ -1,0 +1,70 @@
+# Flyby F-11 Vision Pipeline Container (Quadlet)
+# Location: ~/.config/containers/systemd/flyby-f11-vision.container
+#
+# This container runs GPU-accelerated vision models:
+# - YOLO11 object detection (TensorRT optimized)
+# - Segmentation models for terrain classification
+# - Depth processing
+# - Publishes to ROS 2 topics
+#
+# Usage:
+#   systemctl --user enable flyby-f11-vision.service
+#   systemctl --user start flyby-f11-vision.service
+#   systemctl --user status flyby-f11-vision.service
+
+[Unit]
+Description=Flyby F-11 Vision Pipeline - GPU Accelerated Perception
+Documentation=https://github.com/finleyholt/DroneProjects/flyby-f11
+After=network-online.target flyby-f11-ros2.service
+Wants=network-online.target
+Requires=flyby-f11-ros2.service
+
+[Container]
+# Image built from ros2_ws/Containerfile.vision
+Image=localhost/flyby-f11-vision:latest
+
+# Mount model directory and workspace
+Volume=%h/flyby-f11/models:/models:z
+Volume=%h/flyby-f11/ros2_ws:/workspace:z
+
+# Working directory
+WorkingDir=/workspace
+
+# Environment variables
+Environment=ROS_DOMAIN_ID=42
+Environment=CUDA_VISIBLE_DEVICES=0
+Environment=TENSORRT_OPTIMIZATION_LEVEL=3
+
+# GPU passthrough - CRITICAL for vision inference
+Device=nvidia.com/gpu=all
+
+# Camera device access (adjust for your hardware)
+Device=/dev/video0
+
+# Resource limits (vision models are GPU-bound)
+Memory=4G
+MemorySwap=5G
+
+# Host network for ROS 2
+Network=host
+
+# Security - allow GPU and camera access
+SecurityLabelDisable=true
+
+[Service]
+# Auto-restart for mission-critical perception
+Restart=always
+RestartSec=5s
+
+# Vision startup can be slow (model loading)
+TimeoutStartSec=180
+
+# Run as user service
+Type=notify
+
+# Launch vision nodes
+ExecStart=/bin/bash -c "source /workspace/install/setup.bash && ros2 launch perception_pipeline vision.launch.py"
+
+[Install]
+# Auto-start on boot for mission readiness
+WantedBy=multi-user.target default.target

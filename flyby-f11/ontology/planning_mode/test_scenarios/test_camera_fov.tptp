@@ -1,0 +1,63 @@
+%------------------------------------------------------------------------------
+% UAV Domain Ontology - Camera FOV Test
+% Tests target observability based on camera FOV and range
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% SECTION 1: Type Declarations (FOF)
+% ============================================================================
+
+% Sensor hierarchy
+fof(perception_sensor_is_sensor, axiom,
+    ![X]: (perception_sensor(X) => uav_sensor(X))).
+
+fof(isr_camera_is_perception, axiom,
+    ![X]: (isr_camera(X) => perception_sensor(X))).
+
+% Target class
+fof(target_is_object, axiom,
+    ![X]: (target_of_interest(X) => object(X))).
+
+% ============================================================================
+% SECTION 2: Camera Observation Axioms
+% ============================================================================
+
+% Target can be observed if in FOV, in range, and camera operational
+fof(can_observe_axiom, axiom,
+    ![Target, Camera]:
+      ((target_of_interest(Target) &
+        isr_camera(Camera) &
+        target_in_camera_fov(Target, Camera) &
+        target_in_camera_range(Target, Camera) &
+        camera_operational(Camera))
+       => can_observe_target(Target, Camera))).
+
+% ============================================================================
+% SECTION 3: Test Scenario - Target in FOV and Range
+% ============================================================================
+
+% Define test instances
+fof(test_camera_exists, axiom, isr_camera(test_isr_camera_1)).
+fof(test_target_exists, axiom, target_of_interest(test_target_1)).
+
+% Camera is operational
+fof(test_camera_operational, axiom, camera_operational(test_isr_camera_1)).
+
+% Target is in camera FOV (gimbal pointed at target)
+fof(test_target_in_fov, axiom, target_in_camera_fov(test_target_1, test_isr_camera_1)).
+
+% Target is in camera range (within 1000m clip distance)
+fof(test_target_in_range, axiom, target_in_camera_range(test_target_1, test_isr_camera_1)).
+
+% ============================================================================
+% THEOREM 1: Target can be observed
+% ============================================================================
+
+fof(prove_can_observe, conjecture,
+    can_observe_target(test_target_1, test_isr_camera_1)).
+
+%------------------------------------------------------------------------------
+% Expected result: THEOREM PROVED
+% The target is in FOV, in range, and camera is operational, so the target
+% can be observed.
+%------------------------------------------------------------------------------

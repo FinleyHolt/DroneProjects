@@ -1,0 +1,111 @@
+%------------------------------------------------------------------------------
+% UAV Domain Ontology - Gimbal Limits Test
+% Tests gimbal command validation axioms with Vampire theorem prover
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% SECTION 1: Type Declarations (FOF)
+% ============================================================================
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(multirotor_is_uav, axiom,
+    ![X]: (multirotor(X) => uav(X))).
+
+fof(quadcopter_is_multirotor, axiom,
+    ![X]: (quadcopter(X) => multirotor(X))).
+
+fof(flyby_f11_is_quadcopter, axiom,
+    ![X]: (flyby_f11(X) => quadcopter(X))).
+
+% Gimbal system hierarchy
+fof(gimbal_system_is_device, axiom,
+    ![X]: (gimbal_system(X) => device(X))).
+
+fof(three_axis_gimbal_is_gimbal, axiom,
+    ![X]: (three_axis_gimbal(X) => gimbal_system(X))).
+
+fof(gimbal_axis_is_device, axiom,
+    ![X]: (gimbal_axis(X) => device(X))).
+
+% ============================================================================
+% SECTION 2: Gimbal Limit Axioms
+% ============================================================================
+
+% Command is valid if within angle limits
+fof(gimbal_command_valid_axiom, axiom,
+    ![Axis, Min, Max, Cmd]:
+      ((gimbal_axis(Axis) &
+        has_min_angle(Axis, Min) &
+        has_max_angle(Axis, Max) &
+        has_commanded_angle(Axis, Cmd) &
+        greater_than_or_equal(Cmd, Min) &
+        less_than_or_equal(Cmd, Max))
+       => gimbal_command_valid(Axis))).
+
+% Command violation if below minimum
+fof(gimbal_violation_below_min, axiom,
+    ![Axis, Min, Cmd]:
+      ((gimbal_axis(Axis) &
+        has_min_angle(Axis, Min) &
+        has_commanded_angle(Axis, Cmd) &
+        less_than(Cmd, Min))
+       => gimbal_command_violation(Axis))).
+
+% Command violation if above maximum
+fof(gimbal_violation_above_max, axiom,
+    ![Axis, Max, Cmd]:
+      ((gimbal_axis(Axis) &
+        has_max_angle(Axis, Max) &
+        has_commanded_angle(Axis, Cmd) &
+        greater_than(Cmd, Max))
+       => gimbal_command_violation(Axis))).
+
+% Gimbal violations trigger system fault
+fof(gimbal_fault_axiom, axiom,
+    ![UAV, Gimbal, Axis]:
+      ((uav(UAV) &
+        has_gimbal_system(UAV, Gimbal) &
+        has_gimbal_axis(Gimbal, Axis) &
+        gimbal_command_violation(Axis))
+       => gimbal_system_fault(UAV))).
+
+% ============================================================================
+% SECTION 3: Test Scenario - Valid Gimbal Command
+% ============================================================================
+
+% Define test instances
+fof(test_drone_is_flyby_f11, axiom, flyby_f11(test_drone_1)).
+fof(test_gimbal_exists, axiom, three_axis_gimbal(test_gimbal_1)).
+fof(test_axis_exists, axiom, gimbal_axis(test_pitch_axis)).
+
+% UAV has gimbal
+fof(test_has_gimbal, axiom, has_gimbal_system(test_drone_1, test_gimbal_1)).
+fof(test_gimbal_has_axis, axiom, has_gimbal_axis(test_gimbal_1, test_pitch_axis)).
+
+% Pitch axis limits: -2.09 to +2.09 radians (-120 to +120 degrees)
+% Using symbolic names for limit values
+fof(test_pitch_min, axiom, has_min_angle(test_pitch_axis, pitch_min_limit)).
+fof(test_pitch_max, axiom, has_max_angle(test_pitch_axis, pitch_max_limit)).
+
+% Command within limits (1.0 radian = ~57 degrees)
+fof(test_command_within_limits, axiom, has_commanded_angle(test_pitch_axis, cmd_value)).
+
+% Comparison axioms for this test (cmd_value is between limits)
+fof(test_cmd_gte_min, axiom, greater_than_or_equal(cmd_value, pitch_min_limit)).
+fof(test_cmd_lte_max, axiom, less_than_or_equal(cmd_value, pitch_max_limit)).
+
+% ============================================================================
+% THEOREM 1: Valid command within limits should be valid
+% ============================================================================
+
+fof(prove_valid_command, conjecture,
+    gimbal_command_valid(test_pitch_axis)).
+
+%------------------------------------------------------------------------------
+% Expected result: THEOREM PROVED
+% The commanded angle (1.0 rad) is within limits (-2.09, 2.09), so the
+% gimbal_command_valid predicate should be provable.
+%------------------------------------------------------------------------------

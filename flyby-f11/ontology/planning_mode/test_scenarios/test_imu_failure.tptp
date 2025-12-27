@@ -1,0 +1,68 @@
+%------------------------------------------------------------------------------
+% UAV Domain Ontology - IMU Failure Test
+% Tests that IMU failure triggers mandatory landing
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% SECTION 1: Type Declarations (FOF)
+% ============================================================================
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(multirotor_is_uav, axiom,
+    ![X]: (multirotor(X) => uav(X))).
+
+fof(quadcopter_is_multirotor, axiom,
+    ![X]: (quadcopter(X) => multirotor(X))).
+
+fof(flyby_f11_is_quadcopter, axiom,
+    ![X]: (flyby_f11(X) => quadcopter(X))).
+
+% Sensor hierarchy
+fof(uav_sensor_is_device, axiom,
+    ![X]: (uav_sensor(X) => device(X))).
+
+fof(imu_is_sensor, axiom,
+    ![X]: (inertial_measurement_unit(X) => uav_sensor(X))).
+
+% ============================================================================
+% SECTION 2: Sensor Failure Axioms
+% ============================================================================
+
+% IMU failure is critical - must land immediately
+fof(imu_failure_axiom, axiom,
+    ![UAV, IMU, Pos]:
+      ((uav(UAV) &
+        has_sensor(UAV, IMU, Pos) &
+        inertial_measurement_unit(IMU) &
+        ~imu_operational(IMU))
+       => must_land(UAV))).
+
+% ============================================================================
+% SECTION 3: Test Scenario - IMU Failure
+% ============================================================================
+
+% Define test instances
+fof(test_drone_is_flyby_f11, axiom, flyby_f11(test_drone_1)).
+fof(test_imu_exists, axiom, inertial_measurement_unit(test_imu_1)).
+
+% UAV has IMU mounted
+fof(test_has_imu, axiom, has_sensor(test_drone_1, test_imu_1, body_center)).
+
+% IMU has failed (not operational)
+fof(test_imu_not_operational, axiom, ~imu_operational(test_imu_1)).
+
+% ============================================================================
+% THEOREM 1: IMU failure triggers mandatory landing
+% ============================================================================
+
+fof(prove_must_land, conjecture,
+    must_land(test_drone_1)).
+
+%------------------------------------------------------------------------------
+% Expected result: THEOREM PROVED
+% The IMU is not operational, which is a critical failure requiring immediate
+% landing. The must_land predicate should be provable.
+%------------------------------------------------------------------------------

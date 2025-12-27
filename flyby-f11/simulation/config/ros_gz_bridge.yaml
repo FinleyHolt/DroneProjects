@@ -1,0 +1,59 @@
+# ROS GZ Bridge Configuration for F-11 ISR Drone
+#
+# This configuration bridges Gazebo simulation topics to ROS 2 topics
+# for the F-11 ISR drone variant with camera, IMU, and GPS sensors.
+#
+# Usage:
+#   ros2 run ros_gz_bridge parameter_bridge --ros-args -p config_file:=/path/to/ros_gz_bridge.yaml
+#
+# World name: flyby_training
+# Model name: f11_isr
+
+# Camera Image - ISR payload camera
+- ros_topic_name: "/f11/camera/image_raw"
+  gz_topic_name: "/world/flyby_training/model/f11_isr/link/camera_link/sensor/isr_camera/image"
+  ros_type_name: "sensor_msgs/msg/Image"
+  gz_type_name: "gz.msgs.Image"
+  direction: GZ_TO_ROS
+
+# Camera Info - Intrinsic parameters
+- ros_topic_name: "/f11/camera/camera_info"
+  gz_topic_name: "/world/flyby_training/model/f11_isr/link/camera_link/sensor/isr_camera/camera_info"
+  ros_type_name: "sensor_msgs/msg/CameraInfo"
+  gz_type_name: "gz.msgs.CameraInfo"
+  direction: GZ_TO_ROS
+
+# IMU - Inertial Measurement Unit
+- ros_topic_name: "/f11/imu"
+  gz_topic_name: "/world/flyby_training/model/f11_isr/link/imu_link/sensor/imu_sensor/imu"
+  ros_type_name: "sensor_msgs/msg/Imu"
+  gz_type_name: "gz.msgs.IMU"
+  direction: GZ_TO_ROS
+
+# GPS - NavSat Fix
+- ros_topic_name: "/f11/gps"
+  gz_topic_name: "/world/flyby_training/model/f11_isr/link/gps_link/sensor/gps_sensor/navsat"
+  ros_type_name: "sensor_msgs/msg/NavSatFix"
+  gz_type_name: "gz.msgs.NavSat"
+  direction: GZ_TO_ROS
+
+# Gimbal Pitch Command - Control gimbal pitch angle
+- ros_topic_name: "/f11/gimbal/pitch_cmd"
+  gz_topic_name: "/f11_isr/gimbal/pitch"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+# Gimbal Yaw Command - Control gimbal yaw angle
+- ros_topic_name: "/f11/gimbal/yaw_cmd"
+  gz_topic_name: "/f11_isr/gimbal/yaw"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ
+
+# Gimbal Roll Command - Control gimbal roll angle
+- ros_topic_name: "/f11/gimbal/roll_cmd"
+  gz_topic_name: "/f11_isr/gimbal/roll"
+  ros_type_name: "std_msgs/msg/Float64"
+  gz_type_name: "gz.msgs.Double"
+  direction: ROS_TO_GZ

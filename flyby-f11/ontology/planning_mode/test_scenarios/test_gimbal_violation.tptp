@@ -1,0 +1,99 @@
+%------------------------------------------------------------------------------
+% UAV Domain Ontology - Gimbal Violation Test
+% Tests gimbal command violation detection with Vampire theorem prover
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% SECTION 1: Type Declarations (FOF)
+% ============================================================================
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(multirotor_is_uav, axiom,
+    ![X]: (multirotor(X) => uav(X))).
+
+fof(quadcopter_is_multirotor, axiom,
+    ![X]: (quadcopter(X) => multirotor(X))).
+
+fof(flyby_f11_is_quadcopter, axiom,
+    ![X]: (flyby_f11(X) => quadcopter(X))).
+
+% Gimbal system hierarchy
+fof(gimbal_system_is_device, axiom,
+    ![X]: (gimbal_system(X) => device(X))).
+
+fof(three_axis_gimbal_is_gimbal, axiom,
+    ![X]: (three_axis_gimbal(X) => gimbal_system(X))).
+
+fof(gimbal_axis_is_device, axiom,
+    ![X]: (gimbal_axis(X) => device(X))).
+
+% ============================================================================
+% SECTION 2: Gimbal Limit Axioms
+% ============================================================================
+
+% Command violation if above maximum
+fof(gimbal_violation_above_max, axiom,
+    ![Axis, Max, Cmd]:
+      ((gimbal_axis(Axis) &
+        has_max_angle(Axis, Max) &
+        has_commanded_angle(Axis, Cmd) &
+        greater_than(Cmd, Max))
+       => gimbal_command_violation(Axis))).
+
+% Command violation if below minimum
+fof(gimbal_violation_below_min, axiom,
+    ![Axis, Min, Cmd]:
+      ((gimbal_axis(Axis) &
+        has_min_angle(Axis, Min) &
+        has_commanded_angle(Axis, Cmd) &
+        less_than(Cmd, Min))
+       => gimbal_command_violation(Axis))).
+
+% Gimbal violations trigger system fault
+fof(gimbal_fault_axiom, axiom,
+    ![UAV, Gimbal, Axis]:
+      ((uav(UAV) &
+        has_gimbal_system(UAV, Gimbal) &
+        has_gimbal_axis(Gimbal, Axis) &
+        gimbal_command_violation(Axis))
+       => gimbal_system_fault(UAV))).
+
+% ============================================================================
+% SECTION 3: Test Scenario - Gimbal Command Exceeds Limits
+% ============================================================================
+
+% Define test instances
+fof(test_drone_is_flyby_f11, axiom, flyby_f11(test_drone_1)).
+fof(test_gimbal_exists, axiom, three_axis_gimbal(test_gimbal_1)).
+fof(test_axis_exists, axiom, gimbal_axis(test_roll_axis)).
+
+% UAV has gimbal
+fof(test_has_gimbal, axiom, has_gimbal_system(test_drone_1, test_gimbal_1)).
+fof(test_gimbal_has_axis, axiom, has_gimbal_axis(test_gimbal_1, test_roll_axis)).
+
+% Roll axis limits: -0.785 to +0.785 radians (-45 to +45 degrees)
+% Using symbolic names for limit values
+fof(test_roll_min, axiom, has_min_angle(test_roll_axis, roll_min_limit)).
+fof(test_roll_max, axiom, has_max_angle(test_roll_axis, roll_max_limit)).
+
+% Command exceeds limits (1.5 radians = ~86 degrees, beyond 45 degree limit)
+fof(test_command_exceeds_limits, axiom, has_commanded_angle(test_roll_axis, cmd_value)).
+
+% Comparison axiom for this test (cmd_value > roll_max_limit)
+fof(test_cmd_gt_max, axiom, greater_than(cmd_value, roll_max_limit)).
+
+% ============================================================================
+% THEOREM 1: Command exceeding limits should trigger violation
+% ============================================================================
+
+fof(prove_gimbal_violation, conjecture,
+    gimbal_command_violation(test_roll_axis)).
+
+%------------------------------------------------------------------------------
+% Expected result: THEOREM PROVED
+% The commanded angle (1.5 rad) exceeds the maximum limit (0.785 rad), so
+% gimbal_command_violation should be detected.
+%------------------------------------------------------------------------------

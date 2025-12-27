@@ -1,0 +1,163 @@
+%------------------------------------------------------------------------------
+% UAV Domain Ontology - Sensor and Gimbal Consistency Check
+% Verifies the new sensor and gimbal axioms are logically consistent
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% CORE CLASS HIERARCHY
+% ============================================================================
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom, ![X]: (uav(X) => aircraft(X))).
+fof(multirotor_is_uav, axiom, ![X]: (multirotor(X) => uav(X))).
+fof(quadcopter_is_multirotor, axiom, ![X]: (quadcopter(X) => multirotor(X))).
+fof(flyby_f11_is_quadcopter, axiom, ![X]: (flyby_f11(X) => quadcopter(X))).
+
+% Device hierarchy
+fof(gimbal_system_is_device, axiom, ![X]: (gimbal_system(X) => device(X))).
+fof(three_axis_gimbal_is_gimbal, axiom, ![X]: (three_axis_gimbal(X) => gimbal_system(X))).
+fof(gimbal_axis_is_device, axiom, ![X]: (gimbal_axis(X) => device(X))).
+
+% Sensor hierarchy
+fof(uav_sensor_is_device, axiom, ![X]: (uav_sensor(X) => device(X))).
+fof(positioning_sensor_is_uav_sensor, axiom, ![X]: (positioning_sensor(X) => uav_sensor(X))).
+fof(perception_sensor_is_uav_sensor, axiom, ![X]: (perception_sensor(X) => uav_sensor(X))).
+fof(imu_is_uav_sensor, axiom, ![X]: (inertial_measurement_unit(X) => uav_sensor(X))).
+fof(gps_is_positioning_sensor, axiom, ![X]: (gps_sensor(X) => positioning_sensor(X))).
+fof(isr_camera_is_perception_sensor, axiom, ![X]: (isr_camera(X) => perception_sensor(X))).
+
+% ============================================================================
+% GIMBAL AXIOMS
+% ============================================================================
+
+% Command is valid if within limits
+fof(gimbal_command_valid_axiom, axiom,
+    ![Axis, Min, Max, Cmd]:
+      ((gimbal_axis(Axis) &
+        has_min_angle(Axis, Min) &
+        has_max_angle(Axis, Max) &
+        has_commanded_angle(Axis, Cmd) &
+        greater_than_or_equal(Cmd, Min) &
+        less_than_or_equal(Cmd, Max))
+       => gimbal_command_valid(Axis))).
+
+% Command violation if outside limits
+fof(gimbal_violation_above_max, axiom,
+    ![Axis, Max, Cmd]:
+      ((gimbal_axis(Axis) &
+        has_max_angle(Axis, Max) &
+        has_commanded_angle(Axis, Cmd) &
+        greater_than(Cmd, Max))
+       => gimbal_command_violation(Axis))).
+
+fof(gimbal_violation_below_min, axiom,
+    ![Axis, Min, Cmd]:
+      ((gimbal_axis(Axis) &
+        has_min_angle(Axis, Min) &
+        has_commanded_angle(Axis, Cmd) &
+        less_than(Cmd, Min))
+       => gimbal_command_violation(Axis))).
+
+% Gimbal violations trigger system fault
+fof(gimbal_fault_axiom, axiom,
+    ![UAV, Gimbal, Axis]:
+      ((uav(UAV) &
+        has_gimbal_system(UAV, Gimbal) &
+        has_gimbal_axis(Gimbal, Axis) &
+        gimbal_command_violation(Axis))
+       => gimbal_system_fault(UAV))).
+
+% ============================================================================
+% SENSOR AXIOMS
+% ============================================================================
+
+% Valid navigation with operational sensors
+fof(valid_navigation_axiom, axiom,
+    ![UAV, IMU, GPS, Pos1, Pos2]:
+      ((uav(UAV) &
+        has_sensor(UAV, IMU, Pos1) &
+        inertial_measurement_unit(IMU) &
+        imu_operational(IMU) &
+        has_sensor(UAV, GPS, Pos2) &
+        gps_sensor(GPS) &
+        gps_operational(GPS))
+       => has_valid_localization(UAV))).
+
+% VIO fallback when GPS fails
+fof(vio_fallback_axiom, axiom,
+    ![UAV, GPS, Pos]:
+      ((uav(UAV) &
+        has_sensor(UAV, GPS, Pos) &
+        gps_sensor(GPS) &
+        ~gps_operational(GPS) &
+        has_valid_visual_odometry(UAV))
+       => has_valid_localization(UAV))).
+
+% IMU failure requires landing
+fof(imu_failure_axiom, axiom,
+    ![UAV, IMU, Pos]:
+      ((uav(UAV) &
+        has_sensor(UAV, IMU, Pos) &
+        inertial_measurement_unit(IMU) &
+        ~imu_operational(IMU))
+       => must_land(UAV))).
+
+% Camera observation axiom
+fof(can_observe_axiom, axiom,
+    ![Target, Camera]:
+      ((target_of_interest(Target) &
+        isr_camera(Camera) &
+        target_in_camera_fov(Target, Camera) &
+        target_in_camera_range(Target, Camera) &
+        camera_operational(Camera))
+       => can_observe_target(Target, Camera))).
+
+% ============================================================================
+% F-11 ISR SIMULATION INSTANCES
+% ============================================================================
+
+% Gimbal axis instances (using symbolic constants for limits)
+fof(f11_yaw_is_axis, axiom, gimbal_axis(f11_gimbal_yaw)).
+fof(f11_yaw_min, axiom, has_min_angle(f11_gimbal_yaw, yaw_min_limit)).
+fof(f11_yaw_max, axiom, has_max_angle(f11_gimbal_yaw, yaw_max_limit)).
+
+fof(f11_pitch_is_axis, axiom, gimbal_axis(f11_gimbal_pitch)).
+fof(f11_pitch_min, axiom, has_min_angle(f11_gimbal_pitch, pitch_min_limit)).
+fof(f11_pitch_max, axiom, has_max_angle(f11_gimbal_pitch, pitch_max_limit)).
+
+fof(f11_roll_is_axis, axiom, gimbal_axis(f11_gimbal_roll)).
+fof(f11_roll_min, axiom, has_min_angle(f11_gimbal_roll, roll_min_limit)).
+fof(f11_roll_max, axiom, has_max_angle(f11_gimbal_roll, roll_max_limit)).
+
+% Gimbal instance
+fof(f11_gimbal_is_three_axis, axiom, three_axis_gimbal(f11_gimbal)).
+fof(f11_gimbal_has_yaw, axiom, has_gimbal_axis(f11_gimbal, f11_gimbal_yaw)).
+fof(f11_gimbal_has_pitch, axiom, has_gimbal_axis(f11_gimbal, f11_gimbal_pitch)).
+fof(f11_gimbal_has_roll, axiom, has_gimbal_axis(f11_gimbal, f11_gimbal_roll)).
+
+% Sensor instances
+fof(f11_camera_is_isr, axiom, isr_camera(f11_isr_camera)).
+fof(f11_imu_is_imu, axiom, inertial_measurement_unit(f11_imu)).
+fof(f11_gps_is_gps, axiom, gps_sensor(f11_gps)).
+
+% ============================================================================
+% CONSISTENCY TEST
+% ============================================================================
+
+% Assert that a Flyby F-11 with sensors exists
+fof(flyby_exists, axiom, flyby_f11(test_drone)).
+fof(test_has_gimbal, axiom, has_gimbal_system(test_drone, f11_gimbal)).
+fof(test_has_imu, axiom, has_sensor(test_drone, f11_imu, body_center)).
+fof(test_has_gps, axiom, has_sensor(test_drone, f11_gps, top_plate)).
+fof(test_imu_ok, axiom, imu_operational(f11_imu)).
+fof(test_gps_ok, axiom, gps_operational(f11_gps)).
+
+% The conjecture is that we cannot derive a contradiction (false)
+% Vampire will report "CounterSatisfiable" if consistent
+fof(check_consistency, conjecture, $false).
+
+%------------------------------------------------------------------------------
+% Expected result: CounterSatisfiable (GaveUp or Satisfiable)
+% If Vampire finds a refutation (Theorem), there's a contradiction in the
+% sensor and gimbal axioms.
+%------------------------------------------------------------------------------

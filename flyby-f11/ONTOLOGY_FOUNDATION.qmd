@@ -931,15 +931,19 @@ def violates_safety(action, state):
 ```
 flyby-f11/ontology/
 ├── planning_mode/
-│   ├── uav_domain.kif          # Core UAV ontology (1,212 lines) - EXISTS
-│   ├── isr_extensions.kif      # ISR extensions from this doc - NEW
+│   ├── uav_domain.kif          # Core UAV ontology (1,300+ lines)
+│   ├── isr_extensions.kif      # ISR extensions (1,260+ lines)
 │   ├── test_scenarios/
-│   │   ├── comms_denied.kif    # Scenario 1 test case
-│   │   ├── dynamic_nfz.kif     # Scenario 2 test case
-│   │   └── multi_objective.kif # Scenario 3 test case
-│   └── UAV_ONTOLOGY.md         # Documentation - EXISTS
+│   │   ├── test_gimbal_limits.tptp     # Gimbal command validation
+│   │   ├── test_gimbal_violation.tptp  # Gimbal limit detection
+│   │   ├── test_sensor_navigation.tptp # Sensor availability
+│   │   ├── test_imu_failure.tptp       # IMU critical failure
+│   │   ├── test_camera_fov.tptp        # Camera FOV reasoning
+│   │   ├── test_sensor_gimbal_consistency.tptp  # Full consistency
+│   │   └── canonical/                  # Canonical mission scenarios
+│   └── UAV_ONTOLOGY.md         # Documentation
 └── evaluation/
-    └── EVALUATION_REPORT.qmd   # Phase 3 evaluation results - EXISTS
+    └── EVALUATION_REPORT.qmd   # Phase 3 evaluation results
 ```
 
 ---
@@ -967,9 +971,69 @@ vampire --input_syntax tptp --time_limit 50ms \
 
 ---
 
+# Appendix C: F-11 ISR Simulation Sensor Suite
+
+The following sensor and gimbal specifications were verified in Gazebo Sim 8.10.0 and modeled in `isr_extensions.kif` (Sections 15-20).
+
+## 3-Axis Gimbal System
+
+| Axis | Joint | Control Topic | Limits | PID Gains |
+|------|-------|---------------|--------|-----------|
+| Yaw | gimbal_yaw_joint | /f11_isr/gimbal/yaw | ±345° (±6.02 rad) | P=10, I=0.1, D=0.5 |
+| Pitch | gimbal_pitch_joint | /f11_isr/gimbal/pitch | ±120° (±2.09 rad) | P=10, I=0.1, D=0.5 |
+| Roll | camera_joint | /f11_isr/gimbal/roll | ±45° (±0.785 rad) | P=10, I=0.1, D=0.5 |
+
+**Ontology Classes**: `GimbalSystem`, `ThreeAxisGimbal`, `GimbalAxis`
+
+**Safety Axioms**:
+- `gimbalCommandValid`: Command within joint limits
+- `gimbalCommandViolation`: Command exceeds limits → `gimbalSystemFault`
+
+## ISR Camera (Sony A7R-class)
+
+| Property | Value |
+|----------|-------|
+| Resolution | 1920×1080 @ 30Hz |
+| Horizontal FOV | 60° (1.047 rad) |
+| Range | 0.1m - 1000m |
+| Image Topic | /f11_isr/camera/image |
+
+**Ontology Class**: `ISRCamera`
+
+**Reasoning Axiom**: `canObserveTarget(?TARGET, ?CAM)` when target in FOV and range
+
+## IMU Sensor
+
+| Property | Value |
+|----------|-------|
+| Update Rate | 250 Hz |
+| Angular Velocity Noise | 0.009 rad/s (stddev) |
+| Linear Acceleration Noise | 0.017 m/s² (stddev) |
+| Topic | /f11_isr/imu/data |
+
+**Critical Safety Axiom**: `~imuOperational(?IMU) => mustLand(?UAV)`
+
+## GPS/NavSat Sensor
+
+| Property | Value |
+|----------|-------|
+| Update Rate | 10 Hz |
+| Reference Frame | WGS84 |
+| Default Location | 33.3853°N, -117.5653°W (Camp Pendleton) |
+| Position Topic | /f11_isr/navsat/fix |
+| Velocity Topic | /f11_isr/navsat/velocity |
+
+**Ontology Class**: `GPSSensor`
+
+**Navigation Axiom**: Valid localization requires IMU + GPS, or IMU + VIO fallback
+
+---
+
 # References
 
 **Existing Ontology**: `flyby-f11/ontology/planning_mode/uav_domain.kif`
+
+**ISR Extensions**: `flyby-f11/ontology/planning_mode/isr_extensions.kif`
 
 **Documentation**: `flyby-f11/ontology/planning_mode/UAV_ONTOLOGY.md`
 
@@ -980,3 +1044,5 @@ vampire --input_syntax tptp --time_limit 50ms \
 **SUMO Ontology**: https://github.com/ontologyportal/sumo
 
 **IEEE 1872.2-2021**: Standard for Autonomous Robotics Ontology
+
+**Simulation Model**: `flyby-f11/simulation/models/f11_isr_camera/model.sdf`

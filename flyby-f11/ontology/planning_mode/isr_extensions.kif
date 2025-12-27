@@ -849,6 +849,414 @@
   (canAutonomouslyReplan ?UAV))
 
 
+;;; -------------------------------------------------------------------------
+;;; SECTION 15: GIMBAL SYSTEM
+;;; -------------------------------------------------------------------------
+;;; 3-axis stabilized gimbal system for ISR camera payload.
+;;; Verified in Gazebo Sim 8.10.0 with joint controllers.
+
+(subclass GimbalSystem Device)
+(documentation GimbalSystem EnglishLanguage
+  "A multi-axis stabilization platform for camera or sensor payloads.
+  Provides active stabilization and pointing control for ISR operations.")
+
+(subclass ThreeAxisGimbal GimbalSystem)
+(documentation ThreeAxisGimbal EnglishLanguage
+  "A 3-axis gimbal providing yaw, pitch, and roll stabilization.
+  Enables precise camera pointing independent of UAV attitude.")
+
+;; Gimbal axis class
+(subclass GimbalAxis Device)
+(documentation GimbalAxis EnglishLanguage
+  "An individual controllable axis of a gimbal system.
+  Each axis has angle limits and control characteristics.")
+
+;; Specific axis types
+(instance YawAxis GimbalAxis)
+(documentation YawAxis EnglishLanguage
+  "Gimbal yaw axis for horizontal rotation (azimuth control).")
+
+(instance PitchAxis GimbalAxis)
+(documentation PitchAxis EnglishLanguage
+  "Gimbal pitch axis for vertical rotation (elevation control).")
+
+(instance RollAxis GimbalAxis)
+(documentation RollAxis EnglishLanguage
+  "Gimbal roll axis for horizon leveling and bank compensation.")
+
+;; Gimbal relations
+(instance hasGimbalSystem BinaryPredicate)
+(domain hasGimbalSystem 1 UAV)
+(domain hasGimbalSystem 2 GimbalSystem)
+(documentation hasGimbalSystem EnglishLanguage
+  "(hasGimbalSystem ?UAV ?GIMBAL) indicates UAV has gimbal mounted.")
+
+(instance hasGimbalAxis BinaryPredicate)
+(domain hasGimbalAxis 1 GimbalSystem)
+(domain hasGimbalAxis 2 GimbalAxis)
+(documentation hasGimbalAxis EnglishLanguage
+  "(hasGimbalAxis ?GIMBAL ?AXIS) indicates gimbal has controllable axis.")
+
+(instance hasMinAngle BinaryPredicate)
+(domain hasMinAngle 1 GimbalAxis)
+(domain hasMinAngle 2 RealNumber)
+(documentation hasMinAngle EnglishLanguage
+  "(hasMinAngle ?AXIS ?RADIANS) specifies minimum angle limit in radians.")
+
+(instance hasMaxAngle BinaryPredicate)
+(domain hasMaxAngle 1 GimbalAxis)
+(domain hasMaxAngle 2 RealNumber)
+(documentation hasMaxAngle EnglishLanguage
+  "(hasMaxAngle ?AXIS ?RADIANS) specifies maximum angle limit in radians.")
+
+(instance hasCurrentAngle BinaryPredicate)
+(domain hasCurrentAngle 1 GimbalAxis)
+(domain hasCurrentAngle 2 RealNumber)
+(documentation hasCurrentAngle EnglishLanguage
+  "(hasCurrentAngle ?AXIS ?RADIANS) indicates current axis angle in radians.")
+
+(instance hasCommandedAngle BinaryPredicate)
+(domain hasCommandedAngle 1 GimbalAxis)
+(domain hasCommandedAngle 2 RealNumber)
+(documentation hasCommandedAngle EnglishLanguage
+  "(hasCommandedAngle ?AXIS ?RADIANS) indicates commanded target angle.")
+
+(instance axisControlTopic BinaryPredicate)
+(domain axisControlTopic 1 GimbalAxis)
+(domain axisControlTopic 2 Entity)
+(documentation axisControlTopic EnglishLanguage
+  "(axisControlTopic ?AXIS ?TOPIC) ROS topic for axis control commands.")
+
+(instance gimbalCommandValid UnaryPredicate)
+(domain gimbalCommandValid 1 GimbalAxis)
+(documentation gimbalCommandValid EnglishLanguage
+  "(gimbalCommandValid ?AXIS) indicates commanded angle is within limits.")
+
+(instance gimbalCommandViolation UnaryPredicate)
+(domain gimbalCommandViolation 1 GimbalAxis)
+(documentation gimbalCommandViolation EnglishLanguage
+  "(gimbalCommandViolation ?AXIS) commanded angle exceeds joint limits.")
+
+;;; AXIOM: Command is valid if within angle limits
+(=>
+  (and
+    (instance ?AXIS GimbalAxis)
+    (hasMinAngle ?AXIS ?MIN)
+    (hasMaxAngle ?AXIS ?MAX)
+    (hasCommandedAngle ?AXIS ?CMD)
+    (greaterThanOrEqualTo ?CMD ?MIN)
+    (lessThanOrEqualTo ?CMD ?MAX))
+  (gimbalCommandValid ?AXIS))
+
+;;; AXIOM: Command violation if below minimum
+(=>
+  (and
+    (instance ?AXIS GimbalAxis)
+    (hasMinAngle ?AXIS ?MIN)
+    (hasCommandedAngle ?AXIS ?CMD)
+    (lessThan ?CMD ?MIN))
+  (gimbalCommandViolation ?AXIS))
+
+;;; AXIOM: Command violation if above maximum
+(=>
+  (and
+    (instance ?AXIS GimbalAxis)
+    (hasMaxAngle ?AXIS ?MAX)
+    (hasCommandedAngle ?AXIS ?CMD)
+    (greaterThan ?CMD ?MAX))
+  (gimbalCommandViolation ?AXIS))
+
+;;; AXIOM: Gimbal violations affect safe state
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasGimbalSystem ?UAV ?GIMBAL)
+    (hasGimbalAxis ?GIMBAL ?AXIS)
+    (gimbalCommandViolation ?AXIS))
+  (gimbalSystemFault ?UAV))
+
+(instance gimbalSystemFault UnaryPredicate)
+(domain gimbalSystemFault 1 UAV)
+(documentation gimbalSystemFault EnglishLanguage
+  "(gimbalSystemFault ?UAV) indicates gimbal system has a fault condition.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 16: ISR CAMERA PAYLOAD
+;;; -------------------------------------------------------------------------
+;;; Sony A7R-class ISR camera specifications from simulation
+
+(subclass ISRCamera PerceptionSensor)
+(documentation ISRCamera EnglishLanguage
+  "A high-resolution camera for Intelligence, Surveillance, and Reconnaissance.
+  Mounted on gimbal for stabilized imagery collection.")
+
+(instance hasImageWidth BinaryPredicate)
+(domain hasImageWidth 1 ISRCamera)
+(domain hasImageWidth 2 PositiveInteger)
+(documentation hasImageWidth EnglishLanguage
+  "(hasImageWidth ?CAM ?PIXELS) horizontal resolution in pixels.")
+
+(instance hasImageHeight BinaryPredicate)
+(domain hasImageHeight 1 ISRCamera)
+(domain hasImageHeight 2 PositiveInteger)
+(documentation hasImageHeight EnglishLanguage
+  "(hasImageHeight ?CAM ?PIXELS) vertical resolution in pixels.")
+
+(instance hasUpdateRate BinaryPredicate)
+(domain hasUpdateRate 1 UAVSensor)
+(domain hasUpdateRate 2 RealNumber)
+(documentation hasUpdateRate EnglishLanguage
+  "(hasUpdateRate ?SENSOR ?HZ) sensor update/sampling rate in Hz.")
+
+(instance hasHorizontalFOV BinaryPredicate)
+(domain hasHorizontalFOV 1 ISRCamera)
+(domain hasHorizontalFOV 2 RealNumber)
+(documentation hasHorizontalFOV EnglishLanguage
+  "(hasHorizontalFOV ?CAM ?RADIANS) horizontal field of view in radians.")
+
+(instance hasClipNear BinaryPredicate)
+(domain hasClipNear 1 ISRCamera)
+(domain hasClipNear 2 RealNumber)
+(documentation hasClipNear EnglishLanguage
+  "(hasClipNear ?CAM ?METERS) minimum range for valid imagery.")
+
+(instance hasClipFar BinaryPredicate)
+(domain hasClipFar 1 ISRCamera)
+(domain hasClipFar 2 RealNumber)
+(documentation hasClipFar EnglishLanguage
+  "(hasClipFar ?CAM ?METERS) maximum range for valid imagery.")
+
+(instance hasCameraImageTopic BinaryPredicate)
+(domain hasCameraImageTopic 1 ISRCamera)
+(domain hasCameraImageTopic 2 Entity)
+(documentation hasCameraImageTopic EnglishLanguage
+  "(hasCameraImageTopic ?CAM ?TOPIC) ROS topic publishing camera images.")
+
+(instance cameraOperational UnaryPredicate)
+(domain cameraOperational 1 ISRCamera)
+(documentation cameraOperational EnglishLanguage
+  "(cameraOperational ?CAM) indicates camera is functioning and publishing.")
+
+(instance targetInCameraFOV BinaryPredicate)
+(domain targetInCameraFOV 1 TargetOfInterest)
+(domain targetInCameraFOV 2 ISRCamera)
+(documentation targetInCameraFOV EnglishLanguage
+  "(targetInCameraFOV ?TARGET ?CAM) target is visible in camera field of view.")
+
+(instance targetInCameraRange BinaryPredicate)
+(domain targetInCameraRange 1 TargetOfInterest)
+(domain targetInCameraRange 2 ISRCamera)
+(documentation targetInCameraRange EnglishLanguage
+  "(targetInCameraRange ?TARGET ?CAM) target is within camera's effective range.")
+
+;;; AXIOM: Target can be observed if in FOV and range with operational camera
+(=>
+  (and
+    (instance ?TARGET TargetOfInterest)
+    (instance ?CAM ISRCamera)
+    (targetInCameraFOV ?TARGET ?CAM)
+    (targetInCameraRange ?TARGET ?CAM)
+    (cameraOperational ?CAM))
+  (canObserveTarget ?TARGET ?CAM))
+
+(instance canObserveTarget BinaryPredicate)
+(domain canObserveTarget 1 TargetOfInterest)
+(domain canObserveTarget 2 ISRCamera)
+(documentation canObserveTarget EnglishLanguage
+  "(canObserveTarget ?TARGET ?CAM) target can be observed with camera.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 17: IMU SENSOR
+;;; -------------------------------------------------------------------------
+;;; Inertial Measurement Unit specifications from simulation
+
+;; Note: InertialMeasurementUnit already defined in uav_domain.kif
+;; Adding simulation-specific properties
+
+(instance hasAngularVelocityNoise BinaryPredicate)
+(domain hasAngularVelocityNoise 1 InertialMeasurementUnit)
+(domain hasAngularVelocityNoise 2 RealNumber)
+(documentation hasAngularVelocityNoise EnglishLanguage
+  "(hasAngularVelocityNoise ?IMU ?STDDEV) angular velocity noise in rad/s.")
+
+(instance hasLinearAccelerationNoise BinaryPredicate)
+(domain hasLinearAccelerationNoise 1 InertialMeasurementUnit)
+(domain hasLinearAccelerationNoise 2 RealNumber)
+(documentation hasLinearAccelerationNoise EnglishLanguage
+  "(hasLinearAccelerationNoise ?IMU ?STDDEV) linear acceleration noise in m/s².")
+
+(instance hasIMUTopic BinaryPredicate)
+(domain hasIMUTopic 1 InertialMeasurementUnit)
+(domain hasIMUTopic 2 Entity)
+(documentation hasIMUTopic EnglishLanguage
+  "(hasIMUTopic ?IMU ?TOPIC) ROS topic publishing IMU data.")
+
+(instance imuOperational UnaryPredicate)
+(domain imuOperational 1 InertialMeasurementUnit)
+(documentation imuOperational EnglishLanguage
+  "(imuOperational ?IMU) indicates IMU is functioning and publishing valid data.")
+
+(instance imuDegraded UnaryPredicate)
+(domain imuDegraded 1 InertialMeasurementUnit)
+(documentation imuDegraded EnglishLanguage
+  "(imuDegraded ?IMU) indicates IMU has degraded accuracy or intermittent data.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 18: GPS/NAVSAT SENSOR
+;;; -------------------------------------------------------------------------
+;;; GPS sensor specifications from simulation
+
+(subclass GPSSensor PositioningSensor)
+(documentation GPSSensor EnglishLanguage
+  "A GPS/GNSS receiver providing global position in WGS84 coordinates.
+  Also known as NavSat sensor.")
+
+(instance hasGPSTopic BinaryPredicate)
+(domain hasGPSTopic 1 GPSSensor)
+(domain hasGPSTopic 2 Entity)
+(documentation hasGPSTopic EnglishLanguage
+  "(hasGPSTopic ?GPS ?TOPIC) ROS topic publishing GPS/NavSat data.")
+
+(instance hasVelocityTopic BinaryPredicate)
+(domain hasVelocityTopic 1 GPSSensor)
+(domain hasVelocityTopic 2 Entity)
+(documentation hasVelocityTopic EnglishLanguage
+  "(hasVelocityTopic ?GPS ?TOPIC) ROS topic publishing GPS velocity data.")
+
+(instance hasReferenceLatitude BinaryPredicate)
+(domain hasReferenceLatitude 1 GPSSensor)
+(domain hasReferenceLatitude 2 RealNumber)
+(documentation hasReferenceLatitude EnglishLanguage
+  "(hasReferenceLatitude ?GPS ?DEG) reference latitude in degrees.")
+
+(instance hasReferenceLongitude BinaryPredicate)
+(domain hasReferenceLongitude 1 GPSSensor)
+(domain hasReferenceLongitude 2 RealNumber)
+(documentation hasReferenceLongitude EnglishLanguage
+  "(hasReferenceLongitude ?GPS ?DEG) reference longitude in degrees.")
+
+(instance gpsOperational UnaryPredicate)
+(domain gpsOperational 1 GPSSensor)
+(documentation gpsOperational EnglishLanguage
+  "(gpsOperational ?GPS) indicates GPS is locked and publishing valid fixes.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 19: SENSOR AVAILABILITY AXIOMS
+;;; -------------------------------------------------------------------------
+;;; Axioms for reasoning about sensor health and navigation validity
+
+;;; AXIOM: Valid navigation requires both IMU and GPS operational
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasSensor ?UAV ?IMU ?POS1)
+    (instance ?IMU InertialMeasurementUnit)
+    (imuOperational ?IMU)
+    (hasSensor ?UAV ?GPS ?POS2)
+    (instance ?GPS GPSSensor)
+    (gpsOperational ?GPS))
+  (hasValidLocalization ?UAV))
+
+;;; AXIOM: GPS failure with operational VIO allows continued flight
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasSensor ?UAV ?GPS ?POS)
+    (instance ?GPS GPSSensor)
+    (not (gpsOperational ?GPS))
+    (hasValidVisualOdometry ?UAV))
+  (hasValidLocalization ?UAV))
+
+;;; AXIOM: IMU failure is critical - must land immediately
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasSensor ?UAV ?IMU ?POS)
+    (instance ?IMU InertialMeasurementUnit)
+    (not (imuOperational ?IMU)))
+  (mustLand ?UAV))
+
+;;; AXIOM: Camera failure degrades ISR capability but allows continued flight
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasGimbalSystem ?UAV ?GIMBAL)
+    (instance ?CAM ISRCamera)
+    (not (cameraOperational ?CAM)))
+  (isrCapabilityDegraded ?UAV))
+
+(instance isrCapabilityDegraded UnaryPredicate)
+(domain isrCapabilityDegraded 1 UAV)
+(documentation isrCapabilityDegraded EnglishLanguage
+  "(isrCapabilityDegraded ?UAV) ISR collection capability is reduced.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 20: F-11 ISR SIMULATION INSTANCES
+;;; -------------------------------------------------------------------------
+;;; Specific instances for F-11 ISR simulation configuration
+;;; Verified in Gazebo Sim 8.10.0
+
+;; Gimbal axis instances with verified limits from simulation
+(instance f11_gimbal_yaw YawAxis)
+(hasMinAngle f11_gimbal_yaw -6.02)  ; -345 degrees
+(hasMaxAngle f11_gimbal_yaw 6.02)   ; +345 degrees
+(axisControlTopic f11_gimbal_yaw "/f11_isr/gimbal/yaw")
+
+(instance f11_gimbal_pitch PitchAxis)
+(hasMinAngle f11_gimbal_pitch -2.09)  ; -120 degrees
+(hasMaxAngle f11_gimbal_pitch 2.09)   ; +120 degrees
+(axisControlTopic f11_gimbal_pitch "/f11_isr/gimbal/pitch")
+
+(instance f11_gimbal_roll RollAxis)
+(hasMinAngle f11_gimbal_roll -0.785)  ; -45 degrees
+(hasMaxAngle f11_gimbal_roll 0.785)   ; +45 degrees
+(axisControlTopic f11_gimbal_roll "/f11_isr/gimbal/roll")
+
+;; Three-axis gimbal instance
+(instance f11_gimbal ThreeAxisGimbal)
+(hasGimbalAxis f11_gimbal f11_gimbal_yaw)
+(hasGimbalAxis f11_gimbal f11_gimbal_pitch)
+(hasGimbalAxis f11_gimbal f11_gimbal_roll)
+
+;; ISR Camera instance (Sony A7R-class simulation)
+(instance f11_isr_camera ISRCamera)
+(hasImageWidth f11_isr_camera 1920)
+(hasImageHeight f11_isr_camera 1080)
+(hasUpdateRate f11_isr_camera 30.0)
+(hasHorizontalFOV f11_isr_camera 1.047)  ; 60 degrees
+(hasClipNear f11_isr_camera 0.1)
+(hasClipFar f11_isr_camera 1000.0)
+(hasCameraImageTopic f11_isr_camera "/f11_isr/camera/image")
+
+;; IMU instance
+(instance f11_imu InertialMeasurementUnit)
+(hasUpdateRate f11_imu 250.0)
+(hasAngularVelocityNoise f11_imu 0.009)
+(hasLinearAccelerationNoise f11_imu 0.017)
+(hasIMUTopic f11_imu "/f11_isr/imu/data")
+
+;; GPS instance
+(instance f11_gps GPSSensor)
+(hasUpdateRate f11_gps 10.0)
+(hasReferenceLatitude f11_gps 33.3853)
+(hasReferenceLongitude f11_gps -117.5653)
+(hasGPSTopic f11_gps "/f11_isr/navsat/fix")
+(hasVelocityTopic f11_gps "/f11_isr/navsat/velocity")
+
+;; Link F-11 UAV to sensors (template for instances)
+;;; AXIOM: F-11 ISR variant has gimbal system
+(=>
+  (and
+    (instance ?UAV FlybyF11)
+    (hasISRPayload ?UAV ?PAYLOAD))
+  (hasGimbalSystem ?UAV f11_gimbal))
+
+
 ;;; =========================================================================
 ;;; END OF ISR EXTENSIONS
 ;;; =========================================================================

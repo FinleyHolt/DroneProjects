@@ -1,0 +1,54 @@
+# Trajectory Optimizer RL Training Configuration
+# Level 3: Low-level trajectory control (0.1s decision horizon)
+
+# Environment settings
+env_id: 'FlybyTrajectoryOptimizer-v0'
+env_kwargs:
+  max_steps: 200
+  max_velocity: 10.0
+  max_acceleration: 5.0
+
+# Algorithm: SAC (good for continuous action spaces)
+algorithm: 'SAC'
+
+# Training parameters
+total_timesteps: 500000
+n_envs: 1
+
+# SAC hyperparameters
+learning_rate: 0.0003
+buffer_size: 100000
+learning_starts: 1000
+batch_size: 256
+tau: 0.005
+gamma: 0.99
+train_freq: 1
+
+# Network architecture
+policy_kwargs:
+  net_arch:
+    - 256
+    - 256
+
+# Reproducibility
+seed: 42
+
+# Logging
+tensorboard_log: './logs/trajectory_optimizer'
+log_interval: 10
+verbose: 1
+
+# Checkpointing
+save_freq: 50000
+save_path: './models/trajectory_optimizer'
+
+# Evaluation
+eval_freq: 25000
+n_eval_episodes: 10
+
+# Control limits (from F-11 platform ontology)
+control_limits:
+  max_velocity_xy: 10.0  # m/s
+  max_velocity_z: 5.0    # m/s
+  max_acceleration: 5.0  # m/s^2
+  max_yaw_rate: 1.0      # rad/s

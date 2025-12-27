@@ -31,21 +31,29 @@ Each phase is a self-contained directory with standardized files:
 
 ```
 .phases/
-├── phase-01-ontology-toolchain/   [COMPLETE]
+├── phase-01-ontology-toolchain/         [COMPLETE]
 │   ├── TASK.md
 │   ├── inputs.json
 │   ├── outputs.json
 │   ├── verification.sh
 │   └── dependencies.json
-├── phase-02-uav-ontology/          [COMPLETE]
+├── phase-02-uav-ontology/               [COMPLETE]
 │   └── ...
-├── phase-03-evaluation/            [COMPLETE] - Reasoner benchmarking
+├── phase-03-evaluation/                 [COMPLETE] - Reasoner benchmarking
 │   └── ...
-├── phase-04-execution-mode/        [RENAMED: Vampire Runtime Integration]
+├── phase-04-execution-mode/             [RENAMED: Vampire Runtime Integration]
 │   └── ...
-├── phase-05-perception-bridge/     [Updated for Vampire/TPTP]
+├── phase-05-perception-bridge/          [Updated for Vampire/TPTP]
 │   └── ...
-├── phase-06-phase-transition/      [SIMPLIFIED: Mission Orchestration]
+├── phase-06-phase-transition/           [SIMPLIFIED: Mission Orchestration]
+│   └── ...
+├── phase-06a-isr-sensor-integration/    [NEW] F-11 ISR sensor packages
+│   └── ...
+├── phase-06b-simulation-training-env/   [NEW] Gymnasium RL environments
+│   └── ...
+├── phase-06c-diverse-training-worlds/   [NEW] Multiple Gazebo training worlds
+│   └── ...
+├── phase-06d-perception-pipeline/       [NEW] Camera to TPTP facts pipeline
 │   └── ...
 └── README.md
 ```
@@ -59,9 +67,13 @@ Phases are numbered sequentially. **Phases 1-3 complete, Phase 4+ updated for si
 | 01 | ontology-toolchain | SUMO + Vampire planning mode setup | COMPLETE |
 | 02 | uav-ontology | UAV domain knowledge base in KIF | COMPLETE |
 | 03 | evaluation | Runtime reasoner benchmarking & selection | **COMPLETE** |
-| 04 | vampire-runtime | Vampire ARM64 + ROS 2 integration | Updated |
-| 05 | perception-bridge | Vision-to-TPTP grounding nodes | Updated |
-| 06 | mission-orchestration | Mission lifecycle management (simplified) | Updated |
+| 04 | vampire-runtime | Vampire ARM64 + ROS 2 integration | COMPLETE |
+| 05 | perception-bridge | ISR sensor-to-TPTP grounding nodes | COMPLETE |
+| 06 | mission-orchestration | Mission lifecycle management (simplified) | COMPLETE |
+| **6a** | **isr-sensor-integration** | **F-11 ISR sensor ROS 2 packages** | **NEW** |
+| **6c** | **diverse-training-worlds** | **Multiple Gazebo worlds for domain randomization** | **NEW** |
+| **6d** | **perception-pipeline** | **Camera to TPTP facts (YOLO + segmentation)** | **NEW** |
+| **6b** | **simulation-training-env** | **Gymnasium RL environments + training loop** | **UPDATED** |
 | 07 | mission-planner-rl | Level 1 SAC agent (10s horizon) | Pending |
 | 08 | behavior-selector-rl | Level 2 PPO agent (1s horizon) | Pending |
 | 09 | trajectory-optimizer-rl | Level 3 TD3 agent (100ms horizon) | Pending |
@@ -75,8 +87,12 @@ Phases are numbered sequentially. **Phases 1-3 complete, Phase 4+ updated for si
 
 1. **Phase 3 renamed**: `translation` → `evaluation` (Prolog translation eliminated)
 2. **Phase 4 rewritten**: Prolog runtime → Vampire ARM64 + ROS 2 integration
-3. **Phase 5 updated**: Prolog facts → TPTP facts for Vampire
+3. **Phase 5 updated**: Generic vision → F-11 ISR sensor grounding (Gremsy, LiDAR, thermal)
 4. **Phase 6 simplified**: Container swapping → Simple mission orchestration
+5. **Phase 6a added**: ISR sensor ROS 2 packages (flyby_f11_sensors, flyby_f11_bringup)
+6. **Phase 6c added**: Diverse training worlds for domain randomization (prevents RL overfitting)
+7. **Phase 6d added**: Perception pipeline converting camera images to TPTP facts for Vampire
+8. **Phase 6b updated**: Now depends on 6c (worlds) and 6d (perception) for complete training env
 
 See [APPROACH.qmd](../APPROACH.qmd) for complete architecture details.
 
@@ -195,13 +211,26 @@ phase-02-uav-ontology [COMPLETE]
   ↓
 phase-03-evaluation [COMPLETE] ← Architectural decision point
   ↓
-phase-04-vampire-runtime  ← ARM64 + ROS 2 integration
+phase-04-vampire-runtime [COMPLETE] ← ARM64 + ROS 2 integration
   ↓
-phase-05-perception-bridge ← TPTP facts (not Prolog)
+phase-05-perception-bridge [COMPLETE] ← F-11 ISR sensor grounding
   ↓
-phase-06-mission-orchestration ← Simplified (no container swap)
+phase-06-mission-orchestration [COMPLETE] ← Simplified (no container swap)
   ↓
-  ├─────────────────────────────────────┐
+phase-06a-isr-sensor-integration ← ROS 2 sensor packages + Gazebo bridges
+  ↓
+  ├────────────────────────────────────────────────────────┐
+  ↓                                                        ↓
+phase-06c-diverse-training-worlds                   (provides camera topics)
+  │   (urban, rural, industrial, coastal, randomized)      │
+  ↓                                                        ↓
+  └──────────────────┬─────────────────────────────────────┘
+                     ↓
+      phase-06d-perception-pipeline ← YOLO + TPTP facts (needs worlds + camera)
+                     ↓
+      phase-06b-simulation-training-env ← Gymnasium RL (needs perception + worlds)
+                     ↓
+  ┌─────────────────────────────────────┐
   ↓                   ↓                 ↓
 phase-07-mission    phase-08-behavior  phase-09-trajectory
 -planner-rl         -selector-rl       -optimizer-rl
@@ -218,6 +247,12 @@ phase-07-mission    phase-08-behavior  phase-09-trajectory
                       ↓
          phase-14-documentation-release
 ```
+
+**New Pre-RL Pipeline (6a → 6c → 6d → 6b)**:
+- **6a**: ISR sensors provide camera topics
+- **6c**: Diverse worlds provide objects to detect (buildings, vehicles, people)
+- **6d**: Perception converts images to TPTP facts (what the ontology can reason about)
+- **6b**: Training env ties everything together for RL
 
 **Parallelization**: Phases 7, 8, 9 (RL agents) can be developed in parallel.
 

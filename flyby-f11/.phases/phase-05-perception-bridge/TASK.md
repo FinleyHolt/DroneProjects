@@ -2,15 +2,20 @@
 
 ## Overview
 
-Build the symbolic abstraction layer that translates sub-symbolic vision model outputs (bounding boxes, segmentation masks, depth maps) into symbolic TPTP facts for ontological reasoning via Vampire. This bridges the gap between perception and reasoning.
+Build the symbolic abstraction layer that translates F-11 ISR sensor outputs (RGB/thermal imagery, LiDAR point clouds, gimbal state) into symbolic TPTP facts for ontological reasoning via Vampire. This bridges the gap between perception and reasoning.
 
 **Architectural Context:** Based on Phase 3 evaluation, we use Vampire directly for all reasoning. Perception outputs are converted to TPTP format for Vampire queries (no Prolog translation).
 
+**F-11 ISR Payloads:** See [SYSTEM_CONSTRAINTS.qmd](../SYSTEM_CONSTRAINTS.qmd) for sensor specs:
+- **Gremsy VIO**: 640p FLIR thermal + 4K RGB + 20x optical zoom
+- **RESEPI LiDAR**: Ouster OS1-64 3D point cloud
+- **NextVision Raptor**: EO-IR gimbal with 1280×720p thermal
+
 ## Human Description
 
-Vision models output sub-symbolic representations that the Vampire theorem prover cannot directly process. This phase creates ROS 2 "grounding nodes" that:
+ISR sensor outputs are sub-symbolic representations that the Vampire theorem prover cannot directly process. This phase creates ROS 2 "grounding nodes" that:
 
-1. Take perception outputs (YOLO detections, segmentation, depth)
+1. Take ISR sensor outputs (thermal detections, LiDAR obstacles, RGB targets)
 2. Convert them to ontology-aligned TPTP facts
 3. Compute spatial relations (distance, between, northOf)
 4. Detect temporal events (enters zone, loitering)
@@ -23,7 +28,7 @@ This is the critical bridge that enables the ontology to reason about what the d
 | Tier | Layer | Function | Perception Role |
 |------|-------|----------|-----------------|
 | 1 | Classical Control | PID, motor control | None |
-| 2 | Pre-computed Safety | Obstacle buffers | Depth map → costmap (not symbolic) |
+| 2 | Pre-computed Safety | Obstacle buffers | LiDAR → costmap (not symbolic) |
 | 3 | Tactical Reasoning | NFZ, battery | Grounded facts → Vampire (~50ms) |
 | 4 | Mission Planning | Route planning | Full state → Vampire (~1s) |
 
@@ -34,8 +39,9 @@ This is the critical bridge that enables the ontology to reason about what the d
 ### Prerequisites
 - Phase 4 completed (Vampire runtime with ROS 2 bridge)
 - Understanding of ROS 2 message types
-- Familiarity with computer vision outputs
+- Familiarity with ISR sensor outputs (thermal, RGB, LiDAR)
 - Knowledge of TPTP format for Vampire
+- F-11 sensor documentation: `docs/research/f11_payload_models.md`
 
 ### Input Requirements
 See `inputs.json` for machine-readable specification.
@@ -65,7 +71,7 @@ perception_grounding/
 │   └── DetectedEvent.msg
 ├── config/
 │   ├── grounding_params.yaml
-│   └── ontology_class_mapping.yaml  # YOLO class → ontology concept
+│   └── ontology_class_mapping.yaml  # ISR detection → ontology concept
 ├── launch/
 │   └── perception_grounding.launch.py
 └── test/
@@ -209,7 +215,7 @@ class ObjectGroundingNode(Node):
     def __init__(self):
         super().__init__('object_grounding')
 
-        # Load ontology class mapping (YOLO class → ontology concept)
+        # Load ontology class mapping (ISR detection → ontology concept)
         self.declare_parameter('class_mapping_file', '')
         mapping_file = self.get_parameter('class_mapping_file').value
         with open(mapping_file) as f:
@@ -218,10 +224,10 @@ class ObjectGroundingNode(Node):
         self.fact_builder = TPTPFactBuilder()
         self.object_counter = 0
 
-        # Subscribe to YOLO detections
+        # Subscribe to ISR camera detections (thermal or RGB)
         self.detection_sub = self.create_subscription(
             Detection2DArray,
-            '/yolo/detections',
+            '/f11/isr/detections',  # F-11 ISR camera detection output
             self.detection_callback,
             10
         )
@@ -431,36 +437,39 @@ class EventDetectionNode(Node):
 
 #### 6. Create Ontology Class Mapping
 
-**Configuration for YOLO → Ontology mapping:**
+**Configuration for ISR Detection → Ontology mapping:**
 
 ```yaml
 # config/ontology_class_mapping.yaml
-# Maps YOLO class names to ontology concepts from uav_domain.kif
+# Maps ISR detection classes to ontology concepts from uav_domain.kif and isr_extensions.kif
 
-# People and vehicles (safety-critical)
+# ISR targets (thermal/RGB detection)
 person: Person
-car: Vehicle
-truck: Vehicle
-bus: Vehicle
-motorcycle: Vehicle
-bicycle: Vehicle
+vehicle: Vehicle
+thermal_signature: ThermalTarget
+moving_target: TargetOfInterest
 
 # Aircraft (critical for airspace safety)
-airplane: Aircraft
-helicopter: Rotorcraft
+aircraft: Aircraft
+rotorcraft: Rotorcraft
+uav: UAV
 
-# Structures
+# Infrastructure (ISR surveillance targets)
 building: Building
 tower: Tower
+communications_tower: CommsTower
+radar_installation: ThreatZone
 
-# Natural features
-tree: Vegetation
+# Terrain features (from LiDAR/segmentation)
+road: Road
 water: WaterBody
+vegetation: Vegetation
+landing_zone: SafeLandingZone
 
-# Animals (collision avoidance)
-bird: Bird
-dog: Animal
-cat: Animal
+# Tactical objects
+convoy: VehicleConvoy
+camp: TemporaryCamp
+checkpoint: Checkpoint
 ```
 
 ### Expected Outputs
@@ -490,7 +499,7 @@ bash .phases/phase-05-perception-bridge/verification.sh
 - **Race conditions**: TPTP fact assembly timing
 - **Object ID tracking**: Maintain consistent IDs across frames (use tracking)
 - **TPTP syntax**: Validate generated TPTP is parseable by Vampire
-- **Type mismatches**: YOLO classes vs. ontology concepts (use mapping file)
+- **Type mismatches**: ISR detection classes vs. ontology concepts (use mapping file)
 - **Fact staleness**: Implement TTL for transient facts
 
 ### References

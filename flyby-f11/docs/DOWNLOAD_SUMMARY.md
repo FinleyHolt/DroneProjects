@@ -200,7 +200,7 @@ cd papers
 ### Priority 3: Verify Documentation Completeness
 Run the status checker:
 ```bash
-/home/finley/Github/DroneProjects/flyby-f11/scripts/check_docs_status.sh
+bash scripts/check_docs_status.sh
 ```
 
 ## Usage for Implementation

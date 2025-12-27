@@ -1,0 +1,13 @@
+{
+  "phase": "phase-06c-diverse-training-worlds",
+  "phase_number": "6c",
+  "depends_on": [
+    "phase-06a-isr-sensor-integration"
+  ],
+  "required_by": [
+    "phase-06d-perception-pipeline",
+    "phase-06b-simulation-training-env"
+  ],
+  "blocking": true,
+  "description": "Diverse Gazebo training worlds for domain randomization and RL generalization"
+}

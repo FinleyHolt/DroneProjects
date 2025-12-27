@@ -1,0 +1,28 @@
+{
+  "phase": "phase-06c-diverse-training-worlds",
+  "required_inputs": {
+    "drone_model": {
+      "f11_isr_camera": "simulation/models/f11_isr_camera/model.sdf",
+      "description": "F-11 drone model with ISR camera payload for spawning in worlds"
+    },
+    "existing_training_world": {
+      "path": "simulation/worlds/training_world.sdf",
+      "description": "Reference world for consistent structure and conventions"
+    },
+    "ontology_spatial_concepts": {
+      "uav_domain": "ontology/planning_mode/uav_domain.kif",
+      "concepts": ["NoFlyZone", "Geofence", "LandingZone", "Obstacle"],
+      "description": "Spatial predicates for NFZ and obstacle representation"
+    },
+    "simulation_container": {
+      "containerfile": "simulation/Containerfile.sitl",
+      "requires": ["gazebo-harmonic", "gz-sim8", "gz-msgs10"],
+      "description": "Container with Gazebo Harmonic for world validation"
+    },
+    "ros2_workspace": {
+      "path": "ros2_ws/src",
+      "exists": true,
+      "description": "ROS 2 workspace for ontology_rl package updates"
+    }
+  }
+}

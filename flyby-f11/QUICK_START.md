@@ -340,13 +340,13 @@ podman system prune -a --volumes
 
 ### Development Machine
 
-- **Source code**: `/home/finley/Github/DroneProjects/flyby-f11/`
+- **Source code**: `./` (this repository root)
 - **Container configs**: `containers/compose/podman-compose.yml`, `ontology/Containerfile.*`, `ros2_ws/Containerfile.*`
 - **Quadlet templates**: `containers/quadlet/*.container`
 
 ### Jetson (Production)
 
-- **Source code**: `/home/jetson/flyby-f11/` (or wherever you clone)
+- **Source code**: Clone to any location (e.g., `~/flyby-f11/`)
 - **Quadlet configs**: `~/.config/containers/systemd/*.container`
 - **Systemd unit files**: Auto-generated in `~/.config/systemd/user/`
 - **Logs**: `journalctl --user -u <service>`

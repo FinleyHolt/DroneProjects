@@ -2,9 +2,10 @@
 # Flyby F-11 Phase Verification Script
 # Verify completion status of one or all phases
 
-set -e
+set -euo pipefail
 
-PROJECT_ROOT="/home/finley/Github/DroneProjects/flyby-f11"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PHASES_DIR="$PROJECT_ROOT/.phases"
 
 # Colors for output

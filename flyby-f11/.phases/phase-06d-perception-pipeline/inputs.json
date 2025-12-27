@@ -1,0 +1,48 @@
+{
+  "phase": "phase-06d-perception-pipeline",
+  "required_inputs": {
+    "camera_topics": {
+      "image_raw": "/f11/camera/image_raw",
+      "camera_info": "/f11/camera/camera_info",
+      "source": "Phase 6a ISR sensor integration"
+    },
+    "training_worlds": {
+      "path": "simulation/worlds/",
+      "required_files": [
+        "urban_training.sdf",
+        "rural_training.sdf",
+        "industrial_training.sdf",
+        "coastal_training.sdf"
+      ],
+      "source": "Phase 6c diverse training worlds"
+    },
+    "ontology_concepts": {
+      "uav_domain": "ontology/planning_mode/uav_domain.kif",
+      "concepts_to_map": [
+        "StaticObstacle",
+        "DynamicObstacle",
+        "Person",
+        "LandingZone",
+        "NoFlyZone"
+      ]
+    },
+    "vampire_bridge": {
+      "path": "ros2_ws/src/vampire_bridge/",
+      "topic": "/perception/tptp_facts",
+      "description": "Existing Vampire integration for receiving TPTP facts"
+    },
+    "ros2_workspace": {
+      "path": "ros2_ws/src",
+      "exists": true
+    },
+    "compute_target": {
+      "platform": "NVIDIA Jetson Orin NX",
+      "specs": {
+        "gpu": "Ampere 1024 CUDA cores",
+        "memory": "16GB",
+        "ai_tops": 100
+      },
+      "minimum_fps": 10
+    }
+  }
+}

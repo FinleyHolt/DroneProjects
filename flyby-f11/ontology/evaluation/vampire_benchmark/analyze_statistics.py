@@ -218,8 +218,9 @@ def enhance_results(original_results: Dict, query_timings: Dict[str, List[float]
 
 def main():
     import os
+    from pathlib import Path
 
-    base_dir = "/home/finley/Github/DroneProjects/flyby-f11/ontology/evaluation/vampire_benchmark"
+    base_dir = Path(__file__).parent
     csv_path = os.path.join(base_dir, "raw_timings.csv")
     json_path = os.path.join(base_dir, "results.json")
     output_path = os.path.join(base_dir, "results_enhanced.json")

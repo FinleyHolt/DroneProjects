@@ -334,7 +334,6 @@ This documentation set provides **comprehensive offline reference** for implemen
 To verify documentation completeness:
 
 ```bash
-cd /home/finley/Github/DroneProjects/flyby-f11
 bash scripts/check_docs_status.sh
 ```
 

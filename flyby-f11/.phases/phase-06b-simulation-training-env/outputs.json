@@ -1,0 +1,35 @@
+{
+  "phase": "phase-06b-simulation-training-env",
+  "required_outputs": {
+    "ontology_rl_package": {
+      "path": "ros2_ws/src/ontology_rl/package.xml",
+      "type": "file",
+      "verification": "file_exists"
+    },
+    "base_env": {
+      "path": "ros2_ws/src/ontology_rl/ontology_rl/envs/base_env.py",
+      "type": "file",
+      "verification": "file_exists"
+    },
+    "mission_planner_env": {
+      "path": "ros2_ws/src/ontology_rl/ontology_rl/envs/mission_planner_env.py",
+      "type": "file",
+      "verification": "file_exists"
+    },
+    "training_world": {
+      "path": "simulation/worlds/training_arena.world",
+      "type": "file",
+      "verification": "file_exists"
+    },
+    "training_launch": {
+      "path": "ros2_ws/src/ontology_rl/launch/training.launch.py",
+      "type": "file",
+      "verification": "file_exists"
+    },
+    "env_tests": {
+      "path": "ros2_ws/src/ontology_rl/test/test_env_creation.py",
+      "type": "file",
+      "verification": "file_exists"
+    }
+  }
+}

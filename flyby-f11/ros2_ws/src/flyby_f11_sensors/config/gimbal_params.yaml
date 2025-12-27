@@ -1,0 +1,16 @@
+# Gimbal Controller Parameters
+# Limits from ontology: isr_extensions.kif
+
+gimbal_controller:
+  ros__parameters:
+    # State publishing rate (Hz)
+    state_publish_rate: 50.0
+
+    # Enable warnings when commands exceed limits
+    enable_limit_warnings: true
+
+    # Gimbal limits (read-only, informational)
+    # These are enforced in code and match the Gazebo model
+    # yaw_limits: [-6.02, 6.02]    # ±345 degrees
+    # pitch_limits: [-2.09, 2.09]  # ±120 degrees
+    # roll_limits: [-0.785, 0.785] # ±45 degrees

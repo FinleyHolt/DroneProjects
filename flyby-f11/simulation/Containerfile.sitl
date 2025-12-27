@@ -4,16 +4,18 @@
 # Build:
 #   podman build -t flyby-f11-sim:latest -f Containerfile.sitl .
 #
-# Run (with GPU):
-#   podman run --rm -it --device nvidia.com/gpu=all \
-#     -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix \
+# Run (GUI with software rendering - works on hybrid graphics):
+#   podman run --rm -it \
+#     -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
+#     -e LIBGL_ALWAYS_SOFTWARE=1 \
 #     -v ./worlds:/simulation/worlds:z \
 #     flyby-f11-sim:latest
 #
 # Run (headless for training):
-#   podman run --rm -it --device nvidia.com/gpu=all \
-#     -e HEADLESS=true \
-#     flyby-f11-sim:latest
+#   podman run --rm -it -e HEADLESS=true flyby-f11-sim:latest
+#
+# NOTE: GPU passthrough (--device nvidia.com/gpu=all) is optional and
+# configured separately for RL training workloads.
 
 FROM docker.io/ros:humble-ros-base-jammy
 
@@ -60,6 +62,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgl1-mesa-dri \
     libgl1-mesa-glx \
     libglu1-mesa \
+    # X11/XCB for GUI mode with software rendering
+    libxcb-xinerama0 \
+    libxcb-cursor0 \
+    libxkbcommon-x11-0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-shape0 \
     # Networking
     net-tools \
     iputils-ping \

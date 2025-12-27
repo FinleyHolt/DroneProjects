@@ -1,0 +1,19 @@
+# ISR Camera Parameters
+# Specs from ontology: isr_extensions.kif
+
+isr_camera:
+  ros__parameters:
+    # Republish images from Gazebo to ROS 2 topic
+    republish_images: true
+
+    # State publishing rate (Hz)
+    state_publish_rate: 10.0
+
+    # Camera specifications (read-only, informational)
+    # These match the Gazebo model and ontology definitions
+    # image_width: 1920
+    # image_height: 1080
+    # frame_rate: 30.0
+    # horizontal_fov: 1.047  # radians (60 degrees)
+    # clip_near: 0.1
+    # clip_far: 1000.0

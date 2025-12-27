@@ -1,0 +1,13 @@
+{
+  "phase": "phase-06a-isr-sensor-integration",
+  "phase_number": "6a",
+  "depends_on": [
+    "phase-06-phase-transition"
+  ],
+  "required_by": [
+    "phase-06b-simulation-training-env",
+    "phase-07-mission-planner-rl"
+  ],
+  "blocking": true,
+  "description": "ISR sensor ROS 2 packages and Gazebo bridges"
+}

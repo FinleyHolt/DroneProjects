@@ -8,7 +8,7 @@
 # - State Grounding (connects simulation to ontology)
 #
 # Quick Start:
-#   podman-compose up              # Start all services
+#   podman-compose up              # Start all services (GUI via software rendering)
 #   podman-compose up --build      # Rebuild and start
 #   podman-compose logs -f         # Follow logs
 #   podman-compose down            # Stop all
@@ -19,6 +19,10 @@
 # Multiple Instances:
 #   SITL_INSTANCE=0 podman-compose -p sim0 up
 #   SITL_INSTANCE=1 podman-compose -p sim1 up
+#
+# NOTE: GUI mode uses Mesa software rendering (llvmpipe) for compatibility
+# with hybrid graphics laptops. GPU passthrough for RL training will be
+# configured separately when needed.
 
 version: '3'
 
@@ -37,17 +41,20 @@ services:
       - ./models:/simulation/models:z
       - ./configs:/simulation/configs:z
       - ./scripts:/simulation/scripts:z
+      # X11 socket for GUI mode
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
     environment:
       - HEADLESS=${HEADLESS:-false}
       - SITL_SPEEDUP=${SITL_SPEEDUP:-1}
       - SITL_INSTANCE=${SITL_INSTANCE:-0}
       - DISPLAY=${DISPLAY}
       - ROS_DOMAIN_ID=42
-    devices:
-      - nvidia.com/gpu=all
-    # X11 for GUI mode
-    volumes:
-      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      # Force Mesa software rendering (llvmpipe) - works on hybrid graphics
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - MESA_GL_VERSION_OVERRIDE=3.3
+      - __GLX_VENDOR_LIBRARY_NAME=mesa
+    # No GPU device - using software rendering for GUI inspection
+    # GPU passthrough will be added for RL training containers separately
     # Host network for ROS 2 DDS discovery
     network_mode: host
     stdin_open: true

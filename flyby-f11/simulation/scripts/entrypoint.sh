@@ -44,6 +44,14 @@ if [ "$HEADLESS" = "true" ]; then
     Xvfb :99 -screen 0 1920x1080x24 &
     export DISPLAY=:99
     sleep 2
+else
+    # GUI mode - ensure software rendering is configured
+    # These may already be set by podman-compose, but set defaults here too
+    export LIBGL_ALWAYS_SOFTWARE=${LIBGL_ALWAYS_SOFTWARE:-1}
+    export MESA_GL_VERSION_OVERRIDE=${MESA_GL_VERSION_OVERRIDE:-3.3}
+    export __GLX_VENDOR_LIBRARY_NAME=${__GLX_VENDOR_LIBRARY_NAME:-mesa}
+    echo "GUI mode: Using Mesa software rendering (llvmpipe)"
+    echo "  DISPLAY=$DISPLAY"
 fi
 
 # Function to start Gazebo

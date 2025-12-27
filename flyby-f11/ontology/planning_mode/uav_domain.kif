@@ -11,13 +11,55 @@
 ;;; autonomous missions.
 ;;;
 ;;; Author: Finley Holt
-;;; Version: 1.0
-;;; Date: 2024-12-25
+;;; Version: 1.1
+;;; Date: 2024-12-26
 ;;; License: MIT
 ;;;
 ;;; Extends: SUMO Mid-level-ontology.kif, Transportation.kif
 ;;; References: IEEE 1872.2-2021 (Autonomous Robotics Ontology)
 ;;;             FAA Part 107 Regulations
+;;;
+;;; =========================================================================
+;;;
+;;; SUMO DEPENDENCY DOCUMENTATION
+;;; =========================================================================
+;;;
+;;; This ontology requires the following SUMO base ontology files to be
+;;; loaded in the reasoning environment. These are included in the
+;;; flyby-f11-planning container at $SUMO_HOME.
+;;;
+;;; REQUIRED SUMO FILES (load order matters):
+;;;   1. SUMO.kif              - Core upper ontology (Entity, Physical, etc.)
+;;;   2. Merge.kif             - Merged ontology combining core modules
+;;;   3. Mid-level-ontology.kif - Aircraft, Vehicle, Transportation classes
+;;;   4. Transportation.kif    - Flight, Navigation, Route concepts
+;;;
+;;; OPTIONAL SUMO FILES (for extended reasoning):
+;;;   - Geography.kif          - GeographicArea, Region definitions
+;;;   - Units.kif              - Unit of measure functions (MeasureFn, etc.)
+;;;
+;;; CONTAINER LOADING:
+;;;   The flyby-f11-planning container pre-loads required SUMO files.
+;;;   Vampire is invoked with the ontology path, and TPTP conversion
+;;;   handles the inclusion chain automatically.
+;;;
+;;; REFERENCED SUMO CONCEPTS:
+;;;   From SUMO.kif:
+;;;     - Entity, Physical, Object, Agent
+;;;     - Attribute, RelationalAttribute
+;;;     - BinaryPredicate, UnaryPredicate, TernaryPredicate
+;;;     - Process, TimeInterval, TimeDuration
+;;;     - RealNumber, PositiveInteger
+;;;   From Mid-level-ontology.kif:
+;;;     - Aircraft, Device, EngineeringComponent
+;;;     - ComputerHardware, SoftwareSystem
+;;;   From Transportation.kif:
+;;;     - Flight, Navigation, Traveling
+;;;   From Geography.kif:
+;;;     - GeographicArea, Region
+;;;   From Units.kif:
+;;;     - MeasureFn, LengthMeasure, Meter, Kilometer
+;;;     - MultiplicationFn, AdditionFn (arithmetic)
 ;;;
 ;;; =========================================================================
 
@@ -96,8 +138,8 @@
 
 (subclass VisualOdometrySensor PositioningSensor)
 (documentation VisualOdometrySensor EnglishLanguage
-  "A sensor using visual features to track relative motion. Examples include
-  Intel RealSense T265.")
+  "A sensor using visual features to track relative motion. Provides 6DOF
+  pose estimation through visual-inertial odometry (VIO).")
 
 (subclass PerceptionSensor UAVSensor)
 (documentation PerceptionSensor EnglishLanguage
@@ -153,6 +195,93 @@
 (subclass LiPoBattery UAVBattery)
 (documentation LiPoBattery EnglishLanguage
   "Lithium Polymer battery commonly used in UAVs for high energy density.")
+
+;; Thermal/IR cameras
+(subclass ThermalCamera PerceptionSensor)
+(documentation ThermalCamera EnglishLanguage
+  "An infrared camera that detects thermal radiation, enabling detection in
+  low-light conditions and through obscurants.")
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 2B: FLYBY F-11 ISR SENSOR PAYLOADS
+;;; -------------------------------------------------------------------------
+;;; Mission-configurable sensor payloads for Flyby F-11 platform.
+;;; Only one ISR payload can be mounted at a time.
+
+(subclass ISRPayload UAVSensor)
+(documentation ISRPayload EnglishLanguage
+  "A mission-configurable ISR (Intelligence, Surveillance, Reconnaissance)
+  sensor payload for the Flyby F-11 platform. Includes gimbaled cameras,
+  thermal sensors, and LiDAR systems.")
+
+;; Gremsy VIO - Multi-sensor gimbal
+(subclass GremsyVIO ISRPayload)
+(documentation GremsyVIO EnglishLanguage
+  "Gremsy VIO gimbal: 640p FLIR thermal + 4K RGB + 20x optical zoom.
+  Primary use: ISR surveillance, target identification, day/night operations.")
+
+(instance hasOpticalZoom BinaryPredicate)
+(domain hasOpticalZoom 1 ISRPayload)
+(domain hasOpticalZoom 2 PositiveInteger)
+(documentation hasOpticalZoom EnglishLanguage
+  "(hasOpticalZoom ?PAYLOAD ?ZOOM) indicates the optical zoom magnification factor.")
+
+(instance hasThermalResolution BinaryPredicate)
+(domain hasThermalResolution 1 ISRPayload)
+(domain hasThermalResolution 2 PositiveInteger)
+(documentation hasThermalResolution EnglishLanguage
+  "(hasThermalResolution ?PAYLOAD ?RES) indicates thermal sensor horizontal resolution in pixels.")
+
+(instance hasRGBResolution BinaryPredicate)
+(domain hasRGBResolution 1 ISRPayload)
+(domain hasRGBResolution 2 PositiveInteger)
+(documentation hasRGBResolution EnglishLanguage
+  "(hasRGBResolution ?PAYLOAD ?RES) indicates RGB camera horizontal resolution in pixels.")
+
+;; RESEPI LiDAR - 3D mapping system
+(subclass RESEPILiDAR ISRPayload)
+(documentation RESEPILiDAR EnglishLanguage
+  "RESEPI LiDAR: 3D point cloud mapping system.
+  Primary use: Terrain mapping, volumetric survey, obstacle detection.")
+
+(instance hasPointCloudDensity BinaryPredicate)
+(domain hasPointCloudDensity 1 RESEPILiDAR)
+(domain hasPointCloudDensity 2 PositiveInteger)
+(documentation hasPointCloudDensity EnglishLanguage
+  "(hasPointCloudDensity ?LIDAR ?DENSITY) indicates points per second.")
+
+;; NextVision Raptor - EO-IR gimbal
+(subclass NextVisionRaptor ISRPayload)
+(documentation NextVisionRaptor EnglishLanguage
+  "NextVision Raptor: EO-IR gimbal with 1280x720p thermal.
+  Primary use: Reconnaissance, target tracking, thermal detection.")
+
+;; ISR Payload mounting relation
+(instance hasISRPayload BinaryPredicate)
+(domain hasISRPayload 1 FlybyF11)
+(domain hasISRPayload 2 ISRPayload)
+(documentation hasISRPayload EnglishLanguage
+  "(hasISRPayload ?UAV ?PAYLOAD) indicates which ISR payload is currently
+  mounted on ?UAV. Only one payload can be mounted at a time.")
+
+;; Payload-mission compatibility constraints
+(=>
+  (and
+    (instance ?MISSION SurveyMission)
+    (assignedUAV ?MISSION ?UAV)
+    (instance ?UAV FlybyF11))
+  (or
+    (hasISRPayload ?UAV RESEPILiDAR)
+    (hasISRPayload ?UAV GremsyVIO)))
+
+(=>
+  (and
+    (instance ?MISSION ReconnaissanceMission)
+    (assignedUAV ?MISSION ?UAV)
+    (instance ?UAV FlybyF11))
+  (or
+    (hasISRPayload ?UAV GremsyVIO)
+    (hasISRPayload ?UAV NextVisionRaptor)))
 
 
 ;;; -------------------------------------------------------------------------
@@ -747,18 +876,111 @@
 (documentation CurrentBatteryLevel EnglishLanguage
   "(CurrentBatteryLevel ?UAV ?LEVEL) indicates the current battery percentage.")
 
+;;; -------------------------------------------------------------------------
+;;; DISTANCE-BASED BATTERY RESERVE CALCULATION
+;;; -------------------------------------------------------------------------
+;;; The battery reserve required for return-to-launch is calculated dynamically
+;;; based on current distance to home, battery consumption rate, and a
+;;; configurable safety headroom margin.
+;;;
+;;; Formula: requiredBatteryForReturn = (distanceToHome * batteryPerKm) + headroom
+;;;
+;;; This replaces fixed percentage thresholds with adaptive calculation that
+;;; accounts for actual mission position and flight conditions.
+
+;; Distance to home/launch point
+(instance distanceToHome BinaryPredicate)
+(domain distanceToHome 1 UAV)
+(domain distanceToHome 2 RealNumber)
+(documentation distanceToHome EnglishLanguage
+  "(distanceToHome ?UAV ?DISTANCE) indicates the current Euclidean distance
+  in kilometers from ?UAV to its designated home/launch position. This is
+  used for calculating battery required for return-to-launch.")
+
+;; Battery consumption rate per unit distance
+(instance batteryPerKm BinaryPredicate)
+(domain batteryPerKm 1 UAV)
+(domain batteryPerKm 2 RealNumber)
+(documentation batteryPerKm EnglishLanguage
+  "(batteryPerKm ?UAV ?RATE) specifies the expected battery percentage
+  consumed per kilometer of flight. This rate should account for:
+  - Aircraft weight and configuration
+  - Typical flight speed and altitude
+  - Average wind conditions
+  - Climb/descent requirements for return
+  Example: 2.0 means 2% battery consumed per km of flight.")
+
+;; Base safety headroom (margin above calculated requirement)
+(instance batteryHeadroom BinaryPredicate)
+(domain batteryHeadroom 1 UAV)
+(domain batteryHeadroom 2 RealNumber)
+(documentation batteryHeadroom EnglishLanguage
+  "(batteryHeadroom ?UAV ?HEADROOM) specifies the base safety margin in
+  battery percentage to add above the calculated distance-based requirement.
+  This accounts for:
+  - Navigation inefficiencies (non-straight-line return)
+  - Wind uncertainty and gusts
+  - Landing approach and hover time
+  - Sensor/payload power consumption
+  Example: 10.0 means add 10% battery as safety margin.")
+
+;; Calculated battery requirement for return (computed value)
+(instance requiredBatteryForReturn BinaryPredicate)
+(domain requiredBatteryForReturn 1 UAV)
+(domain requiredBatteryForReturn 2 RealNumber)
+(documentation requiredBatteryForReturn EnglishLanguage
+  "(requiredBatteryForReturn ?UAV ?REQUIRED) indicates the dynamically
+  calculated battery percentage required for safe return to launch.
+  Computed as: (distanceToHome * batteryPerKm) + batteryHeadroom
+  This value updates as the UAV position changes during flight.")
+
+;;; AXIOM: Calculate required battery for return
+;;; requiredBatteryForReturn = (distanceToHome * batteryPerKm) + batteryHeadroom
+;;;
+;;; Note: In KIF/SUMO, we express this as a constraint relationship.
+;;; The actual arithmetic computation is performed by the reasoner or
+;;; runtime system that grounds these predicates.
+(=>
+  (and
+    (instance ?UAV UAV)
+    (distanceToHome ?UAV ?DIST)
+    (batteryPerKm ?UAV ?RATE)
+    (batteryHeadroom ?UAV ?HEADROOM)
+    (equal ?DISTANCE_COST (MultiplicationFn ?DIST ?RATE))
+    (equal ?REQUIRED (AdditionFn ?DISTANCE_COST ?HEADROOM)))
+  (requiredBatteryForReturn ?UAV ?REQUIRED))
+
+;;; AXIOM: Battery safety - must maintain calculated reserve for return
+;;; Triggers return-to-launch when current battery falls below calculated
+;;; requirement based on distance and safety margins.
+(=>
+  (and
+    (instance ?UAV UAV)
+    (CurrentBatteryLevel ?UAV ?CURRENT)
+    (requiredBatteryForReturn ?UAV ?REQUIRED)
+    (lessThan ?CURRENT ?REQUIRED))
+  (mustReturnToLaunch ?UAV))
+
+;; Legacy predicate maintained for backward compatibility
+;; When distance-based calculation is not available, this fixed value is used
 (instance BatteryReserveForReturn BinaryPredicate)
 (domain BatteryReserveForReturn 1 UAV)
 (domain BatteryReserveForReturn 2 RealNumber)
 (documentation BatteryReserveForReturn EnglishLanguage
-  "(BatteryReserveForReturn ?UAV ?LEVEL) specifies the battery percentage that
-  must be reserved to safely return to launch point.")
+  "(BatteryReserveForReturn ?UAV ?LEVEL) specifies a fixed battery percentage
+  reserve for return-to-launch. DEPRECATED: Use distance-based calculation
+  with distanceToHome, batteryPerKm, and batteryHeadroom predicates instead.
+  This predicate is maintained for backward compatibility and fallback when
+  distance-based parameters are not available.")
 
-;; Battery safety axiom: must maintain reserve for return
+;;; AXIOM: Fallback to fixed reserve when distance-based params unavailable
+;;; If distance-based calculation cannot be performed, use fixed reserve
 (=>
   (and
+    (instance ?UAV UAV)
     (CurrentBatteryLevel ?UAV ?CURRENT)
     (BatteryReserveForReturn ?UAV ?RESERVE)
+    (not (requiredBatteryForReturn ?UAV ?CALCULATED))
     (lessThan ?CURRENT ?RESERVE))
   (mustReturnToLaunch ?UAV))
 
@@ -1089,10 +1311,23 @@
     (MinimumPersonDistance ?UAV (MeasureFn 15.0 Meter))))
 
 ;; Battery constraints for Flyby F-11
+;;
+;; Distance-based battery reserve parameters:
+;; - batteryPerKm: 2.5% per km (conservative estimate for F-11 with payload)
+;; - batteryHeadroom: 10.0% base safety margin for normal operations
+;;
+;; With these defaults, battery reserve scales with distance:
+;; - At 2km from home: (2 * 2.5) + 10 = 15% required
+;; - At 5km from home: (5 * 2.5) + 10 = 22.5% required
+;; - At 8km from home: (8 * 2.5) + 10 = 30% required
+;;
+;; Legacy fixed 25% reserve maintained as fallback
 (=>
   (instance ?UAV FlybyF11)
   (and
     (MinimumBatteryLevel ?UAV 20.0)
+    (batteryPerKm ?UAV 2.5)
+    (batteryHeadroom ?UAV 10.0)
     (BatteryReserveForReturn ?UAV 25.0)))
 
 

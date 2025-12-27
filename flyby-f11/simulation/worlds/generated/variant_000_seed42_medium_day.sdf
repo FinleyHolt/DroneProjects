@@ -1,0 +1,1000 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <!--
+  Generated World: training_variant_000
+  Seed: 42
+  Difficulty: medium
+  Obstacles: 25
+  NFZs: 1
+  Generated: 2025-12-27T10:39:35.512687
+  Generator: Flyby F-11 World Generator v1.0.0
+-->
+  <world name="training_variant_000">
+    <physics name="training_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>50</iters>
+          <sor>1.3</sor>
+        </solver>
+        <constraints>
+          <cfm>0.0</cfm>
+          <erp>0.2</erp>
+        </constraints>
+      </ode>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure"/>
+    <plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer"/>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+    <atmosphere type="adiabatic">
+      <temperature>288.15</temperature>
+      <pressure>101325</pressure>
+      <mass_density>1.225</mass_density>
+    </atmosphere>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>33.3853</latitude_deg>
+      <longitude_deg>-117.5653</longitude_deg>
+      <elevation>100</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+    <scene>
+      <ambient>0.6 0.6 0.6 1</ambient>
+      <background>0.7 0.8 0.9 1</background>
+      <shadows>true</shadows>
+      <grid>false</grid>
+    </scene>
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 100 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>500 500</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>100</mu>
+                <mu2>50</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>500 500</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.35 0.4 0.3 1</ambient>
+            <diffuse>0.35 0.4 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="geofence_north">
+      <static>true</static>
+      <pose>0 150.0 1 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>300.0 0.5 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 0.8 0 0.6</ambient>
+            <diffuse>0 0.8 0 0.6</diffuse>
+            <emissive>0 0.2 0 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="geofence_south">
+      <static>true</static>
+      <pose>0 -150.0 1 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>300.0 0.5 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 0.8 0 0.6</ambient>
+            <diffuse>0 0.8 0 0.6</diffuse>
+            <emissive>0 0.2 0 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="geofence_east">
+      <static>true</static>
+      <pose>150.0 0 1 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.5 300.0 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 0.8 0 0.6</ambient>
+            <diffuse>0 0.8 0 0.6</diffuse>
+            <emissive>0 0.2 0 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="geofence_west">
+      <static>true</static>
+      <pose>-150.0 0 1 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>0.5 300.0 2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 0.8 0 0.6</ambient>
+            <diffuse>0 0.8 0 0.6</diffuse>
+            <emissive>0 0.2 0 1</emissive>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="nfz_0_volume">
+      <static>true</static>
+      <pose>-19.688161034699817 116.94310119687587 29.032713608710065 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>24.284736147408772 17.6462369745005 58.06542721742013</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 0.35000000000000003</ambient>
+            <diffuse>1 0 0 0.35000000000000003</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="obstacle_pole_0">
+      <static>true</static>
+      <pose>65.85013068871211 49.20550004600915 8.616053690744113 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.38250879551073574</radius>
+              <length>17.232107381488227</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.75 0.75 0.75 1.0</ambient>
+            <diffuse>0.75 0.75 0.75 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.38250879551073574</radius>
+              <length>17.232107381488227</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_pole_1">
+      <static>true</static>
+      <pose>-78.30127729156195 1.4903429077356236 7.648986097190352 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.42657654590558114</radius>
+              <length>15.297972194380703</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.65 0.65 0.65 1.0</ambient>
+            <diffuse>0.65 0.65 0.65 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.42657654590558114</radius>
+              <length>15.297972194380703</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_tree_2">
+      <static>true</static>
+      <pose>-13.70299553258252 -59.842383570645225 0 0 0 0.0</pose>
+      <link name="link">
+        <visual name="trunk">
+          <pose>0 0 4.2585594628849766 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.7148058838767211</radius>
+              <length>8.517118925769953</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.4 0.25 0.1 1.0</ambient>
+            <diffuse>0.4 0.25 0.1 1.0</diffuse>
+          </material>
+        </visual>
+        <visual name="canopy">
+          <pose>0 0 11.579503878232378 0 0 0</pose>
+          <geometry>
+            <sphere>
+              <radius>5.103974920770708</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.15 0.45 0.15 1.0</ambient>
+            <diffuse>0.15 0.45 0.15 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <pose>0 0 9.362534383655685 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>5.103974920770708</radius>
+              <length>18.72506876731137</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_wall_3">
+      <static>true</static>
+      <pose>-76.18349207909387 70.51237544416387 3.8336140250149255 0 0 0.2913696602140622</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>12.394889745653352 1.4226143981535024 7.667228050029851</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.45 1.0</ambient>
+            <diffuse>0.5 0.5 0.45 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>12.394889745653352 1.4226143981535024 7.667228050029851</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_pole_4">
+      <static>true</static>
+      <pose>85.31501521128192 63.81558645624369 10.518630156834455 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.5542483099042379</radius>
+              <length>21.03726031366891</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.75 0.75 0.75 1.0</ambient>
+            <diffuse>0.75 0.75 0.75 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.5542483099042379</radius>
+              <length>21.03726031366891</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_pole_5">
+      <static>true</static>
+      <pose>-57.43299428703072 35.722403428972 7.894000990392291 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.576688611608448</radius>
+              <length>15.788001980784582</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1.0</ambient>
+            <diffuse>0.7 0.7 0.7 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.576688611608448</radius>
+              <length>15.788001980784582</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_tree_6">
+      <static>true</static>
+      <pose>-57.649790972472246 -115.02146368093823 0 0 0 0.0</pose>
+      <link name="link">
+        <visual name="trunk">
+          <pose>0 0 3.683694826954641 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.7113715508644771</radius>
+              <length>7.367389653909282</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.4 0.25 0.1 1.0</ambient>
+            <diffuse>0.4 0.25 0.1 1.0</diffuse>
+          </material>
+        </visual>
+        <visual name="canopy">
+          <pose>0 0 9.249873544489473 0 0 0</pose>
+          <geometry>
+            <sphere>
+              <radius>3.1374731509669864</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.12 0.4 0.12 1.0</ambient>
+            <diffuse>0.12 0.4 0.12 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <pose>0 0 6.821167977921627 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>3.1374731509669864</radius>
+              <length>13.642335955843254</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_tank_7">
+      <static>true</static>
+      <pose>89.86200296448271 -90.73221337690104 4.360230907105306 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>5.520504900156665</radius>
+              <length>8.720461814210612</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.55 0.5 0.45 1.0</ambient>
+            <diffuse>0.55 0.5 0.45 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>5.520504900156665</radius>
+              <length>8.720461814210612</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_pole_8">
+      <static>true</static>
+      <pose>41.22483880906307 30.390761710103106 12.183272938562471 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.380093346614734</radius>
+              <length>24.366545877124942</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.65 0.65 0.65 1.0</ambient>
+            <diffuse>0.65 0.65 0.65 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.380093346614734</radius>
+              <length>24.366545877124942</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_tree_9">
+      <static>true</static>
+      <pose>115.37733471534585 51.0344978901216 0 0 0 0.0</pose>
+      <link name="link">
+        <visual name="trunk">
+          <pose>0 0 3.809843480352834 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.5734432775454279</radius>
+              <length>7.619686960705668</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.42 0.27 0.12 1.0</ambient>
+            <diffuse>0.42 0.27 0.12 1.0</diffuse>
+          </material>
+        </visual>
+        <visual name="canopy">
+          <pose>0 0 10.251755342037676 0 0 0</pose>
+          <geometry>
+            <sphere>
+              <radius>4.386780635553347</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.12 0.4 0.12 1.0</ambient>
+            <diffuse>0.12 0.4 0.12 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <pose>0 0 8.19662411590618 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>4.386780635553347</radius>
+              <length>16.39324823181236</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_tree_10">
+      <static>true</static>
+      <pose>-126.02599215423581 -49.706614321517876 0 0 0 0.0</pose>
+      <link name="link">
+        <visual name="trunk">
+          <pose>0 0 3.687144215892313 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.7528555760569429</radius>
+              <length>7.374288431784626</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.42 0.27 0.12 1.0</ambient>
+            <diffuse>0.42 0.27 0.12 1.0</diffuse>
+          </material>
+        </visual>
+        <visual name="canopy">
+          <pose>0 0 10.571088272567867 0 0 0</pose>
+          <geometry>
+            <sphere>
+              <radius>5.327999734638734</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.18 0.5 0.18 1.0</ambient>
+            <diffuse>0.18 0.5 0.18 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <pose>0 0 9.015143950531048 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>5.327999734638734</radius>
+              <length>18.030287901062096</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_pole_11">
+      <static>true</static>
+      <pose>60.51571620536765 -79.80482621719815 10.335900257392511 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.5739408372556635</radius>
+              <length>20.671800514785023</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1.0</ambient>
+            <diffuse>0.7 0.7 0.7 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.5739408372556635</radius>
+              <length>20.671800514785023</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_building_12">
+      <static>true</static>
+      <pose>-66.13666348149624 16.0186435421476 6.251481415233446 0 0 0.5867032757042107</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>18.974571076886523 10.12966667328659 12.502962830466892</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.55 0.55 0.55 1.0</ambient>
+            <diffuse>0.55 0.55 0.55 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>18.974571076886523 10.12966667328659 12.502962830466892</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_building_13">
+      <static>true</static>
+      <pose>-95.84122137252123 -1.7182882240281572 12.477269112907868 0 0 0.6763086437483982</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>15.002395099347876 9.257967993422499 24.954538225815735</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.45 0.45 0.5 1.0</ambient>
+            <diffuse>0.45 0.45 0.5 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>15.002395099347876 9.257967993422499 24.954538225815735</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_pole_14">
+      <static>true</static>
+      <pose>26.860329316409548 -32.10475131777878 10.902406067481635 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.3479946005167351</radius>
+              <length>21.80481213496327</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.75 0.75 0.75 1.0</ambient>
+            <diffuse>0.75 0.75 0.75 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.3479946005167351</radius>
+              <length>21.80481213496327</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_tank_15">
+      <static>true</static>
+      <pose>96.60492928080052 -130.80930283840726 5.913235132840855 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>6.1164573803965485</radius>
+              <length>11.82647026568171</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.6 0.6 0.65 1.0</ambient>
+            <diffuse>0.6 0.6 0.65 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>6.1164573803965485</radius>
+              <length>11.82647026568171</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_pole_16">
+      <static>true</static>
+      <pose>74.6001429972464 -44.389385044333224 11.25438899795805 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.5654365350387327</radius>
+              <length>22.5087779959161</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1.0</ambient>
+            <diffuse>0.7 0.7 0.7 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.5654365350387327</radius>
+              <length>22.5087779959161</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_building_17">
+      <static>true</static>
+      <pose>-85.29082214308025 109.51788893272953 11.44474999321465 0 0 0.6610455602425831</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>13.444684475950478 14.584343347689721 22.8894999864293</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.55 0.55 0.55 1.0</ambient>
+            <diffuse>0.55 0.55 0.55 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>13.444684475950478 14.584343347689721 22.8894999864293</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_tree_18">
+      <static>true</static>
+      <pose>123.24151183029434 114.79921436210859 0 0 0 0.0</pose>
+      <link name="link">
+        <visual name="trunk">
+          <pose>0 0 3.4846471072594603 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.5596733305294199</radius>
+              <length>6.9692942145189205</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.4 0.25 0.1 1.0</ambient>
+            <diffuse>0.4 0.25 0.1 1.0</diffuse>
+          </material>
+        </visual>
+        <visual name="canopy">
+          <pose>0 0 9.442339149182986 0 0 0</pose>
+          <geometry>
+            <sphere>
+              <radius>4.1217415577734435</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.15 0.45 0.15 1.0</ambient>
+            <diffuse>0.15 0.45 0.15 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <pose>0 0 7.606388665032904 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>4.1217415577734435</radius>
+              <length>15.212777330065808</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_tree_19">
+      <static>true</static>
+      <pose>132.65230703833228 83.85038731682278 0 0 0 0.0</pose>
+      <link name="link">
+        <visual name="trunk">
+          <pose>0 0 4.088942301542801 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>0.6465817124086843</radius>
+              <length>8.177884603085602</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.4 0.25 0.1 1.0</ambient>
+            <diffuse>0.4 0.25 0.1 1.0</diffuse>
+          </material>
+        </visual>
+        <visual name="canopy">
+          <pose>0 0 10.179246508663212 0 0 0</pose>
+          <geometry>
+            <sphere>
+              <radius>3.335603175962685</radius>
+            </sphere>
+          </geometry>
+          <material>
+            <ambient>0.12 0.4 0.12 1.0</ambient>
+            <diffuse>0.12 0.4 0.12 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <pose>0 0 7.424545477505486 0 0 0</pose>
+          <geometry>
+            <cylinder>
+              <radius>3.335603175962685</radius>
+              <length>14.849090955010972</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_pole_20">
+      <static>true</static>
+      <pose>-115.08325726769765 -3.8910982181019733 12.23474722648997 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.5634028797612121</radius>
+              <length>24.46949445297994</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.65 0.65 0.65 1.0</ambient>
+            <diffuse>0.65 0.65 0.65 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.5634028797612121</radius>
+              <length>24.46949445297994</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_tank_21">
+      <static>true</static>
+      <pose>42.77142179636442 119.63852849155776 3.377281534561324 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>6.130824678118063</radius>
+              <length>6.754563069122648</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.5 0.45 0.4 1.0</ambient>
+            <diffuse>0.5 0.45 0.4 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>6.130824678118063</radius>
+              <length>6.754563069122648</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_building_22">
+      <static>true</static>
+      <pose>10.277137673173229 60.1340572503197 5.800284746257697 0 0 0.5599488138482356</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>18.46919649302309 9.808241461807983 11.600569492515394</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.55 1.0</ambient>
+            <diffuse>0.5 0.5 0.55 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>18.46919649302309 9.808241461807983 11.600569492515394</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_building_23">
+      <static>true</static>
+      <pose>-115.07089875710318 -126.41810077807887 11.646719719465036 0 0 0.46215978512727407</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box>
+              <size>16.060243515659398 9.360784522763645 23.293439438930072</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.55 1.0</ambient>
+            <diffuse>0.5 0.5 0.55 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <box>
+              <size>16.060243515659398 9.360784522763645 23.293439438930072</size>
+            </box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="obstacle_pole_24">
+      <static>true</static>
+      <pose>-47.132501653800674 3.934701865140937 7.794368834381617 0 0 0.0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>0.5123522839645362</radius>
+              <length>15.588737668763233</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.7 0.7 0.7 1.0</ambient>
+            <diffuse>0.7 0.7 0.7 1.0</diffuse>
+          </material>
+        </visual>
+        <collision name="collision">
+          <geometry>
+            <cylinder>
+              <radius>0.5123522839645362</radius>
+              <length>15.588737668763233</length>
+            </cylinder>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+    <model name="lz_primary">
+      <static>true</static>
+      <pose>0 0 0.02 0 0 0</pose>
+      <link name="link">
+        <visual name="pad">
+          <geometry>
+            <cylinder>
+              <radius>4.0</radius>
+              <length>0.04</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.9 0.9 0.9 1</diffuse>
+          </material>
+        </visual>
+        <visual name="H_v">
+          <pose>0 0 0.02 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.6 2.5 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 0 0.8 1</ambient>
+            <diffuse>0 0 0.8 1</diffuse>
+          </material>
+        </visual>
+        <visual name="H_h">
+          <pose>0 0 0.02 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>2.5 0.6 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 0 0.8 1</ambient>
+            <diffuse>0 0 0.8 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="lz_secondary">
+      <static>true</static>
+      <pose>135.93042671229585 -116.92656241870056 0.02 0 0 0</pose>
+      <link name="link">
+        <visual name="pad">
+          <geometry>
+            <cylinder>
+              <radius>3.0</radius>
+              <length>0.04</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.85 0.85 0.85 1</ambient>
+            <diffuse>0.85 0.85 0.85 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <model name="lz_emergency">
+      <static>true</static>
+      <pose>-78.02202706336502 -63.865487187890835 0.02 0 0 0</pose>
+      <link name="link">
+        <visual name="pad">
+          <geometry>
+            <cylinder>
+              <radius>4.0</radius>
+              <length>0.04</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0.5 0 1</ambient>
+            <diffuse>1 0.5 0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+    <include>
+      <uri>model://iris_with_ardupilot</uri>
+      <name>iris</name>
+      <pose>0 0 0.5 0 0 0</pose>
+    </include>
+  </world>
+</sdf>

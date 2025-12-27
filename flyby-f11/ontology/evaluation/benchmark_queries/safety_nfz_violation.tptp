@@ -1,0 +1,77 @@
+%------------------------------------------------------------------------------
+% Benchmark Query: No-Fly Zone Violation Check
+% Category: Safety
+% Target Latency: <100ms
+%------------------------------------------------------------------------------
+%
+% Checks if a UAV has entered a no-fly zone.
+% Returns THEOREM if NFZ violation detected (UAV inside NFZ).
+% Returns COUNTER_SATISFIABLE if UAV is clear of NFZ.
+%
+% Parameters:
+%   {{UAV_ID}} - The UAV instance to check
+%   {{NFZ_ID}} - The no-fly zone to check against
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% Core Type Axioms
+% ============================================================================
+
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+fof(nfz_is_region, axiom,
+    ![X]: (no_fly_zone(X) => region(X))).
+
+% ============================================================================
+% NFZ Safety Axioms
+% ============================================================================
+
+% AXIOM: UAV inside NFZ is a violation
+fof(nfz_violation_axiom, axiom,
+    ![UAV, NFZ]:
+      ((uav(UAV) &
+        no_fly_zone(NFZ) &
+        is_within(UAV, NFZ))
+       => nfz_violation(UAV))).
+
+% AXIOM: NFZ violation means unsafe state
+fof(nfz_violation_unsafe, axiom,
+    ![UAV]:
+      (nfz_violation(UAV) => ~safe_state(UAV))).
+
+% AXIOM: NFZ violation requires immediate action
+fof(nfz_violation_action, axiom,
+    ![UAV]:
+      (nfz_violation(UAV) => must_exit_nfz(UAV))).
+
+% ============================================================================
+% Test Instance
+% ============================================================================
+
+fof(test_uav_type, axiom, flyby_f11({{UAV_ID}})).
+fof(test_nfz_type, axiom, no_fly_zone({{NFZ_ID}})).
+
+% Position state - uncomment one scenario
+% Violation scenario:
+fof(uav_in_nfz, axiom, is_within({{UAV_ID}}, {{NFZ_ID}})).
+
+% Safe scenario:
+% fof(uav_clear_of_nfz, axiom, ~is_within({{UAV_ID}}, {{NFZ_ID}})).
+
+% ============================================================================
+% Conjecture: Check for NFZ violation
+% ============================================================================
+
+fof(check_nfz_violation, conjecture,
+    nfz_violation({{UAV_ID}})).
+
+%------------------------------------------------------------------------------
+% Expected Results:
+%   - If UAV in NFZ: THEOREM (violation detected)
+%   - If UAV clear of NFZ: COUNTER_SATISFIABLE (no violation)
+%------------------------------------------------------------------------------

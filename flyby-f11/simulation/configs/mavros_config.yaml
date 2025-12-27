@@ -1,0 +1,139 @@
+# Flyby F-11 MAVROS Configuration
+# Configuration for MAVROS bridge to ArduPilot SITL
+
+# Connection settings
+/**:
+  ros__parameters:
+    # FCU connection (to SITL)
+    fcu_url: "udp://127.0.0.1:14550@127.0.0.1:14551"
+    gcs_url: ""
+
+    # System ID
+    system_id: 1
+    component_id: 1
+    target_system_id: 1
+    target_component_id: 1
+
+    # FCU protocol
+    fcu_protocol: "v2.0"
+
+    # Plugin settings
+    plugin_denylist: []
+    plugin_allowlist: []
+
+# Coordinate frame settings
+mavros:
+  ros__parameters:
+    # Use ENU frame (ROS standard) instead of NED
+    local_position:
+      frame_id: "map"
+      tf:
+        send: true
+        frame_id: "map"
+        child_frame_id: "base_link"
+
+    # Global position
+    global_position:
+      frame_id: "map"
+      child_frame_id: "base_link"
+      rot_covariance: 99999.0
+      use_relative_alt: false
+      tf:
+        send: true
+        frame_id: "map"
+        global_frame_id: "earth"
+        child_frame_id: "base_link"
+
+    # Setpoint plugin
+    setpoint_position:
+      mav_frame: "LOCAL_NED"
+      tf:
+        listen: true
+        frame_id: "map"
+        child_frame_id: "target_position"
+        rate_limit: 50.0
+
+    setpoint_velocity:
+      mav_frame: "LOCAL_NED"
+
+    setpoint_attitude:
+      use_quaternion: true
+      reverse_thrust: false
+
+    # System time sync
+    time:
+      time_ref_source: "fcu"
+      timesync_mode: "MAVLINK"
+      timesync_avg_alpha: 0.6
+
+    # Conn heartbeat and timeout
+    conn:
+      heartbeat_rate: 1.0
+      timeout: 10.0
+      timesync_rate: 10.0
+      system_time_rate: 1.0
+
+    # Mission plugin
+    mission:
+      pull_after_gcs: true
+      use_mission_item_int: true
+
+    # Parameters plugin
+    param:
+      pull_on_connect: false
+      push_on_set: true
+
+    # Waypoint plugin
+    waypoint:
+      frame: "GLOBAL_REL_ALT"
+
+    # RC override (for manual control simulation)
+    rc:
+      override_period: 0.05
+
+    # IMU plugin
+    imu:
+      frame_id: "base_link"
+      linear_acceleration_stdev: 0.0003
+      angular_velocity_stdev: 0.0003490659
+      orientation_stdev: 1.0
+      magnetic_stdev: 0.0
+
+    # GPS plugin
+    gps:
+      frame_id: "base_link"
+      gps_uere: 1.0
+      gps_use_relative_alt: false
+
+    # Distance sensor (for altitude)
+    distance_sensor:
+      - id: 0
+        frame_id: "range_sensor_link"
+        orientation: PITCH_270
+        field_of_view: 0.05
+        send_tf: true
+        sensor_position:
+          x: 0.0
+          y: 0.0
+          z: -0.1
+
+# Actuator control
+actuator_control:
+  ros__parameters:
+    frame_id: "base_link"
+    group_mix: 0
+
+# Manual control
+manual_control:
+  ros__parameters:
+    # Joystick axes mapping
+    axes:
+      roll: 0
+      pitch: 1
+      yaw: 3
+      throttle: 2
+    reverse:
+      roll: false
+      pitch: false
+      yaw: false
+      throttle: false

@@ -1,0 +1,17 @@
+{
+  "name": "training_variant_006",
+  "seed": 48,
+  "difficulty": "medium",
+  "lighting": "day",
+  "wind_enabled": false,
+  "wind_speed": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "num_obstacles": 23,
+  "num_nfz": 2,
+  "num_landing_zones": 3,
+  "geofence_size": 300.0,
+  "max_altitude": 100.0
+}

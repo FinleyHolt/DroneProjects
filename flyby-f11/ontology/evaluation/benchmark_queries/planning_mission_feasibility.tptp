@@ -1,0 +1,98 @@
+%------------------------------------------------------------------------------
+% Benchmark Query: Mission Feasibility Check
+% Category: Planning
+% Target Latency: <200ms
+%------------------------------------------------------------------------------
+%
+% Checks if a proposed mission is feasible given current constraints.
+% Returns THEOREM if mission is feasible.
+% Returns COUNTER_SATISFIABLE if mission has blocking constraints.
+%
+% Parameters:
+%   {{UAV_ID}} - The UAV instance
+%   {{MISSION_ID}} - The mission to evaluate
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% Core Type Axioms
+% ============================================================================
+
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+fof(mission_is_task, axiom,
+    ![X]: (uav_mission(X) => task(X))).
+
+% ============================================================================
+% Mission Feasibility Axioms
+% ============================================================================
+
+% AXIOM: Mission is feasible if UAV has required capabilities and resources
+fof(mission_feasibility_conditions, axiom,
+    ![UAV, Mission]:
+      ((uav(UAV) &
+        uav_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        has_required_capabilities(UAV, Mission) &
+        has_sufficient_endurance(UAV, Mission) &
+        ~mission_blocked_by_constraint(Mission))
+       => mission_feasible(Mission))).
+
+% AXIOM: Mission blocked if any waypoint in active NFZ
+fof(nfz_blocks_mission, axiom,
+    ![Mission, WP, NFZ]:
+      ((uav_mission(Mission) &
+        mission_has_waypoint(Mission, WP) &
+        no_fly_zone(NFZ) &
+        nfz_active(NFZ) &
+        waypoint_in_zone(WP, NFZ))
+       => mission_blocked_by_constraint(Mission))).
+
+% AXIOM: Mission blocked if exceeds battery capacity
+fof(battery_blocks_mission, axiom,
+    ![Mission, UAV]:
+      ((uav_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        mission_distance(Mission) > battery_range(UAV))
+       => mission_blocked_by_constraint(Mission))).
+
+% AXIOM: Mission blocked if weather is unsuitable
+fof(weather_blocks_mission, axiom,
+    ![Mission]:
+      ((uav_mission(Mission) &
+        current_weather(weather_severe))
+       => mission_blocked_by_constraint(Mission))).
+
+% ============================================================================
+% Test Instance
+% ============================================================================
+
+fof(test_uav_type, axiom, flyby_f11({{UAV_ID}})).
+fof(test_mission_type, axiom, uav_mission({{MISSION_ID}})).
+fof(test_assignment, axiom, assigned_uav({{MISSION_ID}}, {{UAV_ID}})).
+
+% Mission requirements - feasible scenario
+fof(uav_has_capabilities, axiom, has_required_capabilities({{UAV_ID}}, {{MISSION_ID}})).
+fof(uav_has_endurance, axiom, has_sufficient_endurance({{UAV_ID}}, {{MISSION_ID}})).
+fof(mission_not_blocked, axiom, ~mission_blocked_by_constraint({{MISSION_ID}})).
+
+% Infeasible scenarios (uncomment to test):
+% NFZ blocking:
+% fof(nfz_blocks, axiom, mission_blocked_by_constraint({{MISSION_ID}})).
+
+% ============================================================================
+% Conjecture: Mission is feasible
+% ============================================================================
+
+fof(check_mission_feasible, conjecture,
+    mission_feasible({{MISSION_ID}})).
+
+%------------------------------------------------------------------------------
+% Expected Results:
+%   - If all conditions met: THEOREM (mission feasible)
+%   - If blocked by constraint: COUNTER_SATISFIABLE (not feasible)
+%------------------------------------------------------------------------------

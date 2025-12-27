@@ -1,5 +1,5 @@
 ---
-title: "Ontology Foundation for RL-Constrained Drone Autonomy"
+title: "Ontology Foundation for Military ISR UAV Autonomy"
 author: "Finley Holt"
 date: today
 format:
@@ -15,453 +15,968 @@ format:
         \usepackage{fancyhdr}
         \pagestyle{fancy}
         \fancyhf{}
-        \fancyhead[L]{\textit{Ontology Foundation for RL-Constrained Drone Autonomy}}
+        \fancyhead[L]{\textit{Ontology Foundation for Military ISR UAV Autonomy}}
         \fancyhead[R]{\thepage}
         \renewcommand{\headrulewidth}{0.4pt}
 ---
 
-# Ontology Foundation for RL-Constrained Drone Autonomy
+# Ontology Foundation for Military ISR UAV Autonomy
 
-**Purpose**: Define canonical problems and domain vocabulary for Flyby F-11 autonomous missions using SUMO ontology framework.
+**Platform**: Flyby Robotics F-11 Developer Quadcopter (Jetson Orin NX 16GB)
+
+**Sensor Payloads** (mission-configurable):
+
+- **Gremsy VIO** - 640p FLIR thermal + 4K RGB + 20x optical zoom (ISR/surveillance)
+- **RESEPI LiDAR** - 3D point cloud mapping system (terrain mapping/survey)
+- **NextVision Raptor** - EO-IR gimbal with 1280×720p thermal (reconnaissance)
 
 **Advisor**: Adam Pease (SUMO creator)
 
----
-
-## Part 1: Canonical Problems
-
-### Problem Definition Template
-
-For each canonical problem, specify:
-1. **Mission objective** (what success looks like)
-2. **Initial conditions** (starting state, environment assumptions)
-3. **Constraints** (safety bounds, operational limits, no-fly zones)
-4. **Termination conditions** (mission complete, failure cases, timeout)
-5. **Evaluation metrics** (how to measure performance)
+**Purpose**: Define canonical problems, domain extensions, and safety axioms for communications-denied, GPS-degraded ISR missions using the existing `uav_domain.kif` ontology as foundation.
 
 ---
 
-### Canonical Problem 1: [NAME]
+## Document Scope
 
-**Mission Objective**:
-- [ ] TODO: Define what the drone must accomplish
+This document **extends** the existing 1,212-line `uav_domain.kif` ontology with military ISR-specific concepts. It does NOT duplicate existing definitions.
 
-**Initial Conditions**:
-- [ ] TODO: Starting position (ground, airborne)
-- [ ] TODO: Environment (indoor, outdoor, obstacles present/absent)
-- [ ] TODO: Sensor state (GPS available, visual odometry only, etc.)
+**Existing Coverage** (see `ontology/planning_mode/uav_domain.kif`):
 
-**Constraints**:
-- [ ] TODO: Safety constraints (min/max altitude, geofence boundaries)
-- [ ] TODO: Operational constraints (battery reserve, time limits)
-- [ ] TODO: Environmental constraints (weather, lighting, obstacles)
+- UAV class hierarchy (UAV → Multirotor → Quadcopter → FlybyF11)
+- Sensor classes (GNSSSensor, VisualOdometrySensor, DepthCamera, RGBCamera, LiDAR, IMU, ThermalCamera)
+- Mission types (WaypointMission, SurveyMission, InspectionMission, ReconnaissanceMission)
+- Flight phases (Preflight, Armed, Takeoff, Hover, Transit, Loiter, MissionExecution, RTL, Landing)
+- Spatial regions (Geofence, NoFlyZone, RestrictedAirspace, LandingZone, Obstacle)
+- Safety axioms (geofenceViolation, noFlyZoneViolation, altitudeViolation, mustReturnToLaunch, mustLand)
+- FlybyF11 parameters (120m max altitude, 3m obstacle clearance, 15m person distance, 25% battery reserve)
 
-**Termination Conditions**:
-- [ ] TODO: Success criteria (reached goal, task completed)
-- [ ] TODO: Failure criteria (collision, lost localization, timeout)
-- [ ] TODO: Abort criteria (low battery, lost communication)
+**This Document Adds**:
 
-**Evaluation Metrics**:
-- [ ] TODO: Task completion rate
-- [ ] TODO: Time to completion
-- [ ] TODO: Energy efficiency
-- [ ] TODO: Safety violations (constraint breaches)
-- [ ] TODO: Other domain-specific metrics
+- Communications status modeling (Operational, Degraded, Denied)
+- Threat classification and avoidance
+- Target of Interest (TOI) management with priorities
+- Dynamic No-Fly Zone handling
+- Autonomous behavior under comms-denied conditions
+- Multi-objective ISR optimization
 
 ---
 
-### Canonical Problem 2: [NAME]
+# Part 1: Canonical Problems
 
-**Mission Objective**:
-- [ ] TODO:
+These scenarios are designed for:
 
-**Initial Conditions**:
-- [ ] TODO:
+1. **Real-world flight testing** on Flyby F-11 hardware at MCTSSA
+2. **RL training** in Gazebo simulation with derived reward structures
+3. **Ontology validation** via Vampire theorem proving (~50ms latency at 20Hz)
 
-**Constraints**:
-- [ ] TODO:
+## 1.1 Comms-Denied Area Surveillance
 
-**Termination Conditions**:
-- [ ] TODO:
+### Mission Objective
 
-**Evaluation Metrics**:
-- [ ] TODO:
+Conduct persistent surveillance of a 500m × 500m designated area for 15 minutes while operating without ground station communication link, then autonomously return to launch with collected imagery.
 
----
+### Initial Conditions
 
-### Canonical Problem 3: [NAME]
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Launch Position | Local NED origin | MCTSSA test range |
+| Initial Battery | 95% | Fully charged |
+| GPS Status | Degraded (HDOP > 5.0) | Simulates GPS-denied |
+| Comms Status | **Denied after T+30s** | Link loss at mission start |
+| Visual Odometry | Operational | Primary navigation |
+| ISR Payload | **Gremsy VIO** | 640p thermal + 4K RGB + 20x zoom |
+| Mission Duration | 15 minutes max | Hard timeout |
 
-**Mission Objective**:
-- [ ] TODO:
+### Success Criteria
 
-**Initial Conditions**:
-- [ ] TODO:
+| Criterion | Threshold | Measurement |
+|-----------|-----------|-------------|
+| Area Coverage | ≥ 85% | Accumulated camera footprint |
+| POI Captures | ≥ 10 | Image count at designated coordinates |
+| Return Accuracy | ≤ 3m | Distance from launch at landing |
+| Battery at Landing | ≥ 15% | BMS reported SoC |
+| Safety Violations | = 0 | Axiom violation count |
 
-**Constraints**:
-- [ ] TODO:
+### New Axioms Required
 
-**Termination Conditions**:
-- [ ] TODO:
+```kif
+;;; Communications Status (extends uav_domain.kif)
 
-**Evaluation Metrics**:
-- [ ] TODO:
+(subclass CommsStatus Attribute)
+(instance CommsOperational CommsStatus)
+(instance CommsDegraded CommsStatus)
+(instance CommsDenied CommsStatus)
 
----
+(instance hasCommsStatus BinaryPredicate)
+(domain hasCommsStatus 1 UAV)
+(domain hasCommsStatus 2 CommsStatus)
 
-### Additional Problems
+;;; Autonomous operation trigger
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?MISSION UAVMission)
+    (assignedUAV ?MISSION ?UAV)
+    (hasCommsStatus ?UAV CommsDenied))
+  (autonomousOperationRequired ?MISSION))
 
-- [ ] TODO: Add more canonical problems as needed (recommend 3-7 total)
+;;; Enhanced battery reserve for comms-denied (30% vs normal 25%)
+(=>
+  (and
+    (instance ?MISSION UAVMission)
+    (autonomousOperationRequired ?MISSION)
+    (assignedUAV ?MISSION ?UAV))
+  (BatteryReserveForReturn ?UAV 30.0))
 
----
+;;; GPS-denied requires valid visual odometry
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasGNSSStatus ?UAV GNSSDenied)
+    (not (hasValidVisualOdometry ?UAV)))
+  (mustLand ?UAV))
+```
 
-## Part 2: Domain Vocabulary
+### RL Reward Structure
 
-### Vocabulary Template
+```python
+def reward_comms_denied_surveillance(state, next_state):
+    reward = 0.0
 
-For each concept, specify:
-1. **SUMO parent class** (how it relates to existing SUMO hierarchy)
-2. **Definition** (formal description of the concept)
-3. **Attributes/Properties** (relevant features or parameters)
-4. **Relations** (how it connects to other concepts)
-5. **Instances/Examples** (concrete examples in our domain)
+    # Safety (hard constraints from ontology)
+    if next_state['geofence_violation']: reward -= 100.0
+    if next_state['nfz_violation']: reward -= 500.0
+    if next_state['obstacle_distance'] < 3.0:
+        reward -= 50.0 * (3.0 - next_state['obstacle_distance'])
 
----
+    # Battery reserve (30% for comms-denied per axiom)
+    if next_state['battery_pct'] < 30.0 and not next_state['returning']:
+        reward -= 10.0 * (30.0 - next_state['battery_pct'])
 
-### Concept Category: Physical Objects
+    # Mission objectives
+    coverage_delta = next_state['coverage_pct'] - state['coverage_pct']
+    reward += 2.0 * coverage_delta  # +2 per % coverage
 
-#### Concept: UAV (Unmanned Aerial Vehicle)
+    poi_delta = next_state['poi_captured'] - state['poi_captured']
+    reward += 10.0 * poi_delta  # +10 per POI
 
-**SUMO Parent Class**:
-- [ ] TODO: Identify parent (likely `Device` → `TransportationDevice` or similar)
+    # Mission success bonus
+    if next_state['coverage_pct'] >= 85.0 and next_state['poi_captured'] >= 10:
+        reward += 100.0
 
-**Definition**:
-- [ ] TODO: Formal definition of what constitutes a UAV in our domain
-
-**Attributes**:
-- [ ] TODO: Mass, dimensions, payload capacity, battery capacity, flight time
-- [ ] TODO: Sensor suite (cameras, depth sensors, IMU, GPS, etc.)
-- [ ] TODO: Actuators (motors, propellers, control surfaces)
-
-**Relations**:
-- [ ] TODO: `carries` (payload, sensors)
-- [ ] TODO: `locatedAt` (spatial position)
-- [ ] TODO: `hasState` (flight phase, battery level, etc.)
-
-**Instances**:
-- [ ] TODO: FlybyF11 (our specific platform)
-
----
-
-#### Concept: Obstacle
-
-**SUMO Parent Class**:
-- [ ] TODO:
-
-**Definition**:
-- [ ] TODO:
-
-**Attributes**:
-- [ ] TODO:
-
-**Relations**:
-- [ ] TODO:
-
-**Instances**:
-- [ ] TODO:
-
----
-
-#### Concept: Target/Waypoint
-
-**SUMO Parent Class**:
-- [ ] TODO:
-
-**Definition**:
-- [ ] TODO:
-
-**Attributes**:
-- [ ] TODO:
-
-**Relations**:
-- [ ] TODO:
-
-**Instances**:
-- [ ] TODO:
+    return reward
+```
 
 ---
 
-### Concept Category: Spatial Relations
+## 1.2 Dynamic No-Fly Zone Avoidance
 
-#### Concept: Above/Below
+### Mission Objective
 
-**SUMO Parent Class**:
-- [ ] TODO: Likely `PositionalAttribute` or `SpatialRelation`
+Complete a 3km point-to-point reconnaissance transit while dynamically avoiding a No-Fly Zone that appears mid-mission (simulating friendly aircraft corridor activation). Re-plan route in real-time while maintaining mission timeline within 20% of original estimate.
 
-**Definition**:
-- [ ] TODO: Formal definition with thresholds (e.g., "Above(X, Y) iff altitude(X) > altitude(Y) + threshold")
+### Initial Conditions
 
-**Attributes**:
-- [ ] TODO: Vertical separation distance
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Start Position | (0, 0, 0) local NED | Origin |
+| Destination | (3000m N, 500m E, -80m) | 3.04km total |
+| Initial Battery | 90% | Near full |
+| GPS/Comms Status | Operational | Full capability |
+| ISR Payload | **NextVision Raptor** | 1280×720p thermal EO-IR |
+| Original ETA | 8 minutes | At 6.3 m/s cruise |
+| **NFZ Activation** | **T+3 minutes** | 1000m × 500m corridor |
+| NFZ Position | Centered at (1500, 250, -80) | Blocks direct path |
 
-**Relations**:
-- [ ] TODO: Binary relation between physical objects
+### Success Criteria
 
-**Instances**:
-- [ ] TODO: UAV above ground, UAV above obstacle
+| Criterion | Threshold | Measurement |
+|-----------|-----------|-------------|
+| Destination Accuracy | ≤ 5m | Distance to destination |
+| NFZ Penetrations | = 0 | `isWithin(?UAV, ?NFZ)` count |
+| Replan Latency | ≤ 2 seconds | Time from notification to new path |
+| Timeline Adherence | ≤ 120% | Actual time / planned time |
+| Battery at Destination | ≥ 20% | BMS reported SoC |
 
----
+### New Axioms Required
 
-#### Concept: Near/Far
+```kif
+;;; Dynamic No-Fly Zone (extends NoFlyZone from uav_domain.kif)
 
-**SUMO Parent Class**:
-- [ ] TODO:
+(subclass DynamicNoFlyZone NoFlyZone)
+(documentation DynamicNoFlyZone EnglishLanguage
+  "A no-fly zone activated/deactivated during mission (e.g., aircraft corridor).")
 
-**Definition**:
-- [ ] TODO:
+(instance nfzActive UnaryPredicate)
+(domain nfzActive 1 DynamicNoFlyZone)
 
-**Attributes**:
-- [ ] TODO:
+(instance nfzBufferDistance BinaryPredicate)
+(domain nfzBufferDistance 1 NoFlyZone)
+(domain nfzBufferDistance 2 LengthMeasure)
 
-**Relations**:
-- [ ] TODO:
+;;; Path intersection triggers replan
+(=>
+  (and
+    (instance ?MISSION WaypointMission)
+    (assignedUAV ?MISSION ?UAV)
+    (hasCurrentPath ?UAV ?PATH)
+    (instance ?NFZ DynamicNoFlyZone)
+    (nfzActive ?NFZ)
+    (pathIntersectsNFZ ?PATH ?NFZ))
+  (requiresRouteReplan ?MISSION))
 
-**Instances**:
-- [ ] TODO:
+;;; Approaching NFZ boundary triggers warning
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?NFZ NoFlyZone)
+    (nfzActive ?NFZ)
+    (distanceTo ?UAV ?NFZ ?DIST)
+    (nfzBufferDistance ?NFZ ?BUFFER)
+    (lessThanOrEqualTo ?DIST ?BUFFER))
+  (nfzProximityWarning ?UAV ?NFZ))
 
----
+;;; Aircraft corridor priority
+(subclass AircraftCorridor DynamicNoFlyZone)
+(=>
+  (instance ?NFZ AircraftCorridor)
+  (nfzPriority ?NFZ 1))  ; Highest priority
+```
 
-### Concept Category: Processes (Actions/Behaviors)
+### RL Reward Structure
 
-#### Concept: Takeoff
+```python
+def reward_dynamic_nfz(state, next_state):
+    reward = 0.0
 
-**SUMO Parent Class**:
-- [ ] TODO: Likely `Process` or `Motion`
+    # NFZ safety (critical)
+    if next_state['inside_nfz']:
+        return -1000.0  # Terminal failure
 
-**Definition**:
-- [ ] TODO: Transition from ground state to airborne state
+    # Proximity warning penalty
+    if next_state['nfz_distance'] < next_state['nfz_buffer']:
+        penetration = 1.0 - (next_state['nfz_distance'] / next_state['nfz_buffer'])
+        reward -= 50.0 * penetration
 
-**Attributes**:
-- [ ] TODO: Target altitude, ascent rate
+    # Replan performance
+    if state.get('replan_in_progress') and next_state.get('replan_complete'):
+        if next_state['replan_duration_ms'] <= 500: reward += 30.0
+        elif next_state['replan_duration_ms'] <= 2000: reward += 10.0
+        else: reward -= 20.0
 
-**Relations**:
-- [ ] TODO: `precondition` (battery sufficient, motors armed)
-- [ ] TODO: `postcondition` (altitude > threshold, airborne state)
-- [ ] TODO: `during` (vertical ascent, stabilization)
+    # Progress to destination
+    progress = state['distance_to_dest'] - next_state['distance_to_dest']
+    reward += 0.5 * progress
 
-**Instances**:
-- [ ] TODO: Standard takeoff, emergency takeoff
+    # Timeline penalty
+    elapsed_ratio = next_state['elapsed'] / next_state['planned_time']
+    if elapsed_ratio > 1.0:
+        reward -= 5.0 * (elapsed_ratio - 1.0)
 
----
-
-#### Concept: Navigation/Waypoint Transit
-
-**SUMO Parent Class**:
-- [ ] TODO:
-
-**Definition**:
-- [ ] TODO:
-
-**Attributes**:
-- [ ] TODO:
-
-**Relations**:
-- [ ] TODO:
-
-**Instances**:
-- [ ] TODO:
-
----
-
-#### Concept: Loiter/Hover
-
-**SUMO Parent Class**:
-- [ ] TODO:
-
-**Definition**:
-- [ ] TODO:
-
-**Attributes**:
-- [ ] TODO:
-
-**Relations**:
-- [ ] TODO:
-
-**Instances**:
-- [ ] TODO:
-
----
-
-#### Concept: Landing
-
-**SUMO Parent Class**:
-- [ ] TODO:
-
-**Definition**:
-- [ ] TODO:
-
-**Attributes**:
-- [ ] TODO:
-
-**Relations**:
-- [ ] TODO:
-
-**Instances**:
-- [ ] TODO:
+    return reward
+```
 
 ---
 
-### Concept Category: States
+## 1.3 Multi-Objective ISR with Threat Avoidance
 
-#### Concept: FlightPhase
+### Mission Objective
 
-**SUMO Parent Class**:
-- [ ] TODO: Likely `StateOfMind` or custom `StateAttribute`
+Conduct ISR collection on multiple targets of interest (TOIs) with varying priority levels while avoiding elevated threat areas and maintaining sufficient battery for safe return.
 
-**Definition**:
-- [ ] TODO: Discrete states representing mission progression
+### Initial Conditions
 
-**Attributes**:
-- [ ] TODO: Current phase (e.g., preflight, takeoff, cruise, mission, landing, emergency)
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Initial Battery | 92% | Near full |
+| GPS Status | Operational | Full lock |
+| Comms Status | Intermittent | 50% availability |
+| ISR Payload | **Gremsy VIO** | Thermal + 20x zoom for target ID |
+| Target Count | 8 targets | Various priorities |
+| Threat Zones | 3 zones | High, Medium, Low |
+| Max Mission Time | 20 minutes | Hard limit |
 
-**Relations**:
-- [ ] TODO: `transitions_to` (valid state transitions)
-- [ ] TODO: `requires` (conditions for entering state)
+### Target Distribution
 
-**Instances**:
-- [ ] TODO: Preflight, Armed, Airborne, Mission, RTL (Return to Launch), Emergency
+| Target | Priority | Value | Threat Level | Battery Cost |
+|--------|----------|-------|--------------|--------------|
+| TOI-1 | 1 (Critical) | 100 | Medium | 8% |
+| TOI-2 | 1 (Critical) | 100 | Low | 6% |
+| TOI-3 | 2 (High) | 75 | **High** | 15% |
+| TOI-4 | 2 (High) | 75 | Low | 5% |
+| TOI-5 | 3 (Medium) | 50 | Medium | 9% |
+| TOI-6 | 3 (Medium) | 50 | **High** | 18% |
+| TOI-7 | 4 (Low) | 25 | Low | 4% |
+| TOI-8 | 4 (Low) | 25 | Medium | 10% |
+
+**Theoretical Max**: 500 points | **Achievable (avoid high threat)**: 400 points
+
+### Success Criteria
+
+| Criterion | Threshold | Measurement |
+|-----------|-----------|-------------|
+| Mission Value Score | ≥ 80% of achievable | Sum of observed target values |
+| High Threat Entry | = 0 seconds | Time in HighThreat zones |
+| Medium Threat Exposure | ≤ 30 seconds | Cumulative time |
+| Critical Targets | 100% if reachable | Priority-1 targets observed |
+| Battery at Landing | ≥ 15% | BMS reported SoC |
+
+### New Axioms Required
+
+```kif
+;;; Target of Interest
+
+(subclass TargetOfInterest Object)
+(documentation TargetOfInterest EnglishLanguage
+  "A designated point/object requiring ISR observation.")
+
+(instance targetPriority BinaryPredicate)
+(domain targetPriority 1 TargetOfInterest)
+(domain targetPriority 2 PositiveInteger)
+(documentation targetPriority EnglishLanguage
+  "Priority level: 1=Critical, 2=High, 3=Medium, 4=Low")
+
+(instance targetValue BinaryPredicate)
+(domain targetValue 1 TargetOfInterest)
+(domain targetValue 2 RealNumber)
+
+(instance targetObserved UnaryPredicate)
+(domain targetObserved 1 TargetOfInterest)
+
+;;; Threat Zones
+
+(subclass ThreatZone Region)
+
+(subclass ThreatLevelAttribute Attribute)
+(instance HighThreat ThreatLevelAttribute)
+(instance MediumThreat ThreatLevelAttribute)
+(instance LowThreat ThreatLevelAttribute)
+
+(instance threatLevel BinaryPredicate)
+(domain threatLevel 1 ThreatZone)
+(domain threatLevel 2 ThreatLevelAttribute)
+
+(instance threatRiskScore BinaryPredicate)
+(domain threatRiskScore 1 ThreatZone)
+(domain threatRiskScore 2 RealNumber)
+
+;;; High threat zones are effectively no-go
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?ZONE ThreatZone)
+    (threatLevel ?ZONE HighThreat)
+    (isWithin ?UAV ?ZONE))
+  (and
+    (highThreatExposure ?UAV)
+    (not (safeState ?UAV))))
+
+;;; Critical targets must be prioritized
+(=>
+  (and
+    (instance ?TARGET TargetOfInterest)
+    (targetPriority ?TARGET 1)
+    (instance ?MISSION ReconnaissanceMission)
+    (assignedUAV ?MISSION ?UAV)
+    (hasAdequateBattery ?UAV ?MISSION)
+    (not (targetObserved ?TARGET)))
+  (criticalTargetPending ?MISSION ?TARGET))
+
+;;; Path crossing high threat is prohibited
+(=>
+  (and
+    (instance ?PATH FollowPath)
+    (instance ?ZONE ThreatZone)
+    (threatLevel ?ZONE HighThreat)
+    (pathCrossesHighThreat ?PATH ?ZONE))
+  (pathProhibited ?PATH))
+```
+
+### RL Reward Structure
+
+```python
+def reward_multi_objective_isr(state, next_state):
+    reward = 0.0
+
+    # Threat avoidance (critical)
+    if next_state['in_high_threat']: return -500.0  # Catastrophic
+
+    if next_state['in_medium_threat']:
+        reward -= next_state['threat_risk_rate'] * next_state['dt']
+
+    # Target observation (weighted by priority)
+    newly_observed = set(next_state['observed']) - set(state['observed'])
+    for tid in newly_observed:
+        target = next_state['targets'][tid]
+        multiplier = {1: 2.0, 2: 1.5, 3: 1.0, 4: 0.75}[target['priority']]
+        reward += target['value'] * multiplier
+        if target['priority'] == 1:
+            reward += 50.0  # Critical target bonus
+
+    # Resource efficiency
+    battery_used = state['battery_pct'] - next_state['battery_pct']
+    value_gained = next_state['mission_value'] - state['mission_value']
+    if battery_used > 0.1 and value_gained > 0:
+        reward += 0.5 * min(value_gained / battery_used, 20.0)
+
+    # Mission success threshold (80%)
+    if next_state['mission_value'] >= 0.8 * next_state['achievable_value']:
+        reward += 100.0
+
+    return reward
+```
 
 ---
 
-#### Concept: BatteryState
+# Part 2: Dual-Domain Ontology Structure
 
-**SUMO Parent Class**:
-- [ ] TODO:
+The UAV must reason about TWO domains simultaneously:
 
-**Definition**:
-- [ ] TODO:
+## 2.1 Domain A: UAV Platform (Existing in uav_domain.kif)
 
-**Attributes**:
-- [ ] TODO:
+**DO NOT REDEFINE** - Reference only. The existing ontology covers:
 
-**Relations**:
-- [ ] TODO:
+| Section | Classes/Predicates | Lines |
+|---------|-------------------|-------|
+| UAV Hierarchy | UAV, Multirotor, Quadcopter, FlybyF11 | 1-76 |
+| Components | UAVSensor, PositioningSensor, DepthCamera, IMU | 78-156 |
+| Physical Properties | hasMaxAltitude, hasPayloadCapacity, canHover | 158-280 |
+| Missions | UAVMission, WaypointMission, SurveyMission | 282-401 |
+| Flight Phases | FlightPhase, canTransitionTo (24 transitions) | 403-506 |
+| Spatial Relations | AirspaceRegion, Geofence, NoFlyZone, isWithin | 508-612 |
+| Environment | WeatherCondition, WindSpeed, GNSSAvailability | 614-674 |
+| Regulations | FAAPart107Compliant, NDAACompliant | 676-724 |
+| Operations | MinimumBatteryLevel, BatteryReserveForReturn | 726-800 |
+| **Safety Axioms** | geofenceViolation, noFlyZoneViolation, mustLand | 802-910 |
+| Actions | UAVAction, NavigateToWaypoint, AvoidObstacle | 912-1003 |
+| Sensor State | SensorState, hasPositionQuality | 1005-1057 |
+| FlybyF11 Instance | 120m altitude, 3m obstacle, 25% reserve | 1059-1097 |
+| Mission Validity | isValidMission, hasAdequateBattery | 1099-1163 |
+| Emergency | EmergencyCondition, triggersEmergencyAction | 1165-1212 |
 
-**Instances**:
-- [ ] TODO:
+## 2.2 Domain B: Operational Environment (NEW - Add to Ontology)
+
+This document defines extensions for military ISR operations:
+
+### Entity Classification
+
+```kif
+;;; Entity disposition (friendly/hostile/neutral)
+
+(subclass EntityDisposition RelationalAttribute)
+(instance Hostile EntityDisposition)
+(instance Friendly EntityDisposition)
+(instance Neutral EntityDisposition)
+(instance Unknown EntityDisposition)
+
+(instance hasDisposition BinaryPredicate)
+(domain hasDisposition 1 Agent)
+(domain hasDisposition 2 EntityDisposition)
+```
+
+### Operational Areas
+
+```kif
+;;; ISR-specific geographic regions
+
+(subclass AreaOfInterest GeographicArea)
+(documentation AreaOfInterest EnglishLanguage
+  "A designated area requiring ISR collection.")
+
+(subclass AreaOfResponsibility GeographicArea)
+(documentation AreaOfResponsibility EnglishLanguage
+  "An assigned operational zone under unit control.")
+
+(instance aoiPriority BinaryPredicate)
+(domain aoiPriority 1 AreaOfInterest)
+(domain aoiPriority 2 PositiveInteger)
+
+(instance aoiSurveillanceFrequency BinaryPredicate)
+(domain aoiSurveillanceFrequency 1 AreaOfInterest)
+(domain aoiSurveillanceFrequency 2 TimeDuration)
+```
+
+### ISR Mission Types
+
+```kif
+;;; Extends UAVMission from uav_domain.kif
+
+(subclass SurveillanceMission UAVMission)
+(documentation SurveillanceMission EnglishLanguage
+  "Continuous observation of area/target over extended period.")
+
+(subclass TargetAcquisitionMission UAVMission)
+(documentation TargetAcquisitionMission EnglishLanguage
+  "Locate and identify specific targets of interest.")
+
+(subclass BattleDamageAssessmentMission UAVMission)
+(documentation BattleDamageAssessmentMission EnglishLanguage
+  "Post-strike assessment of target status.")
+```
+
+### Communication Status
+
+```kif
+;;; Communication link status (critical for autonomous operations)
+
+(subclass CommsStatus Attribute)
+(instance CommsOperational CommsStatus)
+(instance CommsDegraded CommsStatus)
+(instance CommsDenied CommsStatus)
+
+(instance hasCommsStatus BinaryPredicate)
+(domain hasCommsStatus 1 UAV)
+(domain hasCommsStatus 2 CommsStatus)
+
+(instance commsLinkQuality BinaryPredicate)
+(domain commsLinkQuality 1 UAV)
+(domain commsLinkQuality 2 RealNumber)
+(documentation commsLinkQuality EnglishLanguage
+  "Link quality metric 0-100, where <30 = Degraded, 0 = Denied")
+```
+
+### ISR Sensor Payloads
+
+```kif
+;;; Flyby F-11 mission-configurable sensor payloads
+
+(subclass ISRPayload UAVSensor)
+(documentation ISRPayload EnglishLanguage
+  "Mission-configurable ISR sensor payload for Flyby F-11.")
+
+;; Gremsy VIO - Multi-sensor gimbal
+(subclass GremsyVIO ISRPayload)
+(documentation GremsyVIO EnglishLanguage
+  "Gremsy VIO gimbal: 640p FLIR thermal + 4K RGB + 20x optical zoom.
+  Primary use: ISR surveillance, target identification, day/night ops.")
+(instance hasOpticalZoom BinaryPredicate)
+(domain hasOpticalZoom 1 GremsyVIO)
+(domain hasOpticalZoom 2 PositiveInteger)
+(hasOpticalZoom GremsyVIO 20)
+(hasThermalResolution GremsyVIO 640)
+(hasRGBResolution GremsyVIO 4096)
+
+;; RESEPI LiDAR - 3D mapping system
+(subclass RESEPILiDAR ISRPayload)
+(documentation RESEPILiDAR EnglishLanguage
+  "RESEPI LiDAR: 3D point cloud mapping system.
+  Primary use: Terrain mapping, volumetric survey, obstacle detection.")
+(instance hasPointCloudDensity BinaryPredicate)
+(domain hasPointCloudDensity 1 RESEPILiDAR)
+(domain hasPointCloudDensity 2 PositiveInteger)
+
+;; NextVision Raptor - EO-IR gimbal
+(subclass NextVisionRaptor ISRPayload)
+(documentation NextVisionRaptor EnglishLanguage
+  "NextVision Raptor: EO-IR gimbal with 1280x720p thermal.
+  Primary use: Reconnaissance, target tracking, thermal detection.")
+(hasThermalResolution NextVisionRaptor 1280)
+
+;;; Payload selection constraint
+(instance hasISRPayload BinaryPredicate)
+(domain hasISRPayload 1 FlybyF11)
+(domain hasISRPayload 2 ISRPayload)
+(documentation hasISRPayload EnglishLanguage
+  "(hasISRPayload ?UAV ?PAYLOAD) indicates which ISR payload is mounted.")
+
+;;; Mission-payload compatibility
+(=>
+  (and
+    (instance ?MISSION SurveyMission)
+    (assignedUAV ?MISSION ?UAV)
+    (instance ?UAV FlybyF11))
+  (or
+    (hasISRPayload ?UAV RESEPILiDAR)
+    (hasISRPayload ?UAV GremsyVIO)))
+
+(=>
+  (and
+    (instance ?MISSION ReconnaissanceMission)
+    (assignedUAV ?MISSION ?UAV)
+    (instance ?UAV FlybyF11))
+  (or
+    (hasISRPayload ?UAV GremsyVIO)
+    (hasISRPayload ?UAV NextVisionRaptor)))
+```
 
 ---
 
-### Concept Category: Safety Constraints
+# Part 3: SUMO Integration Strategy
 
-#### Concept: GeofenceBoundary
+## 3.1 Reuse Existing SUMO Classes
 
-**SUMO Parent Class**:
-- [ ] TODO:
+The following SUMO classes provide foundation (DO NOT REDEFINE):
 
-**Definition**:
-- [ ] TODO:
+| SUMO Class | Path | Use Case |
+|------------|------|----------|
+| `MilitaryOrganization` | Agent → Organization | Unit affiliation |
+| `MilitaryOperation` | Process → MilitaryProcess | Mission parent class |
+| `GeographicArea` | Object → Region | AOI/AOR foundation |
+| `IntentionalProcess` | Process | Mission behaviors |
+| `Communication` | IntentionalPsychologicalProcess | Link status events |
+| `DeonticAttribute` | Attribute | ROE (Obligation, Permission, Prohibition) |
+| `RelationalAttribute` | Attribute | Threat levels, entity disposition |
 
-**Attributes**:
-- [ ] TODO:
+## 3.2 Extend SUMO for Military ISR
 
-**Relations**:
-- [ ] TODO:
+### Threat Classification
 
-**Instances**:
-- [ ] TODO:
+```kif
+;;; Threat level as RelationalAttribute (SUMO pattern)
 
----
+(subclass ThreatLevel RelationalAttribute)
+(instance HighThreat ThreatLevel)
+(instance ModerateThreat ThreatLevel)
+(instance LowThreat ThreatLevel)
+(instance NoThreat ThreatLevel)
 
-#### Concept: MinimumAltitude
+(instance posesThreatTo TernaryPredicate)
+(domain posesThreatTo 1 Agent)
+(domain posesThreatTo 2 Agent)
+(domain posesThreatTo 3 ThreatLevel)
+(documentation posesThreatTo EnglishLanguage
+  "(posesThreatTo ?ADVERSARY ?UAV ?LEVEL) indicates threat assessment.")
+```
 
-**SUMO Parent Class**:
-- [ ] TODO:
+### Rules of Engagement
 
-**Definition**:
-- [ ] TODO:
+```kif
+;;; ROE using SUMO DeonticAttribute pattern
 
-**Attributes**:
-- [ ] TODO:
+(subclass RulesOfEngagement Proposition)
+(documentation RulesOfEngagement EnglishLanguage
+  "Constraints governing UAV behavior in operational context.")
 
-**Relations**:
-- [ ] TODO:
+(instance governedBy BinaryPredicate)
+(domain governedBy 1 UAVMission)
+(domain governedBy 2 RulesOfEngagement)
 
-**Instances**:
-- [ ] TODO:
+(instance permitsAction BinaryPredicate)
+(domain permitsAction 1 RulesOfEngagement)
+(domain permitsAction 2 UAVAction)
 
----
+(instance prohibitsAction BinaryPredicate)
+(domain prohibitsAction 1 RulesOfEngagement)
+(domain prohibitsAction 2 UAVAction)
 
-#### Concept: BatteryReserve
+;;; Example ROE axiom: High threat zones prohibit entry
+(=>
+  (and
+    (instance ?MISSION UAVMission)
+    (governedBy ?MISSION ?ROE)
+    (instance ?ZONE ThreatZone)
+    (threatLevel ?ZONE HighThreat))
+  (prohibitsAction ?ROE (enterZone ?ZONE)))
+```
 
-**SUMO Parent Class**:
-- [ ] TODO:
+### Mission Intent
 
-**Definition**:
-- [ ] TODO:
+```kif
+;;; Mission objectives using SUMO Proposition
 
-**Attributes**:
-- [ ] TODO:
+(subclass MissionObjective Proposition)
 
-**Relations**:
-- [ ] TODO:
+(subclass IntelligenceObjective MissionObjective)
+(subclass SurveillanceObjective MissionObjective)
+(subclass ReconnaissanceObjective MissionObjective)
+(subclass TargetAcquisitionObjective MissionObjective)
 
-**Instances**:
-- [ ] TODO:
+(instance hasMissionObjective BinaryPredicate)
+(domain hasMissionObjective 1 UAVMission)
+(domain hasMissionObjective 2 MissionObjective)
 
----
+(instance objectivePriority BinaryPredicate)
+(domain objectivePriority 1 MissionObjective)
+(domain objectivePriority 2 PositiveInteger)
 
-### Concept Category: Temporal Relations
-
-#### Concept: Before/After/During
-
-**SUMO Parent Class**:
-- [ ] TODO: `TemporalRelation`
-
-**Definition**:
-- [ ] TODO:
-
-**Attributes**:
-- [ ] TODO:
-
-**Relations**:
-- [ ] TODO:
-
-**Instances**:
-- [ ] TODO: Takeoff before mission, landing after mission complete
-
----
-
-### Additional Vocabulary Categories
-
-- [ ] TODO: Add sensor concepts (camera, depth sensor, IMU, GPS)
-- [ ] TODO: Add perception concepts (object detection, localization, mapping)
-- [ ] TODO: Add mission-specific concepts (inspection, reconnaissance, monitoring)
-- [ ] TODO: Add environmental concepts (weather, lighting, wind)
-
----
-
-## Part 3: Integration with RL
-
-### How Ontology Constrains RL (To Be Filled After Part 1 & 2)
-
-**State Abstraction**:
-- [ ] TODO: Which ontology concepts map to RL state representation?
-
-**Action Space**:
-- [ ] TODO: Which ontology processes define valid actions?
-
-**Reward Shaping**:
-- [ ] TODO: Which ontology constraints contribute to reward penalties?
-
-**Hard Constraints**:
-- [ ] TODO: Which ontology rules must never be violated (safety-critical)?
+(instance objectiveStatus BinaryPredicate)
+(domain objectiveStatus 1 MissionObjective)
+(domain objectiveStatus 2 MissionStatus)
+```
 
 ---
 
-## Notes for Discussion with Adam Pease
+# Part 4: Safety Axioms in FOL
 
-- [ ] TODO: Questions about SUMO subset selection
-- [ ] TODO: Reasoning engine recommendations (Pellet, HermiT, custom)
-- [ ] TODO: Performance considerations for real-time UAV constraints
-- [ ] TODO: How to formally verify ontology constraint compliance
-- [ ] TODO: Validation methodology for ontology completeness
+All axioms use KIF syntax compatible with Vampire theorem prover. Reference existing predicates from `uav_domain.kif` where possible.
+
+## 4.1 Comms-Denied Operations
+
+```kif
+;;; AXIOM: Comms loss triggers autonomous mode
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasCommsStatus ?UAV CommsDenied)
+    (instance ?MISSION UAVMission)
+    (assignedUAV ?MISSION ?UAV)
+    (hasMissionStatus ?MISSION MissionActive))
+  (autonomousMissionMode ?UAV ?MISSION))
+
+;;; AXIOM: Autonomous mode requires enhanced reserves
+(=>
+  (autonomousMissionMode ?UAV ?MISSION)
+  (BatteryReserveForReturn ?UAV 30.0))
+
+;;; AXIOM: Autonomous mode with mission complete triggers RTL
+(=>
+  (and
+    (autonomousMissionMode ?UAV ?MISSION)
+    (missionObjectiveAchieved ?MISSION))
+  (mustReturnToLaunch ?UAV))
+
+;;; AXIOM: Comms restored cancels autonomous mode
+(=>
+  (and
+    (autonomousMissionMode ?UAV ?MISSION)
+    (hasCommsStatus ?UAV CommsOperational))
+  (not (autonomousMissionMode ?UAV ?MISSION)))
+```
+
+## 4.2 Threat Zone Avoidance
+
+```kif
+;;; AXIOM: High threat zone entry is unsafe (extends safeState from uav_domain.kif)
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?ZONE ThreatZone)
+    (threatLevel ?ZONE HighThreat)
+    (isWithin ?UAV ?ZONE))
+  (not (safeState ?UAV)))
+
+;;; AXIOM: Approaching high threat triggers warning
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?ZONE ThreatZone)
+    (threatLevel ?ZONE HighThreat)
+    (distanceTo ?UAV ?ZONE ?DIST)
+    (lessThan ?DIST (MeasureFn 100 Meter)))
+  (threatProximityWarning ?UAV ?ZONE))
+
+;;; AXIOM: Threat exposure limit exceeded triggers abort
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?MISSION UAVMission)
+    (assignedUAV ?MISSION ?UAV)
+    (accumulatedThreatExposure ?UAV ?CURRENT)
+    (maxAcceptableThreatExposure ?MISSION ?MAX)
+    (greaterThan ?CURRENT ?MAX))
+  (mustAbortMission ?MISSION))
+```
+
+## 4.3 Dynamic NFZ Handling
+
+```kif
+;;; AXIOM: Dynamic NFZ activation invalidates intersecting paths
+(=>
+  (and
+    (instance ?NFZ DynamicNoFlyZone)
+    (nfzActive ?NFZ)
+    (instance ?PATH FollowPath)
+    (pathIntersectsNFZ ?PATH ?NFZ))
+  (pathInvalidated ?PATH))
+
+;;; AXIOM: Invalid path requires replan before continuation
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasCurrentPath ?UAV ?PATH)
+    (pathInvalidated ?PATH)
+    (hasFlightPhase ?UAV Transit))
+  (mustReplanPath ?UAV))
+
+;;; AXIOM: Replan must avoid active NFZs
+(=>
+  (and
+    (instance ?UAV UAV)
+    (mustReplanPath ?UAV)
+    (instance ?NFZ DynamicNoFlyZone)
+    (nfzActive ?NFZ)
+    (proposedPath ?UAV ?NEWPATH)
+    (pathIntersectsNFZ ?NEWPATH ?NFZ))
+  (not (validPath ?NEWPATH)))
+```
+
+## 4.4 Multi-Objective Prioritization
+
+```kif
+;;; AXIOM: Critical targets take precedence when reachable
+(=>
+  (and
+    (instance ?TARGET TargetOfInterest)
+    (targetPriority ?TARGET 1)
+    (targetReachable ?TARGET ?UAV)
+    (not (targetObserved ?TARGET)))
+  (shouldPrioritize ?UAV ?TARGET))
+
+;;; AXIOM: Target reachability depends on battery budget
+(=>
+  (and
+    (instance ?TARGET TargetOfInterest)
+    (instance ?UAV UAV)
+    (batteryBudgetRemaining ?UAV ?BUDGET)
+    (targetBatteryCost ?TARGET ?COST)
+    (lessThanOrEqualTo ?COST ?BUDGET)
+    (not (targetInHighThreat ?TARGET)))
+  (targetReachable ?TARGET ?UAV))
+
+;;; AXIOM: High-threat targets are unreachable regardless of battery
+(=>
+  (targetInHighThreat ?TARGET)
+  (not (targetReachable ?TARGET ?UAV)))
+```
+
+---
+
+# Part 5: RL Integration Points
+
+## 5.1 Hard Constraints (Shielding)
+
+Actions violating these axioms are **BLOCKED**, not just penalized:
+
+| Axiom | Trigger | Shield Action |
+|-------|---------|---------------|
+| `geofenceViolation` | `isOutside(?UAV, ?Geofence)` | Block movement outside boundary |
+| `noFlyZoneViolation` | `isWithin(?UAV, ?NFZ)` | Block entry, force avoidance |
+| `highThreatExposure` | `isWithin(?UAV, HighThreatZone)` | Block entry, immediate egress |
+| `mustLand` | `not(hasValidLocalization)` | Override all actions with land |
+| `mustReturnToLaunch` | Battery < reserve | Force RTL behavior |
+| `pathProhibited` | Path crosses high threat | Reject path, require replan |
+
+**Implementation**: Before executing RL action, query Vampire:
+```python
+def shield_action(action, state):
+    # Convert state to TPTP facts
+    facts = state_to_tptp(state)
+
+    # Query: would this action violate safety?
+    query = f"(not (safeState uav)) given action({action})"
+
+    if vampire_proves(facts, query):
+        return get_safe_alternative(action, state)
+    return action
+```
+
+## 5.2 Soft Constraints (Reward Shaping)
+
+Ontological preferences that shape reward without blocking:
+
+| Constraint | Reward Impact | Notes |
+|------------|---------------|-------|
+| Medium threat exposure | -3.0 per second | Accumulated risk |
+| Target priority | 2x for critical | Weight by importance |
+| Battery efficiency | +0.5 per value/% | Encourage efficiency |
+| Timeline adherence | -5.0 per % overrun | Beyond 100% planned time |
+| NFZ buffer proximity | -50.0 × penetration ratio | Soft boundary |
+
+## 5.3 State Abstraction
+
+Ontology predicates map to RL state features:
+
+| Ontology Predicate | RL State Feature | Type |
+|-------------------|------------------|------|
+| `hasFlightPhase(?UAV, ?Phase)` | `flight_phase` | Categorical (10 classes) |
+| `CurrentBatteryLevel(?UAV, ?Pct)` | `battery_pct` | Continuous [0, 100] |
+| `hasCommsStatus(?UAV, ?Status)` | `comms_status` | Categorical (3 classes) |
+| `hasGNSSStatus(?UAV, ?Status)` | `gnss_status` | Categorical (3 classes) |
+| `isWithin(?UAV, ?ThreatZone)` | `in_threat_zone` | Boolean + level |
+| `distanceTo(?UAV, ?NFZ, ?Dist)` | `nfz_distance` | Continuous [0, ∞) |
+| `targetObserved(?Target)` | `observed_targets` | Set of IDs |
+| `accumulatedThreatExposure` | `threat_exposure` | Continuous [0, max] |
+
+## 5.4 Action Space Filtering
+
+```python
+def filter_action_space(state, all_actions):
+    """Filter actions through ontology constraints."""
+    valid_actions = []
+
+    for action in all_actions:
+        # Check hard constraints via Vampire
+        if not violates_safety(action, state):
+            valid_actions.append(action)
+
+    # If all actions blocked, return emergency action
+    if not valid_actions:
+        return [get_emergency_action(state)]
+
+    return valid_actions
+
+def violates_safety(action, state):
+    """Query Vampire for safety violation."""
+    facts = state_to_tptp(state)
+    action_fact = action_to_tptp(action)
+
+    # Check each hard constraint
+    constraints = [
+        'geofenceViolation',
+        'noFlyZoneViolation',
+        'highThreatExposure',
+        'pathProhibited'
+    ]
+
+    for constraint in constraints:
+        if vampire_proves(facts + [action_fact], constraint):
+            return True
+    return False
+```
+
+---
+
+# Appendix A: Ontology File Structure
+
+```
+flyby-f11/ontology/
+├── planning_mode/
+│   ├── uav_domain.kif          # Core UAV ontology (1,212 lines) - EXISTS
+│   ├── isr_extensions.kif      # ISR extensions from this doc - NEW
+│   ├── test_scenarios/
+│   │   ├── comms_denied.kif    # Scenario 1 test case
+│   │   ├── dynamic_nfz.kif     # Scenario 2 test case
+│   │   └── multi_objective.kif # Scenario 3 test case
+│   └── UAV_ONTOLOGY.md         # Documentation - EXISTS
+└── evaluation/
+    └── EVALUATION_REPORT.qmd   # Phase 3 evaluation results - EXISTS
+```
+
+---
+
+# Appendix B: Vampire Query Examples
+
+```bash
+# Verify comms-denied triggers autonomous mode
+vampire --input_syntax tptp --time_limit 100ms \
+  --include uav_domain.tptp \
+  --include isr_extensions.tptp \
+  --query "(autonomousMissionMode drone1 mission1)" \
+  --given "(hasCommsStatus drone1 CommsDenied)"
+
+# Verify high threat zone blocks entry
+vampire --input_syntax tptp --time_limit 50ms \
+  --query "(not (safeState drone1))" \
+  --given "(and (threatLevel zone1 HighThreat) (isWithin drone1 zone1))"
+
+# Verify critical target prioritization
+vampire --input_syntax tptp --time_limit 50ms \
+  --query "(shouldPrioritize drone1 target1)" \
+  --given "(and (targetPriority target1 1) (targetReachable target1 drone1))"
+```
+
+---
+
+# References
+
+**Existing Ontology**: `flyby-f11/ontology/planning_mode/uav_domain.kif`
+
+**Documentation**: `flyby-f11/ontology/planning_mode/UAV_ONTOLOGY.md`
+
+**Architecture**: `flyby-f11/APPROACH.qmd`
+
+**Literature Review**: `flyby-f11/literature_review/SYNTHESIS.qmd`
+
+**SUMO Ontology**: https://github.com/ontologyportal/sumo
+
+**IEEE 1872.2-2021**: Standard for Autonomous Robotics Ontology

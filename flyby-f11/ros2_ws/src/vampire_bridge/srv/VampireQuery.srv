@@ -1,0 +1,17 @@
+# VampireQuery.srv
+# Synchronous service for Vampire theorem prover queries
+#
+# Usage:
+#   ros2 service call /vampire/query vampire_bridge/srv/VampireQuery \
+#     "{query: {query_type: 'safety', query_name: 'nfz_violation', parameters: ['uav=drone_alpha', 'nfz=zone_1']}}"
+#
+# Response latency targets:
+#   - safety queries: <100ms (p95)
+#   - operational queries: <100ms (p95)
+#   - planning queries: <200ms (p95)
+
+# Request
+vampire_bridge/ReasoningQuery query
+---
+# Response
+vampire_bridge/ReasoningResult result

@@ -1,0 +1,89 @@
+%------------------------------------------------------------------------------
+% Benchmark Query: Battery Reserve Return-to-Launch Check
+% Category: Safety
+% Target Latency: <100ms
+%------------------------------------------------------------------------------
+%
+% Checks if a UAV has sufficient battery reserve to return to launch.
+% Returns THEOREM if battery critical and must RTL.
+% Returns COUNTER_SATISFIABLE if battery sufficient to continue.
+%
+% Parameters:
+%   {{UAV_ID}} - The UAV instance to check
+%   {{BATTERY_PERCENT}} - Current battery level (for logging, not used in logic)
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% Core Type Axioms
+% ============================================================================
+
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+% ============================================================================
+% Battery Safety Axioms
+% ============================================================================
+
+% AXIOM: Critical battery requires return to launch
+fof(critical_battery_rtl, axiom,
+    ![UAV]:
+      ((uav(UAV) & has_battery_status(UAV, battery_critical))
+       => must_return_to_launch(UAV))).
+
+% AXIOM: Low battery with insufficient reserve requires RTL
+fof(low_battery_reserve_rtl, axiom,
+    ![UAV]:
+      ((uav(UAV) &
+        has_battery_status(UAV, battery_low) &
+        ~has_sufficient_reserve(UAV))
+       => must_return_to_launch(UAV))).
+
+% AXIOM: Critical battery means unsafe to continue mission
+fof(critical_battery_unsafe, axiom,
+    ![UAV]:
+      (has_battery_status(UAV, battery_critical)
+       => ~can_continue_mission(UAV))).
+
+% AXIOM: Sufficient reserve means can continue
+fof(sufficient_reserve_continue, axiom,
+    ![UAV]:
+      ((uav(UAV) &
+        has_battery_status(UAV, battery_nominal) &
+        has_sufficient_reserve(UAV))
+       => can_continue_mission(UAV))).
+
+% ============================================================================
+% Test Instance
+% ============================================================================
+
+fof(test_uav_type, axiom, flyby_f11({{UAV_ID}})).
+
+% Battery state - uncomment one scenario
+% Critical battery (must RTL):
+fof(battery_state, axiom, has_battery_status({{UAV_ID}}, battery_critical)).
+
+% Low battery without reserve (must RTL):
+% fof(battery_state, axiom, has_battery_status({{UAV_ID}}, battery_low)).
+% fof(no_reserve, axiom, ~has_sufficient_reserve({{UAV_ID}})).
+
+% Nominal battery with reserve (can continue):
+% fof(battery_state, axiom, has_battery_status({{UAV_ID}}, battery_nominal)).
+% fof(has_reserve, axiom, has_sufficient_reserve({{UAV_ID}})).
+
+% ============================================================================
+% Conjecture: Must return to launch
+% ============================================================================
+
+fof(check_must_rtl, conjecture,
+    must_return_to_launch({{UAV_ID}})).
+
+%------------------------------------------------------------------------------
+% Expected Results:
+%   - If battery critical: THEOREM (must RTL)
+%   - If battery low, no reserve: THEOREM (must RTL)
+%   - If battery nominal with reserve: COUNTER_SATISFIABLE (can continue)
+%------------------------------------------------------------------------------

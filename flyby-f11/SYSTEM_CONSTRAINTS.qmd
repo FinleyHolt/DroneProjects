@@ -35,7 +35,7 @@ format:
 - 16GB unified memory (GPU/CPU shared)
 
 **Flight Controller**: ArduPilot firmware
-- MAVLink protocol (similar to PX4, different parameter structure)
+- MAVLink protocol (standard autopilot communication)
 - Uses `.parm` files for configuration
 - ArduPilot SITL available for simulation
 
@@ -44,7 +44,16 @@ format:
 - Topic-based communication (e.g., `flyby/command/goto`)
 - Integrates with F-11 onboard systems
 
-**Sensors**: TBD (different from project-drone's T265/D455)
+**ISR Sensor Payloads** (mission-configurable, one at a time):
+
+- **Gremsy VIO**: 640p FLIR thermal + 4K RGB + 20x optical zoom
+  - Primary use: ISR surveillance, target identification, day/night operations
+- **RESEPI LiDAR**: 3D point cloud mapping system
+  - Primary use: Terrain mapping, volumetric survey, obstacle detection
+- **NextVision Raptor**: EO-IR gimbal with 1280×720p thermal
+  - Primary use: Reconnaissance, target tracking, thermal detection
+
+**Note**: Unlike project-drone (which uses T265/D455 RealSense cameras), the F-11 uses mission-specific ISR payloads optimized for military surveillance applications.
 
 ## Software Stack
 
@@ -53,7 +62,7 @@ format:
 - Standard message types for sensor data, commands, telemetry
 
 **Flight Control Bridge**: ArduPilot MAVLink + MQTT
-- Not using PX4/MAVSDK (unlike project-drone)
+- MAVROS for ROS 2 integration, MQTT for F-11 onboard systems
 - Requires `ardupilot_interface` and `mqtt_interface` packages
 
 **Simulation Environment**: Gazebo + ArduPilot SITL

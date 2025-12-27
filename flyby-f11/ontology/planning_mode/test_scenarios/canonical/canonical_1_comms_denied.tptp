@@ -1,0 +1,144 @@
+%------------------------------------------------------------------------------
+% Canonical Test 1: Communications-Denied Surveillance Mission
+%------------------------------------------------------------------------------
+%
+% Tests autonomous authority levels and safe behavior under comms denial.
+% Based on ONTOLOGY_FOUNDATION.qmd Canonical Problem 1.1
+%
+% Scenario: UAV conducting surveillance mission loses communication link.
+%   - UAV should gain full autonomous authority
+%   - NFZ violation should trigger unsafe state
+%   - GPS-denied with valid VIO should allow continued flight
+%
+% Expected: Conjecture should be PROVED (Theorem status)
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% SECTION 1: Type Declarations and Class Hierarchy
+% ============================================================================
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(multirotor_is_uav, axiom,
+    ![X]: (multirotor(X) => uav(X))).
+
+fof(flyby_f11_is_multirotor, axiom,
+    ![X]: (flyby_f11(X) => multirotor(X))).
+
+% Mission class hierarchy
+fof(surveillance_is_uav_mission, axiom,
+    ![X]: (surveillance_mission(X) => uav_mission(X))).
+
+% ============================================================================
+% SECTION 2: Communications Status Axioms
+% ============================================================================
+
+% AXIOM: Comms-denied triggers autonomous mission mode
+fof(comms_denied_triggers_autonomous, axiom,
+    ![UAV, Mission]:
+      ((uav(UAV) &
+        uav_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        has_comms_status(UAV, comms_denied) &
+        has_mission_status(Mission, mission_active))
+       => autonomous_mission_mode(UAV, Mission))).
+
+% AXIOM: Comms-denied grants full autonomy authority
+fof(comms_denied_full_autonomy, axiom,
+    ![UAV]:
+      ((uav(UAV) & has_comms_status(UAV, comms_denied))
+       => has_autonomous_authority(UAV, full_autonomy))).
+
+% AXIOM: Full autonomy enables autonomous replanning
+fof(full_autonomy_enables_replan, axiom,
+    ![UAV]:
+      (has_autonomous_authority(UAV, full_autonomy)
+       => can_autonomously_replan(UAV))).
+
+% ============================================================================
+% SECTION 3: GPS and Localization Axioms
+% ============================================================================
+
+% AXIOM: GPS-denied without VIO requires landing
+fof(gps_denied_no_vio_must_land, axiom,
+    ![UAV]:
+      ((uav(UAV) &
+        has_gnss_status(UAV, gnss_denied) &
+        ~has_valid_visual_odometry(UAV))
+       => must_land(UAV))).
+
+% AXIOM: GPS-denied with valid VIO has valid localization
+fof(gps_denied_vio_valid, axiom,
+    ![UAV]:
+      ((uav(UAV) &
+        has_gnss_status(UAV, gnss_denied) &
+        has_valid_visual_odometry(UAV))
+       => has_valid_localization(UAV))).
+
+% ============================================================================
+% SECTION 4: NFZ Safety Axioms
+% ============================================================================
+
+% AXIOM: NFZ violation triggers unsafe state
+fof(nfz_violation_unsafe, axiom,
+    ![UAV, NFZ]:
+      ((uav(UAV) & no_fly_zone(NFZ) & is_within(UAV, NFZ))
+       => (nfz_violation(UAV) & ~safe_state(UAV)))).
+
+% AXIOM: NFZ violation in autonomous mode triggers RTL
+fof(autonomous_nfz_rtl, axiom,
+    ![UAV, Mission]:
+      ((autonomous_mission_mode(UAV, Mission) & nfz_violation(UAV))
+       => must_return_to_launch(UAV))).
+
+% ============================================================================
+% SECTION 5: Mission Completion Axioms
+% ============================================================================
+
+% AXIOM: Autonomous mode with mission complete triggers RTL
+fof(autonomous_complete_rtl, axiom,
+    ![UAV, Mission]:
+      ((autonomous_mission_mode(UAV, Mission) &
+        has_mission_status(Mission, mission_completed))
+       => must_return_to_launch(UAV))).
+
+% ============================================================================
+% SECTION 6: Test Scenario - Comms-Denied Surveillance
+% ============================================================================
+
+% Define test instances
+fof(test_drone_is_flyby, axiom, flyby_f11(drone_alpha)).
+fof(test_mission_exists, axiom, surveillance_mission(surveillance_1)).
+fof(test_assignment, axiom, assigned_uav(surveillance_1, drone_alpha)).
+fof(test_mission_active, axiom, has_mission_status(surveillance_1, mission_active)).
+
+% Scenario: Communications denied at T+30s
+fof(comms_denied_scenario, axiom, has_comms_status(drone_alpha, comms_denied)).
+
+% Scenario: GPS degraded but VIO operational
+fof(gnss_degraded_scenario, axiom, has_gnss_status(drone_alpha, gnss_degraded)).
+fof(vio_operational_scenario, axiom, has_valid_visual_odometry(drone_alpha)).
+
+% ============================================================================
+% THEOREM: Comms-denied triggers autonomous mode
+% ============================================================================
+
+fof(prove_autonomous_mode, conjecture,
+    autonomous_mission_mode(drone_alpha, surveillance_1)).
+
+%------------------------------------------------------------------------------
+% Expected result: THEOREM PROVED
+%
+% Proof trace:
+%   1. flyby_f11(drone_alpha) => multirotor(drone_alpha) => uav(drone_alpha)
+%   2. surveillance_mission(surveillance_1) => uav_mission(surveillance_1)
+%   3. assigned_uav(surveillance_1, drone_alpha) [given]
+%   4. has_comms_status(drone_alpha, comms_denied) [given]
+%   5. has_mission_status(surveillance_1, mission_active) [given]
+%   6. By comms_denied_triggers_autonomous axiom:
+%      All conditions satisfied => autonomous_mission_mode(UAV, Mission)
+%   7. Therefore: autonomous_mission_mode(drone_alpha, surveillance_1) QED
+%------------------------------------------------------------------------------

@@ -1,0 +1,106 @@
+# Low-Fidelity Sensor Profile
+# For debugging and rapid iteration with minimal noise
+#
+# Author: Finley Holt
+# Date: 2025-12-27
+#
+# Usage:
+#   This profile provides near-perfect sensor readings for debugging
+#   control algorithms and verifying simulation behavior without
+#   sensor noise interfering with analysis.
+#
+# Notes:
+#   - Use this profile during initial algorithm development
+#   - Switch to high_fidelity for validation before deployment
+#   - Ideal for faster-than-real-time simulation
+
+profile:
+  name: "low_fidelity"
+  description: "Minimal sensor noise for debugging and rapid iteration"
+
+sensors:
+  imu:
+    update_rate: 250  # Hz
+    angular_velocity:
+      noise:
+        type: "gaussian"
+        mean: 0.0
+        stddev: 0.0001  # Nearly perfect
+        bias_mean: 0.0
+        bias_stddev: 0.0
+    linear_acceleration:
+      noise:
+        type: "gaussian"
+        mean: 0.0
+        stddev: 0.0001  # Nearly perfect
+        bias_mean: 0.0
+        bias_stddev: 0.0
+
+  gps:
+    update_rate: 10  # Hz
+    position:
+      horizontal:
+        noise:
+          type: "gaussian"
+          mean: 0.0
+          stddev: 0.01  # 1cm - near-perfect
+      vertical:
+        noise:
+          type: "gaussian"
+          mean: 0.0
+          stddev: 0.02  # 2cm - near-perfect
+    velocity:
+      horizontal:
+        noise:
+          type: "gaussian"
+          mean: 0.0
+          stddev: 0.001  # m/s
+      vertical:
+        noise:
+          type: "gaussian"
+          mean: 0.0
+          stddev: 0.002  # m/s
+
+  magnetometer:
+    update_rate: 50  # Hz
+    noise:
+      type: "gaussian"
+      mean: 0.0
+      stddev: 0.00001  # Nearly perfect
+      bias_mean: 0.0
+      bias_stddev: 0.0
+    declination_deg: 11.5
+
+  barometer:
+    update_rate: 20  # Hz
+    reference_altitude: 0
+    pressure:
+      noise:
+        type: "gaussian"
+        mean: 0.0
+        stddev: 0.1  # Pa - nearly perfect
+
+  rangefinder:
+    update_rate: 20  # Hz
+    range:
+      min: 0.1
+      max: 40.0
+      resolution: 0.001
+    noise:
+      type: "gaussian"
+      mean: 0.0
+      stddev: 0.001  # 1mm - near perfect
+
+# Environmental conditions
+environment:
+  wind:
+    enabled: false
+    base_speed: 0.0
+    direction: 0
+    turbulence_intensity: 0.0
+
+# Sensor failure modes
+failures:
+  gps_dropout_probability: 0.0
+  magnetometer_interference_probability: 0.0
+  barometer_spike_probability: 0.0

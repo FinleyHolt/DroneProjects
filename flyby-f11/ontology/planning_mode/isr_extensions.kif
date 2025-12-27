@@ -1,0 +1,854 @@
+;;; =========================================================================
+;;; ISR Extensions for Flyby F-11 UAV Domain Ontology
+;;; =========================================================================
+;;;
+;;; This ontology EXTENDS uav_domain.kif with military ISR-specific concepts
+;;; for communications-denied, GPS-degraded reconnaissance missions.
+;;;
+;;; DO NOT DUPLICATE definitions from uav_domain.kif - reference only.
+;;;
+;;; Author: Finley Holt
+;;; Version: 1.0
+;;; Date: 2024-12-26
+;;; License: MIT
+;;;
+;;; Extends: uav_domain.kif (1,300 lines)
+;;; References: ONTOLOGY_FOUNDATION.qmd canonical problems
+;;;
+;;; =========================================================================
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 1: COMMUNICATIONS STATUS
+;;; -------------------------------------------------------------------------
+;;; Models communication link states critical for autonomous operations
+
+(subclass CommsStatus Attribute)
+(documentation CommsStatus EnglishLanguage
+  "An attribute representing the state of communication link between UAV
+  and ground station.")
+
+(instance CommsOperational CommsStatus)
+(documentation CommsOperational EnglishLanguage
+  "Communication link is fully operational with reliable two-way data.")
+
+(instance CommsDegraded CommsStatus)
+(documentation CommsDegraded EnglishLanguage
+  "Communication link is partially functioning with intermittent connectivity.
+  Link quality metric 10-30%.")
+
+(instance CommsDenied CommsStatus)
+(documentation CommsDenied EnglishLanguage
+  "Communication link is unavailable. UAV must operate autonomously.
+  Link quality metric 0-10%.")
+
+(instance hasCommsStatus BinaryPredicate)
+(domain hasCommsStatus 1 UAV)
+(domain hasCommsStatus 2 CommsStatus)
+(documentation hasCommsStatus EnglishLanguage
+  "(hasCommsStatus ?UAV ?STATUS) indicates the current communication link state.")
+
+(instance commsLinkQuality BinaryPredicate)
+(domain commsLinkQuality 1 UAV)
+(domain commsLinkQuality 2 RealNumber)
+(documentation commsLinkQuality EnglishLanguage
+  "(commsLinkQuality ?UAV ?QUALITY) indicates link quality 0-100.
+  <10 = Denied, 10-30 = Degraded, >30 = Operational")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 2: AUTONOMOUS OPERATION MODE
+;;; -------------------------------------------------------------------------
+;;; Defines autonomous authority levels for comms-denied scenarios
+
+(instance autonomousMissionMode BinaryPredicate)
+(domain autonomousMissionMode 1 UAV)
+(domain autonomousMissionMode 2 UAVMission)
+(documentation autonomousMissionMode EnglishLanguage
+  "(autonomousMissionMode ?UAV ?MISSION) indicates UAV is operating
+  autonomously without ground station oversight.")
+
+(instance autonomousOperationRequired UnaryPredicate)
+(domain autonomousOperationRequired 1 UAVMission)
+(documentation autonomousOperationRequired EnglishLanguage
+  "(autonomousOperationRequired ?MISSION) indicates mission requires
+  autonomous operation due to comms constraints.")
+
+;;; AXIOM: Comms-denied triggers autonomous mode
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?MISSION UAVMission)
+    (assignedUAV ?MISSION ?UAV)
+    (hasCommsStatus ?UAV CommsDenied)
+    (hasMissionStatus ?MISSION MissionActive))
+  (autonomousMissionMode ?UAV ?MISSION))
+
+;;; AXIOM: Autonomous mode requires mission to be autonomous
+(=>
+  (autonomousMissionMode ?UAV ?MISSION)
+  (autonomousOperationRequired ?MISSION))
+
+;;; -------------------------------------------------------------------------
+;;; COMMS-DENIED BATTERY RESERVE ENHANCEMENT
+;;; -------------------------------------------------------------------------
+;;; In communications-denied operations, the UAV cannot request assistance
+;;; or receive updated landing coordinates. This requires additional battery
+;;; margin to account for:
+;;; - Potential need to search for alternate landing sites
+;;; - Extended loiter time while assessing landing zone safety
+;;; - No real-time weather updates (must assume worst case)
+;;; - Navigation degradation without GNSS corrections
+;;;
+;;; The enhanced headroom adds 5% to the base batteryHeadroom value.
+;;; Example: If normal headroom is 10%, comms-denied headroom is 15%.
+
+;; Enhanced headroom specifically for comms-denied operations
+(instance commsDeniedHeadroomBoost BinaryPredicate)
+(domain commsDeniedHeadroomBoost 1 UAV)
+(domain commsDeniedHeadroomBoost 2 RealNumber)
+(documentation commsDeniedHeadroomBoost EnglishLanguage
+  "(commsDeniedHeadroomBoost ?UAV ?BOOST) specifies the additional battery
+  percentage headroom to add when operating in communications-denied mode.
+  This is added on top of the base batteryHeadroom value.
+  Default: 5.0 (adds 5% to base headroom in comms-denied operations).")
+
+;; Effective headroom predicate (base + boost when applicable)
+(instance effectiveBatteryHeadroom BinaryPredicate)
+(domain effectiveBatteryHeadroom 1 UAV)
+(domain effectiveBatteryHeadroom 2 RealNumber)
+(documentation effectiveBatteryHeadroom EnglishLanguage
+  "(effectiveBatteryHeadroom ?UAV ?HEADROOM) indicates the total headroom
+  in effect for battery reserve calculation. This equals:
+  - Base batteryHeadroom for normal operations
+  - Base batteryHeadroom + commsDeniedHeadroomBoost for comms-denied ops")
+
+;;; AXIOM: Normal operations use base headroom
+(=>
+  (and
+    (instance ?UAV UAV)
+    (batteryHeadroom ?UAV ?BASE)
+    (not (hasCommsStatus ?UAV CommsDenied)))
+  (effectiveBatteryHeadroom ?UAV ?BASE))
+
+;;; AXIOM: Comms-denied operations use enhanced headroom (base + boost)
+(=>
+  (and
+    (instance ?UAV UAV)
+    (batteryHeadroom ?UAV ?BASE)
+    (hasCommsStatus ?UAV CommsDenied)
+    (commsDeniedHeadroomBoost ?UAV ?BOOST)
+    (equal ?ENHANCED (AdditionFn ?BASE ?BOOST)))
+  (effectiveBatteryHeadroom ?UAV ?ENHANCED))
+
+;;; AXIOM: Calculate required battery with effective headroom
+;;; This overrides the base calculation in uav_domain.kif when
+;;; effectiveBatteryHeadroom is available (i.e., in ISR operations)
+(=>
+  (and
+    (instance ?UAV UAV)
+    (distanceToHome ?UAV ?DIST)
+    (batteryPerKm ?UAV ?RATE)
+    (effectiveBatteryHeadroom ?UAV ?HEADROOM)
+    (equal ?DISTANCE_COST (MultiplicationFn ?DIST ?RATE))
+    (equal ?REQUIRED (AdditionFn ?DISTANCE_COST ?HEADROOM)))
+  (requiredBatteryForReturn ?UAV ?REQUIRED))
+
+;;; AXIOM: Default comms-denied headroom boost for Flyby F-11
+;;; Adds 5% to base headroom (10% + 5% = 15% total headroom)
+;;; At typical mission range of 6km: (6 * 2.5) + 15 = 30% reserve
+;;; This matches the original 30% fixed reserve for comms-denied
+(=>
+  (instance ?UAV FlybyF11)
+  (commsDeniedHeadroomBoost ?UAV 5.0))
+
+;; Legacy fallback: Fixed 30% reserve for comms-denied when distance-based
+;; calculation is not available (deprecated but maintained for compatibility)
+(=>
+  (and
+    (instance ?MISSION UAVMission)
+    (autonomousOperationRequired ?MISSION)
+    (assignedUAV ?MISSION ?UAV)
+    (not (distanceToHome ?UAV ?DIST)))
+  (BatteryReserveForReturn ?UAV 30.0))
+
+;;; AXIOM: Comms restored cancels autonomous mode
+(=>
+  (and
+    (autonomousMissionMode ?UAV ?MISSION)
+    (hasCommsStatus ?UAV CommsOperational))
+  (not (autonomousMissionMode ?UAV ?MISSION)))
+
+;;; AXIOM: Autonomous mode with mission complete triggers RTL
+(=>
+  (and
+    (autonomousMissionMode ?UAV ?MISSION)
+    (hasMissionStatus ?MISSION MissionCompleted))
+  (mustReturnToLaunch ?UAV))
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 3: GNSS STATUS EXTENSIONS
+;;; -------------------------------------------------------------------------
+;;; Extends environment section with GPS-denied states
+
+(subclass GNSSStatus Attribute)
+(documentation GNSSStatus EnglishLanguage
+  "The availability status of Global Navigation Satellite System.")
+
+(instance GNSSOperational GNSSStatus)
+(documentation GNSSOperational EnglishLanguage
+  "GNSS is fully operational with HDOP < 2.0")
+
+(instance GNSSDegraded GNSSStatus)
+(documentation GNSSDegraded EnglishLanguage
+  "GNSS is partially available with HDOP 2.0-5.0")
+
+(instance GNSSDenied GNSSStatus)
+(documentation GNSSDenied EnglishLanguage
+  "GNSS is unavailable or unreliable with HDOP > 5.0")
+
+(instance hasGNSSStatus BinaryPredicate)
+(domain hasGNSSStatus 1 UAV)
+(domain hasGNSSStatus 2 GNSSStatus)
+(documentation hasGNSSStatus EnglishLanguage
+  "(hasGNSSStatus ?UAV ?STATUS) indicates GNSS availability status.")
+
+(instance hasValidVisualOdometry UnaryPredicate)
+(domain hasValidVisualOdometry 1 UAV)
+(documentation hasValidVisualOdometry EnglishLanguage
+  "(hasValidVisualOdometry ?UAV) indicates VIO is providing valid pose.")
+
+;;; AXIOM: GPS-denied requires valid visual odometry
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasGNSSStatus ?UAV GNSSDenied)
+    (not (hasValidVisualOdometry ?UAV)))
+  (mustLand ?UAV))
+
+;;; AXIOM: GPS-denied with valid VIO allows continued flight
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasGNSSStatus ?UAV GNSSDenied)
+    (hasValidVisualOdometry ?UAV))
+  (hasValidLocalization ?UAV))
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 4: THREAT CLASSIFICATION
+;;; -------------------------------------------------------------------------
+;;; Entity disposition and threat level classification
+
+(subclass EntityDisposition RelationalAttribute)
+(documentation EntityDisposition EnglishLanguage
+  "The assessed disposition of an entity (friendly/hostile/neutral/unknown).")
+
+(instance Hostile EntityDisposition)
+(documentation Hostile EnglishLanguage
+  "Entity assessed as adversarial/hostile.")
+
+(instance Friendly EntityDisposition)
+(documentation Friendly EnglishLanguage
+  "Entity assessed as friendly/allied.")
+
+(instance Neutral EntityDisposition)
+(documentation Neutral EnglishLanguage
+  "Entity assessed as neutral/non-aligned.")
+
+(instance Unknown EntityDisposition)
+(documentation Unknown EnglishLanguage
+  "Entity disposition unknown or unclassified.")
+
+(instance hasDisposition BinaryPredicate)
+(domain hasDisposition 1 Agent)
+(domain hasDisposition 2 EntityDisposition)
+(documentation hasDisposition EnglishLanguage
+  "(hasDisposition ?ENTITY ?DISPOSITION) indicates assessed disposition.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 5: THREAT ZONES
+;;; -------------------------------------------------------------------------
+;;; Geographic regions with associated threat levels
+
+(subclass ThreatZone Region)
+(documentation ThreatZone EnglishLanguage
+  "A geographic region with an associated threat level affecting operations.")
+
+(subclass ThreatLevelAttribute Attribute)
+(documentation ThreatLevelAttribute EnglishLanguage
+  "Classification of threat level in a zone.")
+
+(instance HighThreat ThreatLevelAttribute)
+(documentation HighThreat EnglishLanguage
+  "High threat level - entry prohibited, immediate danger.")
+
+(instance MediumThreat ThreatLevelAttribute)
+(documentation MediumThreat EnglishLanguage
+  "Medium threat level - elevated risk, minimize exposure time.")
+
+(instance LowThreat ThreatLevelAttribute)
+(documentation LowThreat EnglishLanguage
+  "Low threat level - standard precautions apply.")
+
+(instance threatLevel BinaryPredicate)
+(domain threatLevel 1 ThreatZone)
+(domain threatLevel 2 ThreatLevelAttribute)
+(documentation threatLevel EnglishLanguage
+  "(threatLevel ?ZONE ?LEVEL) indicates threat level of ?ZONE.")
+
+(instance threatRiskScore BinaryPredicate)
+(domain threatRiskScore 1 ThreatZone)
+(domain threatRiskScore 2 RealNumber)
+(documentation threatRiskScore EnglishLanguage
+  "(threatRiskScore ?ZONE ?SCORE) indicates numeric risk score 0-100.")
+
+(instance highThreatExposure UnaryPredicate)
+(domain highThreatExposure 1 UAV)
+(documentation highThreatExposure EnglishLanguage
+  "(highThreatExposure ?UAV) indicates UAV has entered high threat zone.")
+
+(instance threatProximityWarning BinaryPredicate)
+(domain threatProximityWarning 1 UAV)
+(domain threatProximityWarning 2 ThreatZone)
+(documentation threatProximityWarning EnglishLanguage
+  "(threatProximityWarning ?UAV ?ZONE) indicates UAV approaching threat zone.")
+
+(instance accumulatedThreatExposure BinaryPredicate)
+(domain accumulatedThreatExposure 1 UAV)
+(domain accumulatedThreatExposure 2 TimeDuration)
+(documentation accumulatedThreatExposure EnglishLanguage
+  "(accumulatedThreatExposure ?UAV ?TIME) cumulative time in threat zones.")
+
+(instance maxAcceptableThreatExposure BinaryPredicate)
+(domain maxAcceptableThreatExposure 1 UAVMission)
+(domain maxAcceptableThreatExposure 2 TimeDuration)
+(documentation maxAcceptableThreatExposure EnglishLanguage
+  "(maxAcceptableThreatExposure ?MISSION ?TIME) maximum allowed threat exposure.")
+
+;;; AXIOM: High threat zone entry is unsafe
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?ZONE ThreatZone)
+    (threatLevel ?ZONE HighThreat)
+    (isWithin ?UAV ?ZONE))
+  (and
+    (highThreatExposure ?UAV)
+    (not (safeState ?UAV))))
+
+;;; AXIOM: Approaching high threat triggers warning
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?ZONE ThreatZone)
+    (threatLevel ?ZONE HighThreat)
+    (distanceTo ?UAV ?ZONE ?DIST)
+    (lessThan ?DIST (MeasureFn 100 Meter)))
+  (threatProximityWarning ?UAV ?ZONE))
+
+;;; AXIOM: Threat exposure limit exceeded triggers mission abort
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?MISSION UAVMission)
+    (assignedUAV ?MISSION ?UAV)
+    (accumulatedThreatExposure ?UAV ?CURRENT)
+    (maxAcceptableThreatExposure ?MISSION ?MAX)
+    (greaterThan ?CURRENT ?MAX))
+  (mustAbortMission ?MISSION))
+
+(instance mustAbortMission UnaryPredicate)
+(domain mustAbortMission 1 UAVMission)
+(documentation mustAbortMission EnglishLanguage
+  "(mustAbortMission ?MISSION) indicates mission must be terminated.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 6: DYNAMIC NO-FLY ZONES
+;;; -------------------------------------------------------------------------
+;;; Extends NoFlyZone with dynamic activation/deactivation
+
+(subclass DynamicNoFlyZone NoFlyZone)
+(documentation DynamicNoFlyZone EnglishLanguage
+  "A no-fly zone that can be activated/deactivated during mission execution.
+  Examples: aircraft corridors, temporary restricted areas.")
+
+(subclass AircraftCorridor DynamicNoFlyZone)
+(documentation AircraftCorridor EnglishLanguage
+  "A temporary NFZ created for manned aircraft operations.")
+
+(instance nfzActive UnaryPredicate)
+(domain nfzActive 1 DynamicNoFlyZone)
+(documentation nfzActive EnglishLanguage
+  "(nfzActive ?NFZ) indicates the dynamic NFZ is currently active.")
+
+(instance nfzBufferDistance BinaryPredicate)
+(domain nfzBufferDistance 1 NoFlyZone)
+(domain nfzBufferDistance 2 LengthMeasure)
+(documentation nfzBufferDistance EnglishLanguage
+  "(nfzBufferDistance ?NFZ ?DIST) specifies buffer distance for warnings.")
+
+(instance nfzPriority BinaryPredicate)
+(domain nfzPriority 1 NoFlyZone)
+(domain nfzPriority 2 PositiveInteger)
+(documentation nfzPriority EnglishLanguage
+  "(nfzPriority ?NFZ ?PRIORITY) where 1 is highest priority.")
+
+(instance nfzProximityWarning BinaryPredicate)
+(domain nfzProximityWarning 1 UAV)
+(domain nfzProximityWarning 2 NoFlyZone)
+(documentation nfzProximityWarning EnglishLanguage
+  "(nfzProximityWarning ?UAV ?NFZ) indicates UAV approaching NFZ buffer.")
+
+;;; Aircraft corridors have highest priority
+(=>
+  (instance ?NFZ AircraftCorridor)
+  (nfzPriority ?NFZ 1))
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 7: PATH AND ROUTE PLANNING
+;;; -------------------------------------------------------------------------
+;;; Path validity and intersection predicates
+
+(instance hasCurrentPath BinaryPredicate)
+(domain hasCurrentPath 1 UAV)
+(domain hasCurrentPath 2 FollowPath)
+(documentation hasCurrentPath EnglishLanguage
+  "(hasCurrentPath ?UAV ?PATH) indicates UAV's current planned path.")
+
+(instance proposedPath BinaryPredicate)
+(domain proposedPath 1 UAV)
+(domain proposedPath 2 FollowPath)
+(documentation proposedPath EnglishLanguage
+  "(proposedPath ?UAV ?PATH) indicates a candidate replacement path.")
+
+(instance pathIntersectsNFZ BinaryPredicate)
+(domain pathIntersectsNFZ 1 FollowPath)
+(domain pathIntersectsNFZ 2 NoFlyZone)
+(documentation pathIntersectsNFZ EnglishLanguage
+  "(pathIntersectsNFZ ?PATH ?NFZ) indicates path crosses no-fly zone.")
+
+(instance pathCrossesHighThreat BinaryPredicate)
+(domain pathCrossesHighThreat 1 FollowPath)
+(domain pathCrossesHighThreat 2 ThreatZone)
+(documentation pathCrossesHighThreat EnglishLanguage
+  "(pathCrossesHighThreat ?PATH ?ZONE) indicates path crosses high threat zone.")
+
+(instance pathInvalidated UnaryPredicate)
+(domain pathInvalidated 1 FollowPath)
+(documentation pathInvalidated EnglishLanguage
+  "(pathInvalidated ?PATH) indicates path is no longer valid for execution.")
+
+(instance pathProhibited UnaryPredicate)
+(domain pathProhibited 1 FollowPath)
+(documentation pathProhibited EnglishLanguage
+  "(pathProhibited ?PATH) indicates path is prohibited due to safety.")
+
+(instance validPath UnaryPredicate)
+(domain validPath 1 FollowPath)
+(documentation validPath EnglishLanguage
+  "(validPath ?PATH) indicates path is safe for execution.")
+
+(instance requiresRouteReplan UnaryPredicate)
+(domain requiresRouteReplan 1 UAVMission)
+(documentation requiresRouteReplan EnglishLanguage
+  "(requiresRouteReplan ?MISSION) indicates mission needs route replanning.")
+
+(instance mustReplanPath UnaryPredicate)
+(domain mustReplanPath 1 UAV)
+(documentation mustReplanPath EnglishLanguage
+  "(mustReplanPath ?UAV) indicates UAV must replan its current path.")
+
+;;; AXIOM: Dynamic NFZ activation invalidates intersecting paths
+(=>
+  (and
+    (instance ?NFZ DynamicNoFlyZone)
+    (nfzActive ?NFZ)
+    (instance ?PATH FollowPath)
+    (pathIntersectsNFZ ?PATH ?NFZ))
+  (pathInvalidated ?PATH))
+
+;;; AXIOM: Path intersection triggers mission replan
+(=>
+  (and
+    (instance ?MISSION WaypointMission)
+    (assignedUAV ?MISSION ?UAV)
+    (hasCurrentPath ?UAV ?PATH)
+    (instance ?NFZ DynamicNoFlyZone)
+    (nfzActive ?NFZ)
+    (pathIntersectsNFZ ?PATH ?NFZ))
+  (requiresRouteReplan ?MISSION))
+
+;;; AXIOM: Invalid path requires replan before continuation
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasCurrentPath ?UAV ?PATH)
+    (pathInvalidated ?PATH)
+    (hasFlightPhase ?UAV Transit))
+  (mustReplanPath ?UAV))
+
+;;; AXIOM: Approaching NFZ boundary triggers warning
+(=>
+  (and
+    (instance ?UAV UAV)
+    (instance ?NFZ NoFlyZone)
+    (nfzActive ?NFZ)
+    (distanceTo ?UAV ?NFZ ?DIST)
+    (nfzBufferDistance ?NFZ ?BUFFER)
+    (lessThanOrEqualTo ?DIST ?BUFFER))
+  (nfzProximityWarning ?UAV ?NFZ))
+
+;;; AXIOM: Replan must avoid active NFZs
+(=>
+  (and
+    (instance ?UAV UAV)
+    (mustReplanPath ?UAV)
+    (instance ?NFZ DynamicNoFlyZone)
+    (nfzActive ?NFZ)
+    (proposedPath ?UAV ?NEWPATH)
+    (pathIntersectsNFZ ?NEWPATH ?NFZ))
+  (not (validPath ?NEWPATH)))
+
+;;; AXIOM: Path crossing high threat is prohibited
+(=>
+  (and
+    (instance ?PATH FollowPath)
+    (instance ?ZONE ThreatZone)
+    (threatLevel ?ZONE HighThreat)
+    (pathCrossesHighThreat ?PATH ?ZONE))
+  (pathProhibited ?PATH))
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 8: TARGETS OF INTEREST
+;;; -------------------------------------------------------------------------
+;;; ISR target management with priorities
+
+(subclass TargetOfInterest Object)
+(documentation TargetOfInterest EnglishLanguage
+  "A designated point or object requiring ISR observation and collection.")
+
+(instance targetPriority BinaryPredicate)
+(domain targetPriority 1 TargetOfInterest)
+(domain targetPriority 2 PositiveInteger)
+(documentation targetPriority EnglishLanguage
+  "(targetPriority ?TARGET ?LEVEL) where 1=Critical, 2=High, 3=Medium, 4=Low")
+
+(instance targetValue BinaryPredicate)
+(domain targetValue 1 TargetOfInterest)
+(domain targetValue 2 RealNumber)
+(documentation targetValue EnglishLanguage
+  "(targetValue ?TARGET ?VALUE) intelligence value score for collection.")
+
+(instance targetObserved UnaryPredicate)
+(domain targetObserved 1 TargetOfInterest)
+(documentation targetObserved EnglishLanguage
+  "(targetObserved ?TARGET) indicates ISR collection completed on target.")
+
+(instance targetReachable BinaryPredicate)
+(domain targetReachable 1 TargetOfInterest)
+(domain targetReachable 2 UAV)
+(documentation targetReachable EnglishLanguage
+  "(targetReachable ?TARGET ?UAV) indicates target can be reached safely.")
+
+(instance targetBatteryCost BinaryPredicate)
+(domain targetBatteryCost 1 TargetOfInterest)
+(domain targetBatteryCost 2 RealNumber)
+(documentation targetBatteryCost EnglishLanguage
+  "(targetBatteryCost ?TARGET ?PERCENT) battery cost to observe target and return.")
+
+(instance targetInHighThreat UnaryPredicate)
+(domain targetInHighThreat 1 TargetOfInterest)
+(documentation targetInHighThreat EnglishLanguage
+  "(targetInHighThreat ?TARGET) indicates target is in high threat zone.")
+
+(instance shouldPrioritize BinaryPredicate)
+(domain shouldPrioritize 1 UAV)
+(domain shouldPrioritize 2 TargetOfInterest)
+(documentation shouldPrioritize EnglishLanguage
+  "(shouldPrioritize ?UAV ?TARGET) indicates target should be prioritized.")
+
+(instance criticalTargetPending BinaryPredicate)
+(domain criticalTargetPending 1 UAVMission)
+(domain criticalTargetPending 2 TargetOfInterest)
+(documentation criticalTargetPending EnglishLanguage
+  "(criticalTargetPending ?MISSION ?TARGET) indicates unobserved critical target.")
+
+(instance batteryBudgetRemaining BinaryPredicate)
+(domain batteryBudgetRemaining 1 UAV)
+(domain batteryBudgetRemaining 2 RealNumber)
+(documentation batteryBudgetRemaining EnglishLanguage
+  "(batteryBudgetRemaining ?UAV ?PERCENT) available battery for mission ops.")
+
+;;; AXIOM: Critical targets must be prioritized when reachable
+(=>
+  (and
+    (instance ?TARGET TargetOfInterest)
+    (targetPriority ?TARGET 1)
+    (targetReachable ?TARGET ?UAV)
+    (not (targetObserved ?TARGET)))
+  (shouldPrioritize ?UAV ?TARGET))
+
+;;; AXIOM: Critical targets pending for mission
+(=>
+  (and
+    (instance ?TARGET TargetOfInterest)
+    (targetPriority ?TARGET 1)
+    (instance ?MISSION ReconnaissanceMission)
+    (assignedUAV ?MISSION ?UAV)
+    (targetReachable ?TARGET ?UAV)
+    (not (targetObserved ?TARGET)))
+  (criticalTargetPending ?MISSION ?TARGET))
+
+;;; AXIOM: Target reachability depends on battery budget
+(=>
+  (and
+    (instance ?TARGET TargetOfInterest)
+    (instance ?UAV UAV)
+    (batteryBudgetRemaining ?UAV ?BUDGET)
+    (targetBatteryCost ?TARGET ?COST)
+    (lessThanOrEqualTo ?COST ?BUDGET)
+    (not (targetInHighThreat ?TARGET)))
+  (targetReachable ?TARGET ?UAV))
+
+;;; AXIOM: High-threat targets are unreachable
+(=>
+  (and
+    (instance ?TARGET TargetOfInterest)
+    (targetInHighThreat ?TARGET)
+    (instance ?UAV UAV))
+  (not (targetReachable ?TARGET ?UAV)))
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 9: ISR MISSION TYPES
+;;; -------------------------------------------------------------------------
+;;; Extends UAVMission from uav_domain.kif
+
+(subclass SurveillanceMission UAVMission)
+(documentation SurveillanceMission EnglishLanguage
+  "Continuous observation of area or target over extended period.
+  Requires persistent sensor coverage and data collection.")
+
+(subclass TargetAcquisitionMission UAVMission)
+(documentation TargetAcquisitionMission EnglishLanguage
+  "Locate and positively identify specific targets of interest.
+  Requires high-resolution imagery or thermal signatures.")
+
+(subclass BattleDamageAssessmentMission UAVMission)
+(documentation BattleDamageAssessmentMission EnglishLanguage
+  "Post-strike assessment of target status and damage extent.
+  Requires before/after imagery comparison capability.")
+
+(subclass TargetTrackingMission UAVMission)
+(documentation TargetTrackingMission EnglishLanguage
+  "Continuous tracking of mobile target maintaining visual contact.
+  Requires gimbal tracking and predictive algorithms.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 10: OPERATIONAL AREAS
+;;; -------------------------------------------------------------------------
+;;; ISR-specific geographic regions
+
+(subclass AreaOfInterest GeographicArea)
+(documentation AreaOfInterest EnglishLanguage
+  "A designated area requiring ISR collection activities.")
+
+(subclass AreaOfResponsibility GeographicArea)
+(documentation AreaOfResponsibility EnglishLanguage
+  "An assigned operational zone under unit control and tasking authority.")
+
+(subclass TacticalArea Region)
+(documentation TacticalArea EnglishLanguage
+  "A region with tactical significance for mission planning.")
+
+(subclass ObservationPost Region)
+(documentation ObservationPost EnglishLanguage
+  "A designated position for loiter and observation activities.")
+
+(subclass CoverageZone Region)
+(documentation CoverageZone EnglishLanguage
+  "A region to be covered by sensor footprint during surveillance.")
+
+(instance aoiPriority BinaryPredicate)
+(domain aoiPriority 1 AreaOfInterest)
+(domain aoiPriority 2 PositiveInteger)
+(documentation aoiPriority EnglishLanguage
+  "(aoiPriority ?AOI ?PRIORITY) collection priority for area.")
+
+(instance aoiSurveillanceFrequency BinaryPredicate)
+(domain aoiSurveillanceFrequency 1 AreaOfInterest)
+(domain aoiSurveillanceFrequency 2 TimeDuration)
+(documentation aoiSurveillanceFrequency EnglishLanguage
+  "(aoiSurveillanceFrequency ?AOI ?INTERVAL) required revisit interval.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 11: MISSION OBJECTIVES
+;;; -------------------------------------------------------------------------
+;;; Mission intent and objective management
+
+(subclass MissionObjective Proposition)
+(documentation MissionObjective EnglishLanguage
+  "A specific objective to be achieved during mission execution.")
+
+(subclass IntelligenceObjective MissionObjective)
+(subclass SurveillanceObjective MissionObjective)
+(subclass ReconnaissanceObjective MissionObjective)
+(subclass TargetAcquisitionObjective MissionObjective)
+
+(instance hasMissionObjective BinaryPredicate)
+(domain hasMissionObjective 1 UAVMission)
+(domain hasMissionObjective 2 MissionObjective)
+(documentation hasMissionObjective EnglishLanguage
+  "(hasMissionObjective ?MISSION ?OBJECTIVE) specifies mission objective.")
+
+(instance objectivePriority BinaryPredicate)
+(domain objectivePriority 1 MissionObjective)
+(domain objectivePriority 2 PositiveInteger)
+(documentation objectivePriority EnglishLanguage
+  "(objectivePriority ?OBJ ?PRIORITY) priority level of objective.")
+
+(instance objectiveStatus BinaryPredicate)
+(domain objectiveStatus 1 MissionObjective)
+(domain objectiveStatus 2 MissionStatus)
+(documentation objectiveStatus EnglishLanguage
+  "(objectiveStatus ?OBJ ?STATUS) completion status of objective.")
+
+(instance missionObjectiveAchieved UnaryPredicate)
+(domain missionObjectiveAchieved 1 UAVMission)
+(documentation missionObjectiveAchieved EnglishLanguage
+  "(missionObjectiveAchieved ?MISSION) all required objectives complete.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 12: RULES OF ENGAGEMENT
+;;; -------------------------------------------------------------------------
+;;; Constraints governing UAV behavior in operational context
+
+(subclass RulesOfEngagement Proposition)
+(documentation RulesOfEngagement EnglishLanguage
+  "Constraints and permissions governing UAV actions in operational context.")
+
+(instance governedBy BinaryPredicate)
+(domain governedBy 1 UAVMission)
+(domain governedBy 2 RulesOfEngagement)
+(documentation governedBy EnglishLanguage
+  "(governedBy ?MISSION ?ROE) indicates mission is governed by rules.")
+
+(instance permitsAction BinaryPredicate)
+(domain permitsAction 1 RulesOfEngagement)
+(domain permitsAction 2 UAVAction)
+(documentation permitsAction EnglishLanguage
+  "(permitsAction ?ROE ?ACTION) indicates action is permitted.")
+
+(instance prohibitsAction BinaryPredicate)
+(domain prohibitsAction 1 RulesOfEngagement)
+(domain prohibitsAction 2 UAVAction)
+(documentation prohibitsAction EnglishLanguage
+  "(prohibitsAction ?ROE ?ACTION) indicates action is prohibited.")
+
+;;; AXIOM: ROE prohibits actions in high threat zones
+(=>
+  (and
+    (instance ?MISSION UAVMission)
+    (governedBy ?MISSION ?ROE)
+    (instance ?ZONE ThreatZone)
+    (threatLevel ?ZONE HighThreat)
+    (instance ?ACTION MoveToPosition)
+    (actionDestinationIn ?ACTION ?ZONE))
+  (prohibitsAction ?ROE ?ACTION))
+
+(instance actionDestinationIn BinaryPredicate)
+(domain actionDestinationIn 1 UAVAction)
+(domain actionDestinationIn 2 Region)
+(documentation actionDestinationIn EnglishLanguage
+  "(actionDestinationIn ?ACTION ?REGION) indicates action destination is in region.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 13: MISSION PRIORITY LEVELS
+;;; -------------------------------------------------------------------------
+;;; For multi-objective optimization
+
+(subclass MissionPriorityLevel Attribute)
+(documentation MissionPriorityLevel EnglishLanguage
+  "Priority classification for mission or objective ranking.")
+
+(instance CriticalPriority MissionPriorityLevel)
+(documentation CriticalPriority EnglishLanguage
+  "Highest priority - must complete if at all possible.")
+
+(instance HighPriority MissionPriorityLevel)
+(documentation HighPriority EnglishLanguage
+  "High priority - complete unless safety constraints prevent.")
+
+(instance MediumPriority MissionPriorityLevel)
+(documentation MediumPriority EnglishLanguage
+  "Medium priority - complete if resources permit.")
+
+(instance LowPriority MissionPriorityLevel)
+(documentation LowPriority EnglishLanguage
+  "Low priority - opportunistic collection only.")
+
+(instance hasMissionPriority BinaryPredicate)
+(domain hasMissionPriority 1 UAVMission)
+(domain hasMissionPriority 2 MissionPriorityLevel)
+(documentation hasMissionPriority EnglishLanguage
+  "(hasMissionPriority ?MISSION ?LEVEL) indicates mission priority.")
+
+
+;;; -------------------------------------------------------------------------
+;;; SECTION 14: AUTONOMOUS AUTHORITY LEVELS
+;;; -------------------------------------------------------------------------
+;;; Defines what actions UAV can take autonomously
+
+(subclass AutonomousAuthorityLevel Attribute)
+(documentation AutonomousAuthorityLevel EnglishLanguage
+  "Level of autonomous decision-making authority granted to UAV.")
+
+(instance FullAutonomy AutonomousAuthorityLevel)
+(documentation FullAutonomy EnglishLanguage
+  "UAV has full authority to replan, avoid threats, and complete mission.")
+
+(instance LimitedAutonomy AutonomousAuthorityLevel)
+(documentation LimitedAutonomy EnglishLanguage
+  "UAV can only make safety-critical decisions autonomously.")
+
+(instance MinimalAutonomy AutonomousAuthorityLevel)
+(documentation MinimalAutonomy EnglishLanguage
+  "UAV follows preset plan with minimal deviation authority.")
+
+(instance hasAutonomousAuthority BinaryPredicate)
+(domain hasAutonomousAuthority 1 UAV)
+(domain hasAutonomousAuthority 2 AutonomousAuthorityLevel)
+(documentation hasAutonomousAuthority EnglishLanguage
+  "(hasAutonomousAuthority ?UAV ?LEVEL) indicates autonomy level.")
+
+(instance canAutonomouslyReplan UnaryPredicate)
+(domain canAutonomouslyReplan 1 UAV)
+(documentation canAutonomouslyReplan EnglishLanguage
+  "(canAutonomouslyReplan ?UAV) indicates UAV can replan route autonomously.")
+
+;;; AXIOM: Comms-denied grants full autonomy
+(=>
+  (and
+    (instance ?UAV UAV)
+    (hasCommsStatus ?UAV CommsDenied))
+  (hasAutonomousAuthority ?UAV FullAutonomy))
+
+;;; AXIOM: Full autonomy enables autonomous replanning
+(=>
+  (hasAutonomousAuthority ?UAV FullAutonomy)
+  (canAutonomouslyReplan ?UAV))
+
+
+;;; =========================================================================
+;;; END OF ISR EXTENSIONS
+;;; =========================================================================

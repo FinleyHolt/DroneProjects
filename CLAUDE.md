@@ -9,17 +9,17 @@ Personal drone autonomy development portfolio showcasing edge AI, computer visio
 **Developer**: Finley Holt
 **Focus**: Edge-based autonomous navigation, visual SLAM, behavior trees, and embedded AI for small unmanned aerial systems (sUAS)
 
-**Technical Foundation**: ROS 2 for autonomy software, MAVSDK for flight control, PX4 autopilot, and Gazebo simulation. All processing runs locally on embedded NVIDIA Jetson compute modules.
+**Technical Foundation**: ROS 2 for autonomy software, MAVLink/MAVROS for flight control, ArduPilot autopilot firmware, and Gazebo simulation. All processing runs locally on embedded NVIDIA Jetson compute modules.
 
 ## Key Architectural Decisions
 
 - **Edge-First Autonomy**: All processing runs locally on embedded compute; no cloud dependency required
-- **Modular Stack**: ROS 2 for inter-component communication, MAVSDK for MAVLink/flight control, PX4 for autopilot firmware
+- **Modular Stack**: ROS 2 for inter-component communication, MAVROS for MAVLink/flight control, ArduPilot for autopilot firmware
 - **Podman-First Development**: All platforms use Podman (rootless containers) for self-contained, portable development and deployment
   - GPU passthrough support for vision models and simulation
   - All dependencies documented and versioned in container specifications
   - No host-level dependency conflicts; completely reproducible environments
-- **External Dependencies**: PX4-Autopilot and Gazebo binaries managed via setup scripts (not committed to reduce repo size)
+- **External Dependencies**: ArduPilot and Gazebo binaries managed via setup scripts (not committed to reduce repo size)
 - **Configuration Management**: Custom configs (params, mixers, launch files) versioned per drone variant
 - **Workspace Separation**: Each platform has its own ROS 2 workspace; shared packages linked as needed
 - **Asset Management**: Large Gazebo worlds/models managed with Git LFS
@@ -27,12 +27,12 @@ Personal drone autonomy development portfolio showcasing edge AI, computer visio
 
 ## Development Environment
 
-**Primary Platform**: Ubuntu LTS with ROS 2 Humble, PX4 SITL, and Gazebo
+**Primary Platform**: Ubuntu LTS with ROS 2 Humble, ArduPilot SITL, and Gazebo
 **Target Deployment**: NVIDIA Jetson Orin Nano Super 8GB (project-drone), NVIDIA Jetson Orin NX (flyby-f11)
 
 Development assumes:
 - NVIDIA/graphics drivers for GPU acceleration (simulation and vision models)
-- Network access during setup for fetching PX4, ROS dependencies
+- Network access during setup for fetching ArduPilot, ROS dependencies
 - Podman for rootless containerized workflows with GPU passthrough
 - All language runtimes and tools managed inside containers (no host dependencies)
 
@@ -120,10 +120,10 @@ DroneProjects/
 │   │       ├── autonomy_core/             # Core autonomy logic (shareable)
 │   │       ├── behavior_trees/            # BehaviorTree.CPP logic (shareable)
 │   │       ├── perception_pipeline/       # Vision models (shareable)
-│   │       └── px4_interface/             # MAVSDK bridge (shareable)
+│   │       └── ardupilot_interface/        # MAVROS bridge (shareable)
 │   ├── docker/             # Container configurations
 │   ├── simulation/         # Gazebo worlds/models
-│   ├── config/             # PX4 params, sensor calibration
+│   ├── config/             # ArduPilot params, sensor calibration
 │   └── README.md
 │
 ├── flyby-f11/              # Flyby F-11 production platform
@@ -135,7 +135,7 @@ DroneProjects/
 │   │       ├── autonomy_core/             # Symlink to project-drone
 │   │       ├── behavior_trees/            # Symlink to project-drone
 │   │       ├── perception_pipeline/       # Symlink or optimized
-│   │       └── px4_interface/             # Symlink to project-drone
+│   │       └── ardupilot_interface/        # Symlink to project-drone
 │   ├── docker/             # Deployment containers
 │   ├── simulation/         # Flyby scenario worlds
 │   ├── config/             # Mission-specific configs
@@ -160,7 +160,7 @@ DroneProjects/
    - Core autonomy packages developed in `project-drone/ros2_ws/src/`
    - Can be shared to `flyby-f11/` via symlinks when ready
    - Packages prefixed with platform name (e.g., `project_drone_*`) are NOT shared
-   - Generic packages (e.g., `autonomy_core`, `px4_interface`) ARE shareable
+   - Generic packages (e.g., `autonomy_core`, `ardupilot_interface`) ARE shareable
 
 3. **Development Workflow**:
    - Active development happens in `project-drone/` (accessible hardware)
@@ -170,7 +170,7 @@ DroneProjects/
 
 ## Code Style and Conventions
 
-- **PX4 C/C++**: Use `clang-format` per PX4 upstream conventions
+- **ArduPilot C/C++**: Use `clang-format` per ArduPilot upstream conventions
 - **ROS 2 C++**: Use `ament_uncrustify` with 4-space indentation
 - **Python**: Use `ruff format` with snake_case for modules, 4-space indentation
 - **ROS 2 Messages**: UpperCamelCase for message types
@@ -222,7 +222,7 @@ Packages in `project-drone/ros2_ws/src/` are organized by shareability:
 - `autonomy_core/`: Core mission planning, waypoint navigation, state machines
 - `behavior_trees/`: BehaviorTree.CPP mission logic, BT node definitions
 - `perception_pipeline/`: Vision models (object detection, segmentation), inference nodes
-- `px4_interface/`: MAVSDK/MAVLink bridge, flight command abstraction
+- `ardupilot_interface/`: MAVROS/MAVLink bridge, flight command abstraction
 
 **Supporting Packages**:
 - `agents_interface/`: Custom message/service definitions (standard across platforms)
@@ -239,19 +239,19 @@ Packages in `flyby-f11/ros2_ws/src/`:
 **Symlinked from project-drone** (when ready):
 - `autonomy_core/` → `../../../project-drone/ros2_ws/src/autonomy_core`
 - `behavior_trees/` → `../../../project-drone/ros2_ws/src/behavior_trees`
-- `px4_interface/` → `../../../project-drone/ros2_ws/src/px4_interface`
+- `ardupilot_interface/` → `../../../project-drone/ros2_ws/src/ardupilot_interface`
 - `perception_pipeline/` → May be symlinked or copied/optimized for Jetson Orin NX
 
 ### Package Naming Convention
 
 - Packages prefixed with platform name (e.g., `project_drone_*`, `flyby_f11_*`) are platform-specific
-- Generic names (e.g., `autonomy_core`, `px4_interface`) indicate shared components
+- Generic names (e.g., `autonomy_core`, `ardupilot_interface`) indicate shared components
 - Design shared packages to be hardware-agnostic (depend only on standard ROS 2 message types)
 
-## PX4 Configuration Management
+## ArduPilot Configuration Management
 
-Each platform project contains its own PX4 configuration in `<platform>/config/`:
-- `px4_params.params`: QGroundControl-exported parameter file
+Each platform project contains its own ArduPilot configuration in `<platform>/config/`:
+- `ardupilot_params.param`: Mission Planner/QGroundControl-exported parameter file
 - `sensor_calibration.yaml`: Sensor-specific calibration data
 - `README.md`: Platform-specific tuning notes and rationale
 
@@ -260,13 +260,13 @@ Load custom parameters when launching SITL by referencing these files in launch 
 ## Environment Variables
 
 Key variables set by Docker or local environment:
-- `PX4_HOME_*`: PX4 home coordinates for SITL
+- `ARDUPILOT_HOME`: ArduPilot home coordinates for SITL
 - `GAZEBO_MODEL_PATH`: Includes `simulation/models/` for custom assets
 - `ROS_DOMAIN_ID`: Isolates ROS 2 DDS traffic
 
 ## Testing Strategy
 
-- **SITL Smoke Tests**: Run headless via PX4's test framework
+- **SITL Smoke Tests**: Run headless via ArduPilot's SITL framework
 - **ROS 2 Unit Tests**: Place `test_*.py` or `test_*.cpp` in package `test/` directories
 - **Integration Tests**: Validate full stack behavior in simulation
 - **Hardware-in-the-Loop**: Target minimum one HIL session per major feature
@@ -282,7 +282,7 @@ Key variables set by Docker or local environment:
 
 - **Podman Volumes**: Containers maintain persistent volumes; use `podman-compose down -v` to reset
 - **GPU Passthrough**: If GPU not accessible, verify `nvidia-ctk cdi generate` was run and `/etc/cdi/nvidia.yaml` exists
-- **PX4 Build**: First build can take 10+ minutes; subsequent builds are incremental
+- **ArduPilot Build**: First build can take 10+ minutes; subsequent builds are incremental
 - **ROS 2 Overlay**: Remember to source `ros2_ws/install/setup.bash` inside container
 - **Gazebo Models**: Custom models must be in `GAZEBO_MODEL_PATH`; verify with `echo $GAZEBO_MODEL_PATH` inside container
 - **DDS Domain**: If nodes can't discover each other, check `ROS_DOMAIN_ID` is consistent
@@ -372,7 +372,7 @@ journalctl --user -u flyby-f11-ros2.service -f
 - `Containerfile` (Podman equivalent of Dockerfile): Defines environment
 - `podman-compose.yml`: Development orchestration with GPU passthrough
 - `quadlet/*.container`: Production systemd service definitions
-- All ROS 2, PX4, Gazebo dependencies specified in containers
+- All ROS 2, ArduPilot, Gazebo dependencies specified in containers
 - Host only needs Podman + NVIDIA drivers
 
 ## Platform-Specific Notes

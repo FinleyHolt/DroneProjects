@@ -51,7 +51,7 @@ Trained policies are executed through BehaviorTree.CPP nodes:
 ## Training Pipeline
 
 ### Development Environment
-- **Simulation**: PX4 SITL with Gazebo (custom UAV models)
+- **Simulation**: ArduPilot SITL with Gazebo (custom UAV models)
 - **Training Cluster**: NPS HPC resources for parallel environment sampling
 - **Deployment Target**: NVIDIA Jetson Orin NX 16GB (50 TOPS)
 
@@ -128,7 +128,7 @@ Follow `BEHAVIOR_TREE_INTEGRATION.md` to:
 ### Deployment (Flyby F-11)
 - NVIDIA Jetson Orin NX 16GB (50 TOPS)
 - ROS 2 Humble
-- PX4 autopilot with MAVSDK interface
+- ArduPilot with MAVROS interface
 
 ## Key References
 
@@ -163,7 +163,7 @@ Follow `BEHAVIOR_TREE_INTEGRATION.md` to:
 - BehaviorTree.CPP provides fail-safe fallback behaviors
 - Learned policies operate within ontology-constrained action spaces
 - Manual override always available via RC transmitter
-- Geofencing enforced at flight controller level (PX4)
+- Geofencing enforced at flight controller level (ArduPilot)
 
 ## Contributing
 

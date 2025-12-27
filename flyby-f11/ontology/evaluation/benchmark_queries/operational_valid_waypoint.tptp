@@ -1,0 +1,85 @@
+%------------------------------------------------------------------------------
+% Benchmark Query: Valid Waypoint Check
+% Category: Operational
+% Target Latency: <100ms
+%------------------------------------------------------------------------------
+%
+% Checks if a waypoint is valid for navigation (reachable and not in NFZ).
+% Returns THEOREM if waypoint is valid and reachable.
+% Returns COUNTER_SATISFIABLE if waypoint is invalid.
+%
+% Parameters:
+%   {{UAV_ID}} - The UAV instance
+%   {{WAYPOINT_ID}} - The waypoint to validate
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% Core Type Axioms
+% ============================================================================
+
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+fof(waypoint_is_location, axiom,
+    ![X]: (waypoint(X) => location(X))).
+
+% ============================================================================
+% Waypoint Validity Axioms
+% ============================================================================
+
+% AXIOM: Waypoint is valid if reachable, not in NFZ, and within geofence
+fof(valid_waypoint_conditions, axiom,
+    ![UAV, WP]:
+      ((uav(UAV) &
+        waypoint(WP) &
+        waypoint_reachable(WP, UAV) &
+        ~waypoint_in_nfz(WP) &
+        waypoint_in_geofence(WP, UAV))
+       => valid_waypoint(WP, UAV))).
+
+% AXIOM: Waypoint is reachable if within range and sufficient battery
+fof(waypoint_reachable_conditions, axiom,
+    ![UAV, WP]:
+      ((uav(UAV) &
+        waypoint(WP) &
+        within_range(WP, UAV) &
+        has_battery_for_waypoint(UAV, WP))
+       => waypoint_reachable(WP, UAV))).
+
+% AXIOM: Waypoint in NFZ is never valid
+fof(nfz_waypoint_invalid, axiom,
+    ![WP, UAV]:
+      (waypoint_in_nfz(WP) => ~valid_waypoint(WP, UAV))).
+
+% ============================================================================
+% Test Instance
+% ============================================================================
+
+fof(test_uav_type, axiom, flyby_f11({{UAV_ID}})).
+fof(test_waypoint_type, axiom, waypoint({{WAYPOINT_ID}})).
+
+% Waypoint properties - valid scenario
+fof(wp_in_range, axiom, within_range({{WAYPOINT_ID}}, {{UAV_ID}})).
+fof(wp_battery_ok, axiom, has_battery_for_waypoint({{UAV_ID}}, {{WAYPOINT_ID}})).
+fof(wp_not_in_nfz, axiom, ~waypoint_in_nfz({{WAYPOINT_ID}})).
+fof(wp_in_geofence, axiom, waypoint_in_geofence({{WAYPOINT_ID}}, {{UAV_ID}})).
+
+% Invalid scenario (uncomment to test):
+% fof(wp_in_nfz, axiom, waypoint_in_nfz({{WAYPOINT_ID}})).
+
+% ============================================================================
+% Conjecture: Waypoint is valid
+% ============================================================================
+
+fof(check_valid_waypoint, conjecture,
+    valid_waypoint({{WAYPOINT_ID}}, {{UAV_ID}})).
+
+%------------------------------------------------------------------------------
+% Expected Results:
+%   - If waypoint meets all conditions: THEOREM (valid)
+%   - If waypoint in NFZ or unreachable: COUNTER_SATISFIABLE (invalid)
+%------------------------------------------------------------------------------

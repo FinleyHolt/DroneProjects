@@ -1,0 +1,108 @@
+# High-Fidelity Sensor Profile
+# For validation testing with realistic sensor noise
+#
+# Author: Finley Holt
+# Date: 2025-12-27
+#
+# Usage:
+#   This profile simulates consumer-grade sensors with realistic noise
+#   characteristics based on typical MEMS IMU, GPS receiver, and magnetometer
+#   specifications.
+#
+# Reference values from:
+#   - ICM-42688-P IMU datasheet
+#   - u-blox NEO-M8N GPS datasheet
+#   - HMC5883L magnetometer datasheet
+#   - BMP280 barometer datasheet
+
+profile:
+  name: "high_fidelity"
+  description: "Realistic sensor noise for validation testing"
+
+sensors:
+  imu:
+    update_rate: 250  # Hz
+    angular_velocity:
+      noise:
+        type: "gaussian"
+        mean: 0.0
+        stddev: 0.009  # rad/s (~0.5 deg/s)
+        bias_mean: 0.0001
+        bias_stddev: 0.00002
+    linear_acceleration:
+      noise:
+        type: "gaussian"
+        mean: 0.0
+        stddev: 0.017  # m/s^2 (~1.7 mg)
+        bias_mean: 0.001
+        bias_stddev: 0.0002
+
+  gps:
+    update_rate: 10  # Hz
+    position:
+      horizontal:
+        noise:
+          type: "gaussian"
+          mean: 0.0
+          stddev: 0.5  # meters (CEP ~1m)
+      vertical:
+        noise:
+          type: "gaussian"
+          mean: 0.0
+          stddev: 1.0  # meters (typical GPS)
+    velocity:
+      horizontal:
+        noise:
+          type: "gaussian"
+          mean: 0.0
+          stddev: 0.05  # m/s
+      vertical:
+        noise:
+          type: "gaussian"
+          mean: 0.0
+          stddev: 0.1  # m/s
+
+  magnetometer:
+    update_rate: 50  # Hz
+    noise:
+      type: "gaussian"
+      mean: 0.0
+      stddev: 0.001  # Tesla (typical HMC5883L)
+      bias_mean: 0.00001
+      bias_stddev: 0.000002
+    # Declination for Camp Pendleton, CA area
+    declination_deg: 11.5
+
+  barometer:
+    update_rate: 20  # Hz
+    reference_altitude: 0  # meters MSL
+    pressure:
+      noise:
+        type: "gaussian"
+        mean: 0.0
+        stddev: 10  # Pa (~1.2m altitude error)
+
+  rangefinder:
+    update_rate: 20  # Hz
+    range:
+      min: 0.1  # meters
+      max: 40.0  # meters
+      resolution: 0.01  # meters
+    noise:
+      type: "gaussian"
+      mean: 0.0
+      stddev: 0.02  # meters
+
+# Environmental conditions
+environment:
+  wind:
+    enabled: true
+    base_speed: 3.0  # m/s
+    direction: 270  # degrees (from west)
+    turbulence_intensity: 0.1  # fraction of base speed
+
+# Sensor failure modes (for robustness testing)
+failures:
+  gps_dropout_probability: 0.001  # per update
+  magnetometer_interference_probability: 0.0005
+  barometer_spike_probability: 0.0001

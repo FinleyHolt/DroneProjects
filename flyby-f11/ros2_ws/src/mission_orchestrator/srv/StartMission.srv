@@ -1,0 +1,19 @@
+# StartMission.srv
+# Start execution of a verified mission
+#
+# Transitions state machine from VERIFIED -> ARMING -> EXECUTING
+# Requires mission to be verified first via VerifyMission service
+#
+# Usage:
+#   ros2 service call /mission/start mission_orchestrator/srv/StartMission \
+#     "{mission_id: 'test_001'}"
+
+# Request
+string mission_id                   # ID of verified mission to start
+---
+# Response
+bool success                        # True if mission started
+string message                      # Status message
+
+uint8 state                         # New state after start attempt
+string state_name                   # Human-readable state name

@@ -1,0 +1,51 @@
+# Mission Orchestrator Configuration
+# Flyby F-11 UAV Autonomy Platform
+#
+# This configuration is optimized for the Jetson Orin NX 16GB with
+# Vampire theorem prover integration for formal safety verification.
+
+mission_manager:
+  ros__parameters:
+    # Query timeouts
+    # Planning queries use longer timeout for comprehensive verification
+    planning_timeout_ms: 5000
+
+    # Tactical queries use short timeout for 20Hz real-time monitoring
+    tactical_timeout_ms: 100
+
+    # Monitoring rates
+    # Safety checks run at 20Hz during active flight
+    safety_check_hz: 20.0
+
+    # Status updates published at 1Hz
+    status_publish_hz: 1.0
+
+# Safety thresholds (used by verification queries)
+safety:
+  ros__parameters:
+    # Battery thresholds
+    battery_critical_percent: 15.0  # Immediate RTL
+    battery_low_percent: 25.0       # Warning, consider RTL
+    battery_min_start_percent: 30.0 # Minimum to start mission
+
+    # Geofence defaults
+    default_geofence_radius_m: 500.0
+    max_altitude_agl_m: 120.0  # FAA Part 107 limit
+
+    # Safety action thresholds
+    comms_loss_timeout_sec: 30.0    # Time before RTL on comms loss
+    position_loss_timeout_sec: 5.0  # Time before abort on localization loss
+
+# Vampire integration
+vampire:
+  ros__parameters:
+    # Service endpoint
+    query_service: /vampire/query
+
+    # Cache settings for tactical queries
+    use_cache_for_safety: true
+    cache_ttl_safety_sec: 0.5
+
+    # Hot/cold fact integration
+    include_hot_facts: true
+    include_cold_facts: true

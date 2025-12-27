@@ -71,7 +71,7 @@ After comprehensive empirical benchmarking ([Phase 3 Evaluation Report](ontology
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │  TIER 1: Classical Control (<1ms)                              │
-│  ├─ PX4/ArduPilot attitude control                             │
+│  ├─ ArduPilot attitude control                                 │
 │  ├─ Motor mixing, PID loops                                    │
 │  └─ Sensor filtering, state estimation                         │
 ├────────────────────────────────────────────────────────────────┤
@@ -175,7 +175,7 @@ With the single-reasoner decision, there is no mode swapping between planning an
 └──────────────────────────┬──────────────────────────────────┘
                            │
                     ┌──────▼──────┐
-                    │ PX4/ArduPilot│
+                    │  ArduPilot   │
                     │ (Control Loop)│
                     └─────────────┘
 ```
@@ -248,7 +248,7 @@ With the single-reasoner decision, there is no mode swapping between planning an
 │ Application Level: Flyby-F11 Missions      │
 │ - SurveyMission, InspectionMission         │
 │ - GeofenceBoundary, NoFlyZone              │
-│ - T265Sensor, D455Sensor capabilities      │
+│ - ISR payloads (Gremsy VIO, RESEPI, Raptor)│
 │ - NDAACompliance, FAAPart107Rules          │
 └────────────────┬───────────────────────────┘
                  │
@@ -369,7 +369,7 @@ between(Drone, Obj1, Obj2) :-
 
 **MDP Formulation**:
 - **State** (sensor-based):
-  - Observations: `{T265_pose, D455_depth, YOLO_detections, MAVLink_telemetry}`
+  - Observations: `{EKF_pose, ISR_payload_data, YOLO_detections, MAVROS_telemetry}`
   - Dynamics: `{position, velocity, acceleration, attitude}`
   - Setpoints: `{targetPosition, targetVelocity, targetHeading}`
 
@@ -432,7 +432,7 @@ between(Drone, Obj1, Obj2) :-
                          │
 ┌────────────────────────▼─────────────────────────────────┐
 │ Stage 6: EXECUTE                                         │
-│ - Translate to MAVSDK/MQTT commands                      │
+│ - Translate to MAVROS/MQTT commands                      │
 │ - Monitor execution through telemetry                    │
 │ - Update belief state for next cycle                     │
 └──────────────────────────────────────────────────────────┘
@@ -440,7 +440,7 @@ between(Drone, Obj1, Obj2) :-
 
 **Example Scenario**: Unexpected obstacle during transit
 
-1. **Observe**: D455 detects unknown object at 8m distance in flight path
+1. **Observe**: ISR payload detects unknown object at 8m distance in flight path
 2. **Evaluate**:
    - Q-value drops (expected reward for "move forward" now low)
    - State distance increases (new obstacle concept added)
@@ -451,7 +451,7 @@ between(Drone, Obj1, Obj2) :-
    - Backward: Create new goal "reach clear airspace" (return to obstacle-free state)
    - Priority: Safety (J) > task completion (B)
 5. **Generate Action**: RL policy selects `avoid(left, 5m)` from ontology-validated actions
-6. **Execute**: Send velocity command to PX4, monitor clearance until safe
+6. **Execute**: Send velocity command to ArduPilot, monitor clearance until safe
 
 ### 4. Safety Constraint Enforcement
 
@@ -464,7 +464,7 @@ between(Drone, Obj1, Obj2) :-
 # Ontology evaluates readiness before takeoff
 canTakeOff ←
   batteryLevel > minimumForMission ∧
-  gpssQuality > minimumAccuracy ∧  # or hasWorkingSensor(T265) for GPS-denied
+  hasValidLocalization ∧  # GPS or EKF-based position estimate
   ¬hasActiveWarning ∧
   isWithinAuthorizedAirspace ∧
   weatherCondition == Acceptable
@@ -490,9 +490,9 @@ every 100ms:
   if estimatedEnergyRemaining < energyToReturnHome + reserve:
     trigger_return_to_home()
 
-  # Sensor health
-  if not hasWorkingSensor(T265) and gpssQuality < minimum:
-    trigger_emergency_land()  # lost localization
+  # Sensor health / localization
+  if not hasValidLocalization:
+    trigger_emergency_land()  # lost position estimate
 ```
 
 #### Action Filtering Workflow
@@ -524,18 +524,18 @@ RL Policy outputs action → Ontology Reasoner
 ┌─────────────────────────────────────────────────────────────┐
 │                    RAW SENSORS                               │
 ├──────────────┬──────────────┬──────────────┬────────────────┤
-│  RGB Camera  │ Depth Camera │     IMU      │      GPS       │
-│  (D455)      │  (D455)      │   (T265)     │   (Optional)   │
+│  ISR Payload │   LiDAR      │     IMU      │      GPS       │
+│ (VIO/Raptor) │  (RESEPI)    │  (Onboard)   │   (Optional)   │
 └──────┬───────┴──────┬───────┴──────┬───────┴────────┬───────┘
        │              │              │                │
        v              v              v                v
 ┌─────────────────────────────────────────────────────────────┐
 │              SUB-SYMBOLIC PROCESSING                         │
 ├──────────────┬──────────────┬──────────────┬────────────────┤
-│  YOLO11      │ Segmentation │  VIO/SLAM    │   Position     │
-│  (objects)   │  (terrain)   │  (odometry)  │   Estimation   │
-│  TensorRT    │  Model       │  T265        │   PX4/MAVLink  │
-│  20-50ms     │  50-100ms    │  30 Hz       │   10 Hz        │
+│  YOLO11      │ Point Cloud  │  EKF State   │   Position     │
+│  (objects)   │  (terrain)   │  (pose)      │   Estimation   │
+│  TensorRT    │  Processing  │  ArduPilot   │   MAVROS       │
+│  20-50ms     │  50-100ms    │  400 Hz      │   10 Hz        │
 └──────┬───────┴──────┬───────┴──────┬───────┴────────┬───────┘
        │              │              │                │
        └──────────────┴──────────────┴────────────────┘
@@ -645,8 +645,8 @@ RL Policy outputs action → Ontology Reasoner
 
 ```
 ┌──────────────┐    ┌───────────────┐    ┌────────────────┐
-│ T265:        │    │ D455:         │    │ YOLO11:        │
-│ Velocity     │    │ Depth at      │    │ Detection      │
+│ EKF Pose:    │    │ Thermal/RGB:  │    │ YOLO11:        │
+│ Velocity     │    │ Range at      │    │ Detection      │
 │ [2.0, 0, 0]  │───▶│ bearing 0°:   │───▶│ class: person  │
 │ m/s forward  │    │ 5.2 meters    │    │ conf: 0.92     │
 │              │    │               │    │ bbox: [x,y,w,h]│
@@ -912,7 +912,7 @@ RL Policy outputs action → Ontology Reasoner
 - [ ] Ontology reasoning latency < 100ms at 10 Hz
 - [ ] Jetson Orin NX resource utilization < 70% (CPU/GPU/memory)
 - [ ] Real-time control loop: 10 Hz for mission, 100 Hz for trajectory
-- [ ] Successful GPS-denied navigation for >5 minutes using T265 only
+- [ ] Successful GPS-denied navigation for >5 minutes using EKF-only localization
 
 ### Flight Testing (Phase 5)
 - [ ] 10+ successful autonomous missions (waypoint navigation)
@@ -960,13 +960,13 @@ project-drone (Development Platform)
     ├── autonomy_core/ (mission planning, waypoint navigation)
     ├── behavior_trees/ (BT mission logic, ontology-aware nodes)
     ├── perception_pipeline/ (vision models, semantic fusion)
-    └── px4_interface/ (MAVSDK bridge, flight abstraction)
+    └── ardupilot_interface/ (MAVROS bridge, flight abstraction)
 
                     ↓ (symlinks when ready)
 
 flyby-f11 (Deployment Platform)
 ├── Hardware: Jetson Orin NX 16GB (50 TOPS, 2x memory)
-├── Sensors: Flyby sensor suite (TBD)
+├── ISR Payloads: Gremsy VIO | RESEPI LiDAR | NextVision Raptor
 ├── Purpose: Mission-specific deployment (MCTSSA)
 └── Packages:
     ├── flyby_f11_bringup/ (mission launch configurations)

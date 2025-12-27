@@ -2,20 +2,21 @@
   "phase": "phase-07-mission-planner-rl",
   "required_inputs": {
     "phase_04_outputs": {
-      "prolog_bridge": "ros2_ws/src/prolog_bridge/",
-      "description": "Prolog query interface for constraint checking"
+      "vampire_bridge": "ros2_ws/src/vampire_bridge/",
+      "description": "Vampire query interface for constraint checking (ADR-001: Vampire-only architecture)"
     },
     "phase_05_outputs": {
-      "perception_grounding": "ros2_ws/src/perception_grounding/",
-      "description": "Perception facts for state observation"
+      "hot_fact_buffer": "ros2_ws/src/vampire_bridge/vampire_bridge/hot_fact_buffer.py",
+      "cold_fact_cache": "ros2_ws/src/vampire_bridge/vampire_bridge/cold_fact_cache.py",
+      "description": "State persistence for observation grounding"
     },
     "phase_06_outputs": {
-      "phase_transition": "ros2_ws/src/phase_transition/",
-      "description": "Mission handoff from planning mode"
+      "mission_orchestrator": "ros2_ws/src/mission_orchestrator/",
+      "description": "Mission state machine for state observation and action execution"
     },
     "simulation_environment": {
       "gazebo_worlds": "simulation/worlds/",
-      "px4_sitl": true,
+      "ardupilot_sitl": true,
       "description": "Simulation for RL training"
     },
     "knowledge_requirements": {

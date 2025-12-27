@@ -1,0 +1,167 @@
+%------------------------------------------------------------------------------
+% Canonical Test 3: Multi-Objective ISR Prioritization
+%------------------------------------------------------------------------------
+%
+% Tests target prioritization and threat zone avoidance logic.
+% Based on ONTOLOGY_FOUNDATION.qmd Canonical Problem 1.3
+%
+% Scenario: UAV conducting ISR collection on multiple targets with varying
+%   priority levels while avoiding elevated threat areas.
+%   - Critical targets (priority 1) should be prioritized when reachable
+%   - Targets in high threat zones should be unreachable
+%   - High threat zone entry should be unsafe
+%
+% Expected: Conjecture should be PROVED (Theorem status)
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% SECTION 1: Type Declarations and Class Hierarchy
+% ============================================================================
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+% Mission class hierarchy
+fof(reconnaissance_is_uav_mission, axiom,
+    ![X]: (reconnaissance_mission(X) => uav_mission(X))).
+
+% Target class
+fof(target_of_interest_is_object, axiom,
+    ![X]: (target_of_interest(X) => object(X))).
+
+% Threat zone is a region
+fof(threat_zone_is_region, axiom,
+    ![X]: (threat_zone(X) => region(X))).
+
+% ============================================================================
+% SECTION 2: Target Priority Axioms
+% ============================================================================
+
+% AXIOM: Critical targets (priority 1) should be prioritized when reachable
+fof(critical_target_prioritization, axiom,
+    ![Target, UAV]:
+      ((target_of_interest(Target) &
+        is_critical_priority(Target) &
+        target_reachable(Target, UAV) &
+        ~target_observed(Target))
+       => should_prioritize(UAV, Target))).
+
+% AXIOM: Critical targets pending for reconnaissance mission
+fof(critical_target_pending, axiom,
+    ![Target, Mission, UAV]:
+      ((target_of_interest(Target) &
+        is_critical_priority(Target) &
+        reconnaissance_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        target_reachable(Target, UAV) &
+        ~target_observed(Target))
+       => critical_target_pending(Mission, Target))).
+
+% ============================================================================
+% SECTION 3: Target Reachability Axioms
+% ============================================================================
+
+% AXIOM: Target is reachable if has sufficient battery and not in high threat
+fof(target_reachability, axiom,
+    ![Target, UAV]:
+      ((target_of_interest(Target) &
+        uav(UAV) &
+        has_sufficient_battery(UAV, Target) &
+        ~target_in_high_threat(Target))
+       => target_reachable(Target, UAV))).
+
+% AXIOM: High-threat targets are unreachable regardless of battery
+fof(high_threat_target_unreachable, axiom,
+    ![Target, UAV]:
+      ((target_of_interest(Target) &
+        target_in_high_threat(Target) &
+        uav(UAV))
+       => ~target_reachable(Target, UAV))).
+
+% ============================================================================
+% SECTION 4: Threat Zone Safety Axioms
+% ============================================================================
+
+% AXIOM: High threat zone entry is unsafe
+fof(high_threat_unsafe, axiom,
+    ![UAV, Zone]:
+      ((uav(UAV) &
+        threat_zone(Zone) &
+        is_high_threat(Zone) &
+        is_within(UAV, Zone))
+       => (high_threat_exposure(UAV) & ~safe_state(UAV)))).
+
+% AXIOM: Path crossing high threat is prohibited
+fof(path_crossing_high_threat_prohibited, axiom,
+    ![Path, Zone]:
+      ((follow_path(Path) &
+        threat_zone(Zone) &
+        is_high_threat(Zone) &
+        path_crosses_high_threat(Path, Zone))
+       => path_prohibited(Path))).
+
+% ============================================================================
+% SECTION 5: Test Scenario - Multi-Objective ISR
+% ============================================================================
+
+% Define test UAV instance
+fof(test_drone_is_flyby, axiom, flyby_f11(drone_isr)).
+fof(test_mission_exists, axiom, reconnaissance_mission(isr_mission_1)).
+fof(test_assignment, axiom, assigned_uav(isr_mission_1, drone_isr)).
+
+% Define targets with priorities
+
+% TOI-1: Critical priority, not in high threat, sufficient battery - REACHABLE
+fof(toi1_exists, axiom, target_of_interest(toi_1)).
+fof(toi1_critical, axiom, is_critical_priority(toi_1)).
+fof(toi1_not_high_threat, axiom, ~target_in_high_threat(toi_1)).
+fof(toi1_sufficient_battery, axiom, has_sufficient_battery(drone_isr, toi_1)).
+fof(toi1_not_observed, axiom, ~target_observed(toi_1)).
+
+% TOI-2: Critical priority, not in high threat, sufficient battery - REACHABLE
+fof(toi2_exists, axiom, target_of_interest(toi_2)).
+fof(toi2_critical, axiom, is_critical_priority(toi_2)).
+fof(toi2_not_high_threat, axiom, ~target_in_high_threat(toi_2)).
+fof(toi2_sufficient_battery, axiom, has_sufficient_battery(drone_isr, toi_2)).
+fof(toi2_not_observed, axiom, ~target_observed(toi_2)).
+
+% TOI-3: High priority (not critical), IN high threat - UNREACHABLE
+fof(toi3_exists, axiom, target_of_interest(toi_3)).
+fof(toi3_not_critical, axiom, ~is_critical_priority(toi_3)).
+fof(toi3_in_high_threat, axiom, target_in_high_threat(toi_3)).
+fof(toi3_not_observed, axiom, ~target_observed(toi_3)).
+
+% Define threat zones
+fof(threat_zone_alpha, axiom, threat_zone(zone_alpha)).
+fof(zone_alpha_high_threat, axiom, is_high_threat(zone_alpha)).
+
+% ============================================================================
+% THEOREM: Critical target TOI-1 should be prioritized
+% ============================================================================
+
+fof(prove_toi1_prioritized, conjecture,
+    should_prioritize(drone_isr, toi_1)).
+
+%------------------------------------------------------------------------------
+% Expected result: THEOREM PROVED
+%
+% Proof trace:
+%   1. target_of_interest(toi_1) [given]
+%   2. is_critical_priority(toi_1) [given]
+%   3. ~target_in_high_threat(toi_1) [given]
+%   4. has_sufficient_battery(drone_isr, toi_1) [given]
+%   5. flyby_f11(drone_isr) => uav(drone_isr)
+%   6. By target_reachability axiom:
+%      target_of_interest(T) & uav(U) & has_sufficient_battery(U, T) &
+%      ~target_in_high_threat(T) => target_reachable(T, U)
+%   7. Therefore: target_reachable(toi_1, drone_isr)
+%   8. ~target_observed(toi_1) [given]
+%   9. By critical_target_prioritization axiom:
+%      target_of_interest & critical & reachable & ~observed => should_prioritize
+%   10. Therefore: should_prioritize(drone_isr, toi_1) QED
+%------------------------------------------------------------------------------

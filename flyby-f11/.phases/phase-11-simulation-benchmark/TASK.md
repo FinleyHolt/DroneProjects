@@ -19,7 +19,7 @@ The benchmark suite follows UAV-ON benchmark methodology and generates results s
 
 ### Prerequisites
 - Phase 10 completed (full AGGM integration)
-- Simulation environment ready (Gazebo, PX4 SITL)
+- Simulation environment ready (Gazebo, ArduPilot SITL)
 - Understanding of benchmark methodology
 - Statistical analysis knowledge
 

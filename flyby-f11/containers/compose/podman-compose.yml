@@ -111,29 +111,40 @@ services:
 
   # ArduPilot SITL - Software-in-the-Loop Simulation
   # Development and testing only
+  # See simulation/README.md for detailed usage
   sitl:
     container_name: flyby-f11-sitl-dev
     build:
-      context: .
+      context: ../..
       dockerfile: simulation/Containerfile.sitl
     image: flyby-f11-sitl:latest
     volumes:
-      - ./simulation:/simulation:z
+      - ../../simulation:/simulation:z
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
     working_dir: /simulation
     environment:
-      - SITL_HOME_LAT=37.7749
-      - SITL_HOME_LON=-122.4194
-      - SITL_HOME_ALT=0
+      # Camp Pendleton area (typical MCTSSA operations)
+      - SITL_HOME_LAT=33.3853
+      - SITL_HOME_LON=-117.5653
+      - SITL_HOME_ALT=100
+      - HEADLESS=${HEADLESS:-false}
+      - SITL_SPEEDUP=${SITL_SPEEDUP:-1}
+      - SITL_INSTANCE=${SITL_INSTANCE:-0}
       - GAZEBO_MODEL_PATH=/simulation/models
+      - GZ_SIM_RESOURCE_PATH=/simulation/worlds:/simulation/models
       - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=42
     devices:
       - nvidia.com/gpu=all  # For Gazebo GPU rendering
-    volumes:
-      # X11 socket for Gazebo GUI
-      - /tmp/.X11-unix:/tmp/.X11-unix:ro
     network_mode: host
     stdin_open: true
     tty: true
+    healthcheck:
+      test: ["CMD", "pgrep", "-x", "arducopter"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     # SITL typically run separately during testing
     profiles:
       - simulation

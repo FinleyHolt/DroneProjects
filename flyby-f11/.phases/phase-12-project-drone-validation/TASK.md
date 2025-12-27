@@ -42,7 +42,7 @@ See `inputs.json` for machine-readable specification.
 2. **Sensor Integration**
    - T265 visual odometry verification
    - D455 depth camera verification
-   - PX4 telemetry connection
+   - ArduPilot telemetry connection
    - Sensor fusion validation
 
 3. **System Deployment**

@@ -1,0 +1,90 @@
+# mission-orchestrator.container
+# Quadlet container definition for Mission Orchestrator on Jetson Orin NX
+#
+# This Quadlet file defines a systemd-managed container for the mission
+# orchestration system. It depends on the vampire-reasoning service
+# for formal safety verification.
+#
+# Installation:
+#   cp mission-orchestrator.container ~/.config/containers/systemd/
+#   systemctl --user daemon-reload
+#   systemctl --user enable mission-orchestrator.service
+#
+# Usage:
+#   systemctl --user start mission-orchestrator.service
+#   systemctl --user status mission-orchestrator.service
+#   journalctl --user -u mission-orchestrator.service -f
+
+[Unit]
+Description=Mission Orchestrator for Flyby F-11 UAV
+Documentation=https://github.com/yourusername/DroneProjects
+
+# Dependency on Vampire reasoning service
+# Mission orchestrator requires Vampire for safety queries
+After=vampire-reasoning.service
+Requires=vampire-reasoning.service
+
+# Wait for network (may need ROS 2 DDS discovery)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+# Container image (built from flyby-f11 ROS 2 workspace)
+Image=localhost/flyby-f11-ros2:latest
+ContainerName=mission-orchestrator
+
+# Mount ROS 2 workspace
+Volume=/home/flyby/ros2_ws:/workspace/ros2_ws:z
+
+# Mount mission configurations (read-only for safety)
+Volume=/home/flyby/config/missions:/workspace/missions:z,ro
+
+# Mount ontology files for cold fact loading
+Volume=/home/flyby/ontology:/workspace/ontology:z,ro
+
+# ROS 2 networking - use host network for DDS discovery
+Network=host
+
+# Environment variables
+Environment=ROS_DOMAIN_ID=42
+Environment=RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+Environment=ROS_LOG_DIR=/workspace/logs
+
+# Source ROS 2 workspace and run the mission manager node
+Exec=/bin/bash -c "source /opt/ros/humble/setup.bash && \
+    source /workspace/ros2_ws/install/setup.bash && \
+    ros2 run mission_orchestrator mission_manager_node.py \
+    --ros-args \
+    -p planning_timeout_ms:=5000 \
+    -p tactical_timeout_ms:=100 \
+    -p safety_check_hz:=20.0"
+
+# Health check: verify node is responding
+HealthCmd=/bin/bash -c "source /opt/ros/humble/setup.bash && \
+    ros2 service list | grep -q /mission/verify"
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+
+# Resource limits for Jetson Orin NX
+# Leave headroom for Vampire reasoner and other services
+PodmanArgs=--memory=1g --cpus=2
+
+[Service]
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Startup timeout (allow time for ROS 2 workspace sourcing)
+TimeoutStartSec=60
+
+# Stop timeout (allow graceful shutdown)
+TimeoutStopSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+# Enable auto-start on user login
+WantedBy=default.target

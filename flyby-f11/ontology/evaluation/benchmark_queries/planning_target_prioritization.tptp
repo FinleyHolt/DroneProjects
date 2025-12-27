@@ -1,0 +1,106 @@
+%------------------------------------------------------------------------------
+% Benchmark Query: Target Prioritization for ISR
+% Category: Planning
+% Target Latency: <200ms
+%------------------------------------------------------------------------------
+%
+% Determines target prioritization for ISR collection missions.
+% Returns THEOREM if target should be prioritized.
+% Returns COUNTER_SATISFIABLE if target should not be prioritized.
+%
+% Parameters:
+%   {{UAV_ID}} - The UAV instance
+%   {{TARGET_ID}} - The target of interest
+%   {{MISSION_ID}} - The ISR mission
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% Core Type Axioms
+% ============================================================================
+
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+fof(reconnaissance_is_mission, axiom,
+    ![X]: (reconnaissance_mission(X) => uav_mission(X))).
+
+fof(target_is_object, axiom,
+    ![X]: (target_of_interest(X) => object(X))).
+
+% ============================================================================
+% Target Prioritization Axioms
+% ============================================================================
+
+% AXIOM: Critical targets should be prioritized when reachable
+fof(critical_target_prioritization, axiom,
+    ![Target, UAV]:
+      ((target_of_interest(Target) &
+        is_critical_priority(Target) &
+        target_reachable(Target, UAV) &
+        ~target_observed(Target))
+       => should_prioritize(UAV, Target))).
+
+% AXIOM: Time-sensitive targets should be prioritized
+fof(time_sensitive_prioritization, axiom,
+    ![Target, UAV]:
+      ((target_of_interest(Target) &
+        is_time_sensitive(Target) &
+        target_reachable(Target, UAV) &
+        ~target_observed(Target))
+       => should_prioritize(UAV, Target))).
+
+% AXIOM: Target is reachable if not in high threat and has battery
+fof(target_reachability, axiom,
+    ![Target, UAV]:
+      ((target_of_interest(Target) &
+        uav(UAV) &
+        has_sufficient_battery(UAV, Target) &
+        ~target_in_high_threat(Target))
+       => target_reachable(Target, UAV))).
+
+% AXIOM: High-threat targets are unreachable
+fof(high_threat_unreachable, axiom,
+    ![Target, UAV]:
+      ((target_of_interest(Target) &
+        target_in_high_threat(Target) &
+        uav(UAV))
+       => ~target_reachable(Target, UAV))).
+
+% ============================================================================
+% Test Instance
+% ============================================================================
+
+fof(test_uav_type, axiom, flyby_f11({{UAV_ID}})).
+fof(test_mission_type, axiom, reconnaissance_mission({{MISSION_ID}})).
+fof(test_assignment, axiom, assigned_uav({{MISSION_ID}}, {{UAV_ID}})).
+
+fof(test_target_type, axiom, target_of_interest({{TARGET_ID}})).
+fof(target_critical, axiom, is_critical_priority({{TARGET_ID}})).
+fof(target_not_observed, axiom, ~target_observed({{TARGET_ID}})).
+fof(target_not_in_threat, axiom, ~target_in_high_threat({{TARGET_ID}})).
+fof(uav_has_battery, axiom, has_sufficient_battery({{UAV_ID}}, {{TARGET_ID}})).
+
+% Alternative scenarios:
+% Target in high threat (should not prioritize):
+% fof(target_in_threat, axiom, target_in_high_threat({{TARGET_ID}})).
+
+% Target already observed (should not prioritize):
+% fof(target_observed, axiom, target_observed({{TARGET_ID}})).
+
+% ============================================================================
+% Conjecture: Target should be prioritized
+% ============================================================================
+
+fof(check_should_prioritize, conjecture,
+    should_prioritize({{UAV_ID}}, {{TARGET_ID}})).
+
+%------------------------------------------------------------------------------
+% Expected Results:
+%   - If target critical, reachable, not observed: THEOREM (prioritize)
+%   - If target in high threat: COUNTER_SATISFIABLE (don't prioritize)
+%   - If target already observed: COUNTER_SATISFIABLE (don't prioritize)
+%------------------------------------------------------------------------------

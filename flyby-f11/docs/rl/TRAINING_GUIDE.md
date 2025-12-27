@@ -22,36 +22,38 @@ source ~/flyby_rl_env/bin/activate
 
 # Install dependencies
 pip install gymnasium stable-baselines3[extra] torch tensorboard
-pip install mavsdk airsim opencv-python
+pip install pymavlink airsim opencv-python
 ```
 
-### PX4 SITL Headless Setup
+### ArduPilot SITL Headless Setup
 ```bash
-# Clone PX4-Autopilot (if not already available)
-git clone https://github.com/PX4/PX4-Autopilot.git
-cd PX4-Autopilot
-git checkout v1.14.3
+# Clone ArduPilot (if not already available)
+git clone https://github.com/ArduPilot/ardupilot.git
+cd ardupilot
+git submodule update --init --recursive
 
 # Build for SITL
-make px4_sitl_default
+./waf configure --board sitl
+./waf copter
 
 # Run headless (no GUI) for parallel instances
-HEADLESS=1 make px4_sitl_default gazebo
+sim_vehicle.py -v ArduCopter --console --map --out=udp:127.0.0.1:14550
 ```
 
-### Multi-Instance PX4 for Vectorized Training
+### Multi-Instance ArduPilot for Vectorized Training
 ```bash
-# Script to launch 8 parallel PX4 instances
+# Script to launch 8 parallel ArduPilot instances
 #!/bin/bash
 
 NUM_INSTANCES=8
-BASE_PORT=14540
+BASE_PORT=5760
 
 for i in $(seq 0 $((NUM_INSTANCES-1))); do
-    PX4_SIM_INSTANCE=$i \
-    PX4_SIM_PORT=$((BASE_PORT + i)) \
-    HEADLESS=1 \
-    make px4_sitl_default gazebo_iris &
+    INSTANCE=$i \
+    sim_vehicle.py -v ArduCopter \
+        --instance $i \
+        --out=udp:127.0.0.1:$((14550 + i)) \
+        -S 1 --no-mavproxy &
 done
 
 wait
@@ -630,14 +632,14 @@ build_engine("./models/deployment/mission_planner.onnx", "./models/deployment/mi
    - Implement curriculum learning
 
 4. **Simulation Crashes**:
-   - Reduce number of parallel PX4 instances
+   - Reduce number of parallel ArduPilot instances
    - Increase system resources
-   - Check PX4 SITL port conflicts
+   - Check ArduPilot SITL port conflicts
 
 ## Next Steps
 
 1. **Begin with Trajectory Optimizer**: Train low-level controller first
-2. **Validate in Simulation**: Test extensively in PX4 SITL
+2. **Validate in Simulation**: Test extensively in ArduPilot SITL
 3. **Progress to Hierarchy**: Add behavior selector once trajectory optimizer is stable
 4. **Full System Training**: Train mission planner with complete hierarchy
 5. **Deploy to Hardware**: Export models and integrate with BehaviorTree.CPP

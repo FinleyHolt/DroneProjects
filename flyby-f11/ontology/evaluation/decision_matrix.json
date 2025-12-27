@@ -52,20 +52,25 @@
       "arm_build_notes": "JVM-based, Eclipse Temurin provides ARM64 builds"
     },
     "reasonable": {
-      "name": "Reasonable",
-      "version": "latest",
+      "name": "Reasonable (owlrl fallback)",
+      "version": "owlrl-python",
       "logic": "OWL 2 RL",
       "translation_loss_percent": 60,
-      "safety_critical_p95_ms": "N/A (cannot express safety axioms)",
-      "operational_p95_ms": "~2-5ms (estimated)",
-      "planning_p95_ms": "~5-10ms (estimated)",
-      "cold_start_ms": "~50ms (Rust binary)",
-      "peak_memory_mb": "~50",
+      "safety_critical_p95_ms": 14.60,
+      "safety_critical_avg_ms": 12.39,
+      "operational_p95_ms": 13.85,
+      "operational_avg_ms": 11.89,
+      "planning_p95_ms": 15.91,
+      "planning_avg_ms": 14.02,
+      "cold_start_ms": 357.07,
+      "materialization_ms": 1056.06,
+      "peak_memory_mb": 47.4,
       "meets_safety_requirement": false,
       "meets_operational_requirement": true,
       "meets_planning_requirement": true,
-      "arm_build_status": "untested",
-      "arm_build_notes": "Rust cross-compile with --target aarch64-unknown-linux-gnu"
+      "arm_build_status": "available",
+      "arm_build_notes": "Python-based owlrl fallback; native Reasonable Rust binary untested",
+      "benchmark_notes": "Actual benchmark run: 100 iterations using rdflib + owlrl. Safety queries ~14.6ms p95 (1.46x over 10ms requirement)."
     },
     "prolog": {
       "name": "SWI-Prolog",
@@ -99,7 +104,7 @@
     "scores": {
       "vampire": 0.65,
       "elk": 0.45,
-      "reasonable": 0.50,
+      "reasonable": 0.53,
       "prolog": 0.70
     },
     "score_breakdown": {
@@ -119,9 +124,9 @@
       },
       "reasonable": {
         "safety_query_performance": 0.0,
-        "memory_usage": 0.9,
+        "memory_usage": 0.8,
         "translation_preservation": 0.4,
-        "arm_build_feasibility": 0.7,
+        "arm_build_feasibility": 0.9,
         "maintenance_burden": 0.6
       },
       "prolog": {

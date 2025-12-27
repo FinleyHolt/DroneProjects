@@ -1,0 +1,36 @@
+# vampire_params.yaml
+# Configuration for the Vampire reasoning node
+#
+# Tiered latency targets:
+#   - Safety queries: <100ms (p95) - high priority tactical queries
+#   - Operational queries: <100ms (p95) - medium priority
+#   - Planning queries: <200ms (p95) - mission planning, less time-critical
+
+vampire_reasoning:
+  ros__parameters:
+    # Vampire binary location
+    # In container: /usr/local/bin/vampire
+    # On host: adjust to actual installation path
+    vampire_binary: "/usr/local/bin/vampire"
+
+    # Ontology paths
+    ontology_path: "/workspace/ontology/planning_mode"
+    templates_path: "/workspace/ontology/evaluation/benchmark_queries"
+
+    # Timeout configuration (milliseconds)
+    # Default timeout for queries without explicit timeout
+    default_timeout_ms: 100
+
+    # Cache configuration
+    # Maximum number of cached query results
+    cache_size: 1000
+
+    # TTL by query type (seconds)
+    # Safety queries: short TTL, state changes quickly
+    cache_ttl_safety: 10.0
+
+    # Operational queries: medium TTL
+    cache_ttl_operational: 60.0
+
+    # Planning queries: long TTL, mission plans rarely change
+    cache_ttl_planning: 300.0

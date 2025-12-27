@@ -1,0 +1,89 @@
+%------------------------------------------------------------------------------
+% Benchmark Query: Communications Status Check
+% Category: Operational
+% Target Latency: <100ms
+%------------------------------------------------------------------------------
+%
+% Checks communication status and determines autonomous authority level.
+% Returns THEOREM if UAV should operate in autonomous mode.
+% Returns COUNTER_SATISFIABLE if comms normal (operator control).
+%
+% Parameters:
+%   {{UAV_ID}} - The UAV instance
+%   {{MISSION_ID}} - The active mission
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% Core Type Axioms
+% ============================================================================
+
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+fof(mission_type, axiom,
+    ![X]: (uav_mission(X) => mission(X))).
+
+% ============================================================================
+% Communications Axioms
+% ============================================================================
+
+% AXIOM: Comms-denied triggers autonomous mission mode
+fof(comms_denied_autonomous, axiom,
+    ![UAV, Mission]:
+      ((uav(UAV) &
+        uav_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        has_comms_status(UAV, comms_denied) &
+        has_mission_status(Mission, mission_active))
+       => autonomous_mission_mode(UAV, Mission))).
+
+% AXIOM: Comms-denied grants full autonomy authority
+fof(comms_denied_full_autonomy, axiom,
+    ![UAV]:
+      ((uav(UAV) & has_comms_status(UAV, comms_denied))
+       => has_autonomous_authority(UAV, full_autonomy))).
+
+% AXIOM: Comms-degraded grants limited autonomy
+fof(comms_degraded_limited_autonomy, axiom,
+    ![UAV]:
+      ((uav(UAV) & has_comms_status(UAV, comms_degraded))
+       => has_autonomous_authority(UAV, limited_autonomy))).
+
+% AXIOM: Comms-nominal means operator control
+fof(comms_nominal_operator, axiom,
+    ![UAV]:
+      ((uav(UAV) & has_comms_status(UAV, comms_nominal))
+       => has_autonomous_authority(UAV, operator_control))).
+
+% ============================================================================
+% Test Instance
+% ============================================================================
+
+fof(test_uav_type, axiom, flyby_f11({{UAV_ID}})).
+fof(test_mission_type, axiom, uav_mission({{MISSION_ID}})).
+fof(test_assignment, axiom, assigned_uav({{MISSION_ID}}, {{UAV_ID}})).
+fof(test_mission_active, axiom, has_mission_status({{MISSION_ID}}, mission_active)).
+
+% Comms state - comms denied scenario
+fof(comms_state, axiom, has_comms_status({{UAV_ID}}, comms_denied)).
+
+% Alternative scenarios:
+% fof(comms_state, axiom, has_comms_status({{UAV_ID}}, comms_degraded)).
+% fof(comms_state, axiom, has_comms_status({{UAV_ID}}, comms_nominal)).
+
+% ============================================================================
+% Conjecture: UAV in autonomous mission mode
+% ============================================================================
+
+fof(check_autonomous_mode, conjecture,
+    autonomous_mission_mode({{UAV_ID}}, {{MISSION_ID}})).
+
+%------------------------------------------------------------------------------
+% Expected Results:
+%   - If comms denied: THEOREM (autonomous mode activated)
+%   - If comms nominal: COUNTER_SATISFIABLE (operator control)
+%------------------------------------------------------------------------------

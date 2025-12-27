@@ -1,0 +1,74 @@
+%------------------------------------------------------------------------------
+% Benchmark Query: Geofence Check
+% Category: Safety
+% Target Latency: <100ms
+%------------------------------------------------------------------------------
+%
+% Checks if a UAV is within its authorized geofence boundary.
+% Returns THEOREM if geofence violation detected (UAV outside boundary).
+% Returns COUNTER_SATISFIABLE if UAV is within safe geofence.
+%
+% Parameters:
+%   {{UAV_ID}} - The UAV instance to check
+%   {{GEOFENCE_ID}} - The geofence boundary to verify
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% Core Type Axioms
+% ============================================================================
+
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+fof(geofence_is_region, axiom,
+    ![X]: (geofence(X) => region(X))).
+
+% ============================================================================
+% Geofence Safety Axioms
+% ============================================================================
+
+% AXIOM: UAV outside geofence is a violation
+fof(geofence_violation_axiom, axiom,
+    ![UAV, GF]:
+      ((uav(UAV) &
+        geofence(GF) &
+        has_assigned_geofence(UAV, GF) &
+        ~is_within(UAV, GF))
+       => geofence_violation(UAV))).
+
+% AXIOM: Geofence violation means unsafe state
+fof(geofence_violation_unsafe, axiom,
+    ![UAV]:
+      (geofence_violation(UAV) => ~safe_state(UAV))).
+
+% ============================================================================
+% Test Instance
+% ============================================================================
+
+fof(test_uav_type, axiom, flyby_f11({{UAV_ID}})).
+fof(test_geofence_type, axiom, geofence({{GEOFENCE_ID}})).
+fof(test_assignment, axiom, has_assigned_geofence({{UAV_ID}}, {{GEOFENCE_ID}})).
+
+% Position state - set one of these to test different scenarios
+% For violation scenario: uncomment the line below
+% fof(uav_outside, axiom, ~is_within({{UAV_ID}}, {{GEOFENCE_ID}})).
+
+% For safe scenario: uncomment the line below
+fof(uav_inside, axiom, is_within({{UAV_ID}}, {{GEOFENCE_ID}})).
+
+% ============================================================================
+% Conjecture: Check for geofence violation
+% ============================================================================
+
+fof(check_geofence_violation, conjecture,
+    geofence_violation({{UAV_ID}})).
+
+%------------------------------------------------------------------------------
+% Expected Results:
+%   - If UAV inside geofence: COUNTER_SATISFIABLE (no violation)
+%   - If UAV outside geofence: THEOREM (violation detected)
+%------------------------------------------------------------------------------

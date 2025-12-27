@@ -1,0 +1,154 @@
+%------------------------------------------------------------------------------
+% Canonical Test 2: Dynamic No-Fly Zone Adaptation
+%------------------------------------------------------------------------------
+%
+% Tests dynamic NFZ handling and path replanning requirements.
+% Based on ONTOLOGY_FOUNDATION.qmd Canonical Problem 1.2
+%
+% Scenario: UAV on reconnaissance transit encounters dynamically activated
+%   aircraft corridor NFZ that intersects current flight path.
+%   - System should detect path intersection with active NFZ
+%   - Path should be invalidated
+%   - Mission should require route replanning
+%
+% Expected: Conjecture should be PROVED (Theorem status)
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% SECTION 1: Type Declarations and Class Hierarchy
+% ============================================================================
+
+% UAV class hierarchy
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+% Mission class hierarchy
+fof(waypoint_mission_is_uav_mission, axiom,
+    ![X]: (waypoint_mission(X) => uav_mission(X))).
+
+% NFZ class hierarchy
+fof(dynamic_nfz_is_nfz, axiom,
+    ![X]: (dynamic_no_fly_zone(X) => no_fly_zone(X))).
+
+fof(aircraft_corridor_is_dynamic_nfz, axiom,
+    ![X]: (aircraft_corridor(X) => dynamic_no_fly_zone(X))).
+
+% Path class
+fof(follow_path_is_path, axiom,
+    ![X]: (follow_path(X) => path(X))).
+
+% ============================================================================
+% SECTION 2: Dynamic NFZ Activation Axioms
+% ============================================================================
+
+% AXIOM: Aircraft corridor has highest priority
+fof(aircraft_corridor_priority, axiom,
+    ![NFZ]:
+      (aircraft_corridor(NFZ) => highest_priority_nfz(NFZ))).
+
+% AXIOM: Active dynamic NFZ blocks paths that intersect it
+fof(active_nfz_blocks_paths, axiom,
+    ![NFZ, Path]:
+      ((dynamic_no_fly_zone(NFZ) &
+        nfz_active(NFZ) &
+        follow_path(Path) &
+        path_intersects_nfz(Path, NFZ))
+       => path_invalidated(Path))).
+
+% ============================================================================
+% SECTION 3: Path Intersection and Invalidation Axioms
+% ============================================================================
+
+% AXIOM: Path intersection with active NFZ triggers mission replan
+fof(nfz_intersection_triggers_replan, axiom,
+    ![Mission, UAV, Path, NFZ]:
+      ((waypoint_mission(Mission) &
+        assigned_uav(Mission, UAV) &
+        has_current_path(UAV, Path) &
+        dynamic_no_fly_zone(NFZ) &
+        nfz_active(NFZ) &
+        path_intersects_nfz(Path, NFZ))
+       => requires_route_replan(Mission))).
+
+% AXIOM: Invalid path requires UAV to replan before continuation
+fof(invalid_path_must_replan, axiom,
+    ![UAV, Path]:
+      ((uav(UAV) &
+        has_current_path(UAV, Path) &
+        path_invalidated(Path) &
+        has_flight_phase(UAV, transit))
+       => must_replan_path(UAV))).
+
+% AXIOM: Proposed path that intersects active NFZ is not valid
+fof(proposed_path_nfz_invalid, axiom,
+    ![UAV, NewPath, NFZ]:
+      ((uav(UAV) &
+        must_replan_path(UAV) &
+        dynamic_no_fly_zone(NFZ) &
+        nfz_active(NFZ) &
+        proposed_path(UAV, NewPath) &
+        path_intersects_nfz(NewPath, NFZ))
+       => ~valid_path(NewPath))).
+
+% ============================================================================
+% SECTION 4: NFZ Buffer and Proximity Axioms
+% ============================================================================
+
+% AXIOM: Entry into active NFZ is a violation
+fof(active_nfz_entry_violation, axiom,
+    ![UAV, NFZ]:
+      ((uav(UAV) &
+        no_fly_zone(NFZ) &
+        nfz_active(NFZ) &
+        is_within(UAV, NFZ))
+       => (nfz_violation(UAV) & ~safe_state(UAV)))).
+
+% ============================================================================
+% SECTION 5: Test Scenario - Dynamic NFZ Activation
+% ============================================================================
+
+% Define test instances
+fof(test_drone_is_flyby, axiom, flyby_f11(drone_recon)).
+fof(test_mission_exists, axiom, waypoint_mission(recon_transit_1)).
+fof(test_assignment, axiom, assigned_uav(recon_transit_1, drone_recon)).
+
+% Define the dynamic NFZ (aircraft corridor)
+fof(test_nfz_is_corridor, axiom, aircraft_corridor(corridor_alpha)).
+
+% Scenario: NFZ activated at T+3 minutes
+fof(nfz_activated, axiom, nfz_active(corridor_alpha)).
+
+% Define current flight path
+fof(test_path_exists, axiom, follow_path(current_route)).
+fof(test_path_assigned, axiom, has_current_path(drone_recon, current_route)).
+
+% Scenario: Current path intersects the newly activated NFZ
+fof(path_nfz_intersection, axiom, path_intersects_nfz(current_route, corridor_alpha)).
+
+% Scenario: UAV is in transit phase
+fof(drone_in_transit, axiom, has_flight_phase(drone_recon, transit)).
+
+% ============================================================================
+% THEOREM: Path should be detected as invalidated
+% ============================================================================
+
+fof(prove_path_invalidated, conjecture,
+    path_invalidated(current_route)).
+
+%------------------------------------------------------------------------------
+% Expected result: THEOREM PROVED
+%
+% Proof trace:
+%   1. aircraft_corridor(corridor_alpha) => dynamic_no_fly_zone(corridor_alpha)
+%   2. nfz_active(corridor_alpha) [given]
+%   3. follow_path(current_route) [given]
+%   4. path_intersects_nfz(current_route, corridor_alpha) [given]
+%   5. By active_nfz_blocks_paths axiom:
+%      dynamic_no_fly_zone(NFZ) & nfz_active(NFZ) & follow_path(Path) &
+%      path_intersects_nfz(Path, NFZ) => path_invalidated(Path)
+%   6. Therefore: path_invalidated(current_route) QED
+%------------------------------------------------------------------------------

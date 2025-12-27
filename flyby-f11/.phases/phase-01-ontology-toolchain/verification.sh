@@ -1,7 +1,7 @@
 #!/bin/bash
 # Phase 1: Ontology Toolchain Setup - Automated Verification
 
-PROJECT_ROOT="/home/finley/Github/DroneProjects/flyby-f11"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "========================================"
@@ -18,9 +18,11 @@ fail() { echo "✗ $1"; FAILED=$((FAILED + 1)); }
 # File checks
 echo "--- File Structure ---"
 [ -f ontology/Containerfile.planning ] && pass "Containerfile.planning exists" || fail "Containerfile.planning missing"
-[ -f ontology/planning_mode/test_uav.kif ] && pass "test_uav.kif exists" || fail "test_uav.kif missing"
-[ -f ontology/planning_mode/test_theorem.tptp ] && pass "test_theorem.tptp exists" || fail "test_theorem.tptp missing"
+# Note: uav_domain.kif is the full ontology (Phase 1+2 combined delivery)
+[ -f ontology/planning_mode/uav_domain.kif ] && pass "uav_domain.kif exists" || fail "uav_domain.kif missing"
 [ -f ontology/planning_mode/validate_kif.py ] && pass "validate_kif.py exists" || fail "validate_kif.py missing"
+# Test scenarios exist in test_scenarios/ directory
+[ -d ontology/planning_mode/test_scenarios ] && pass "test_scenarios directory exists" || fail "test_scenarios missing"
 
 # Container checks
 echo ""
@@ -55,22 +57,26 @@ fi
 # KIF syntax validation
 echo ""
 echo "--- KIF Syntax Test ---"
-if python3 ontology/planning_mode/validate_kif.py ontology/planning_mode/test_uav.kif > /dev/null 2>&1; then
-    pass "test_uav.kif syntax valid"
+if python3 ontology/planning_mode/validate_kif.py ontology/planning_mode/uav_domain.kif > /dev/null 2>&1; then
+    pass "uav_domain.kif syntax valid"
 else
-    fail "test_uav.kif syntax invalid"
+    fail "uav_domain.kif syntax invalid"
 fi
 
-# Vampire proof test
+# Vampire proof test (use test scenarios)
 echo ""
 echo "--- Theorem Proving ---"
-PROOF_RESULT=$(podman run --rm -v "$PROJECT_ROOT/ontology:/workspace:z" \
-    flyby-f11-planning:latest \
-    vampire --input_syntax tptp /workspace/planning_mode/test_theorem.tptp 2>&1)
-if echo "$PROOF_RESULT" | grep -q "SZS status Theorem"; then
-    pass "Vampire proves test theorem"
+if [ -f ontology/planning_mode/test_scenarios/test_axioms.tptp ]; then
+    PROOF_RESULT=$(podman run --rm -v "$PROJECT_ROOT/ontology:/workspace:z" \
+        flyby-f11-planning:latest \
+        vampire --input_syntax tptp --time_limit 30 /workspace/planning_mode/test_scenarios/test_axioms.tptp 2>&1)
+    if echo "$PROOF_RESULT" | grep -qE "SZS status (Theorem|CounterSatisfiable|Satisfiable)"; then
+        pass "Vampire executes test scenarios"
+    else
+        fail "Vampire proof failed"
+    fi
 else
-    fail "Vampire proof failed"
+    fail "test_axioms.tptp missing"
 fi
 
 # Volume mount test

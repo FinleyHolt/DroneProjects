@@ -6,8 +6,8 @@
       "description": "Shared RL package from Phase 7"
     },
     "phase_04_outputs": {
-      "prolog_bridge": "ros2_ws/src/prolog_bridge/",
-      "description": "Prolog query interface for transition validation"
+      "vampire_bridge": "ros2_ws/src/vampire_bridge/",
+      "description": "Vampire query interface for behavior transition validation"
     },
     "behavior_definitions": {
       "navigate": "Transit behavior parameters",
@@ -19,7 +19,7 @@
     "knowledge_requirements": {
       "reinforcement_learning": "PPO, advantage estimation",
       "behavior_trees": "BT concepts and integration",
-      "flight_modes": "PX4/ArduPilot flight modes",
+      "flight_modes": "ArduPilot flight modes",
       "description": "Technical knowledge for behavior implementation"
     }
   },

@@ -10,7 +10,7 @@
       "jetson_orin_nano_super": "8GB unified memory, 67 TOPS",
       "t265_camera": "Intel RealSense T265 tracking camera",
       "d455_camera": "Intel RealSense D455 depth camera",
-      "px4_flight_controller": "PX4-compatible flight controller",
+      "ardupilot_flight_controller": "ArduPilot-compatible flight controller",
       "description": "Project-drone hardware components"
     },
     "testing_environment": {
@@ -22,7 +22,7 @@
     "software_requirements": {
       "jetpack": "JetPack 5.x or 6.x",
       "podman": "Podman for containerized deployment",
-      "px4_firmware": "PX4 with offboard mode support",
+      "ardupilot_firmware": "ArduPilot with guided mode support",
       "description": "Required software stack"
     }
   },

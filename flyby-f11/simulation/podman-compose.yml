@@ -1,0 +1,211 @@
+# Flyby F-11 Simulation Stack - Podman Compose
+#
+# Complete simulation environment for RL training:
+# - ArduPilot SITL (flight controller simulation)
+# - Gazebo Harmonic (physics and sensor simulation)
+# - MAVROS (MAVLink to ROS 2 bridge)
+# - Vampire Bridge (ontology reasoning)
+# - State Grounding (connects simulation to ontology)
+#
+# Quick Start:
+#   podman-compose up              # Start all services
+#   podman-compose up --build      # Rebuild and start
+#   podman-compose logs -f         # Follow logs
+#   podman-compose down            # Stop all
+#
+# Headless Training Mode:
+#   HEADLESS=true podman-compose up
+#
+# Multiple Instances:
+#   SITL_INSTANCE=0 podman-compose -p sim0 up
+#   SITL_INSTANCE=1 podman-compose -p sim1 up
+
+version: '3'
+
+services:
+  # ============================================
+  # ArduPilot SITL + Gazebo
+  # ============================================
+  simulator:
+    container_name: flyby-f11-sim-dev
+    build:
+      context: .
+      dockerfile: Containerfile.sitl
+    image: flyby-f11-sim:latest
+    volumes:
+      - ./worlds:/simulation/worlds:z
+      - ./models:/simulation/models:z
+      - ./configs:/simulation/configs:z
+      - ./scripts:/simulation/scripts:z
+    environment:
+      - HEADLESS=${HEADLESS:-false}
+      - SITL_SPEEDUP=${SITL_SPEEDUP:-1}
+      - SITL_INSTANCE=${SITL_INSTANCE:-0}
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=42
+    devices:
+      - nvidia.com/gpu=all
+    # X11 for GUI mode
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+    # Host network for ROS 2 DDS discovery
+    network_mode: host
+    stdin_open: true
+    tty: true
+    healthcheck:
+      test: ["CMD", "pgrep", "-x", "arducopter"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ============================================
+  # MAVROS Bridge
+  # ============================================
+  mavros:
+    container_name: flyby-f11-mavros-dev
+    image: ros:humble-ros-base-jammy
+    depends_on:
+      simulator:
+        condition: service_healthy
+    volumes:
+      - ./configs:/configs:z,ro
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    network_mode: host
+    command: >
+      /bin/bash -c "
+        apt-get update && apt-get install -y ros-humble-mavros ros-humble-mavros-extras &&
+        source /opt/ros/humble/setup.bash &&
+        ros2 launch mavros apm.launch
+          fcu_url:=udp://127.0.0.1:14550@127.0.0.1:14551
+          gcs_url:=
+          tgt_system:=1
+          tgt_component:=1
+      "
+    restart: unless-stopped
+
+  # ============================================
+  # Vampire Reasoning Bridge (from Phase 4-6)
+  # ============================================
+  vampire_bridge:
+    container_name: flyby-f11-vampire-dev
+    image: flyby-f11-planning:latest
+    volumes:
+      - ../ros2_ws:/workspace/ros2_ws:z
+      - ../ontology:/workspace/ontology:z,ro
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    network_mode: host
+    command: >
+      /bin/bash -c "
+        source /opt/ros/humble/setup.bash &&
+        source /workspace/ros2_ws/install/setup.bash &&
+        ros2 run vampire_bridge vampire_node
+          --ros-args
+          -p vampire_binary:=/usr/local/bin/vampire
+          -p ontology_path:=/workspace/ontology/planning_mode
+          -p default_timeout_ms:=100
+      "
+    restart: unless-stopped
+    profiles:
+      - full
+
+  # ============================================
+  # State Grounding Node
+  # Connects MAVROS topics to ontology predicates
+  # ============================================
+  state_grounding:
+    container_name: flyby-f11-grounding-dev
+    image: flyby-f11-planning:latest
+    depends_on:
+      - mavros
+    volumes:
+      - ../ros2_ws:/workspace/ros2_ws:z
+      - ./worlds:/simulation/worlds:z,ro
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - WORLD_CONFIG=/simulation/worlds/training_world_config.json
+    network_mode: host
+    command: >
+      /bin/bash -c "
+        source /opt/ros/humble/setup.bash &&
+        source /workspace/ros2_ws/install/setup.bash &&
+        ros2 run vampire_bridge state_grounding_node
+          --ros-args
+          -p world_config:=/simulation/worlds/training_world_config.json
+      "
+    restart: unless-stopped
+    profiles:
+      - full
+
+  # ============================================
+  # Mission Orchestrator (from Phase 6)
+  # ============================================
+  mission_orchestrator:
+    container_name: flyby-f11-orchestrator-dev
+    image: flyby-f11-planning:latest
+    depends_on:
+      - vampire_bridge
+      - mavros
+    volumes:
+      - ../ros2_ws:/workspace/ros2_ws:z
+    environment:
+      - ROS_DOMAIN_ID=42
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    network_mode: host
+    command: >
+      /bin/bash -c "
+        source /opt/ros/humble/setup.bash &&
+        source /workspace/ros2_ws/install/setup.bash &&
+        ros2 run mission_orchestrator mission_orchestrator_node
+      "
+    restart: unless-stopped
+    profiles:
+      - full
+
+  # ============================================
+  # Episode Manager (for RL training)
+  # ============================================
+  episode_manager:
+    container_name: flyby-f11-episode-dev
+    image: flyby-f11-sim:latest
+    depends_on:
+      - simulator
+      - mavros
+    volumes:
+      - ./scripts:/simulation/scripts:z
+      - ./worlds:/simulation/worlds:z,ro
+    environment:
+      - ROS_DOMAIN_ID=42
+      - PYTHONPATH=/simulation/scripts:$PYTHONPATH
+    network_mode: host
+    command: >
+      /bin/bash -c "
+        source /opt/ros/humble/setup.bash &&
+        python3 /simulation/scripts/episode_manager.py
+      "
+    restart: unless-stopped
+    profiles:
+      - training
+
+  # ============================================
+  # TensorBoard (for monitoring training)
+  # ============================================
+  tensorboard:
+    container_name: flyby-f11-tensorboard
+    image: tensorflow/tensorflow:latest
+    volumes:
+      - ../training/logs:/logs:z,ro
+    ports:
+      - "6006:6006"
+    command: tensorboard --logdir=/logs --host=0.0.0.0
+    profiles:
+      - training
+
+networks:
+  default:
+    driver: bridge

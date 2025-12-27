@@ -1,0 +1,89 @@
+# vampire-reasoning.container
+# Quadlet container definition for Vampire Reasoning Bridge on Jetson Orin NX
+#
+# This Quadlet file defines a systemd-managed container for the Vampire
+# theorem prover ROS 2 bridge. It provides formal reasoning services for
+# mission verification (planning queries) and runtime safety monitoring
+# (tactical queries).
+#
+# Installation:
+#   cp vampire-reasoning.container ~/.config/containers/systemd/
+#   systemctl --user daemon-reload
+#   systemctl --user enable vampire-reasoning.service
+#
+# Usage:
+#   systemctl --user start vampire-reasoning.service
+#   systemctl --user status vampire-reasoning.service
+#   journalctl --user -u vampire-reasoning.service -f
+
+[Unit]
+Description=Vampire Reasoning Bridge for Flyby F-11 UAV
+Documentation=https://github.com/yourusername/DroneProjects
+
+# Wait for network (may need ROS 2 DDS discovery)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+# Container image with Vampire theorem prover
+Image=localhost/flyby-f11-planning:latest
+ContainerName=vampire-reasoning
+
+# Mount ROS 2 workspace
+Volume=/home/flyby/ros2_ws:/workspace/ros2_ws:z
+
+# Mount ontology files
+Volume=/home/flyby/ontology:/workspace/ontology:z,ro
+
+# Mount benchmark queries (templates)
+Volume=/home/flyby/ontology/evaluation/benchmark_queries:/workspace/benchmark_queries:z,ro
+
+# ROS 2 networking - use host network for DDS discovery
+Network=host
+
+# Environment variables
+Environment=ROS_DOMAIN_ID=42
+Environment=RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+Environment=ROS_LOG_DIR=/workspace/logs
+
+# Source ROS 2 workspace and run the vampire node
+Exec=/bin/bash -c "source /opt/ros/humble/setup.bash && \
+    source /workspace/ros2_ws/install/setup.bash && \
+    ros2 run vampire_bridge vampire_node.py \
+    --ros-args \
+    -p vampire_binary:=/usr/local/bin/vampire \
+    -p ontology_path:=/workspace/ontology/planning_mode \
+    -p templates_path:=/workspace/benchmark_queries \
+    -p default_timeout_ms:=100 \
+    -p cache_size:=1000 \
+    -p max_concurrent_queries:=4"
+
+# Health check: verify service is available
+HealthCmd=/bin/bash -c "source /opt/ros/humble/setup.bash && \
+    ros2 service list | grep -q /vampire/query"
+HealthInterval=30s
+HealthTimeout=10s
+HealthRetries=3
+
+# Resource limits for Jetson Orin NX
+# Vampire can be memory-intensive for complex proofs
+PodmanArgs=--memory=2g --cpus=3
+
+[Service]
+# Restart policy
+Restart=always
+RestartSec=5
+
+# Startup timeout
+TimeoutStartSec=60
+
+# Stop timeout
+TimeoutStopSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+# Enable auto-start on user login
+WantedBy=default.target

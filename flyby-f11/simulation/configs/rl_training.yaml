@@ -1,0 +1,442 @@
+# Flyby F-11 RL Training Configuration
+# =====================================
+#
+# This configuration file defines all parameters for reinforcement learning
+# training using the FlybyUAVEnv Gymnasium environment.
+#
+# Usage:
+#   from rl_gym_env import FlybyUAVEnv
+#   env = FlybyUAVEnv(config_path='configs/rl_training.yaml')
+#
+# Author: Finley Holt
+# Project: Flyby F-11 Autonomous Navigation
+# Last Updated: 2025-12-27
+
+# =============================================================================
+# Environment Configuration
+# =============================================================================
+environment:
+  # Connection to ArduPilot SITL
+  # For parallel training, each instance uses port 5760 + instance_id
+  connection_string: "tcp:localhost:5760"
+
+  # Control loop timestep (seconds)
+  # Lower = more responsive but higher compute load
+  dt: 0.1  # 10 Hz
+
+  # Maximum steps per episode before truncation
+  max_episode_steps: 1000  # ~100 seconds at 10 Hz
+
+  # Task type: velocity_tracking, waypoint_navigation, hover, trajectory_tracking
+  task_type: "velocity_tracking"
+
+  # Terminate episode when goal is reached (vs continue for multi-goal)
+  terminate_on_goal: false
+
+  # Random spawn position each episode
+  random_spawn: true
+
+# =============================================================================
+# Vehicle Constraints
+# =============================================================================
+vehicle_constraints:
+  # Maximum velocity magnitude (m/s)
+  max_velocity: 10.0
+
+  # Maximum vertical velocity (m/s)
+  max_vertical_velocity: 5.0
+
+  # Altitude limits (m AGL)
+  max_altitude: 100.0
+  min_altitude: 2.0
+
+  # Takeoff altitude (m AGL)
+  takeoff_altitude: 10.0
+
+# =============================================================================
+# Geofence Configuration
+# =============================================================================
+# Coordinates are in NED frame (x=North, y=East, z=Down)
+geofence_bounds:
+  min:
+    x: -125  # meters
+    y: -125
+    z: 0     # ground level
+  max:
+    x: 125
+    y: 125
+    z: 100   # max altitude AGL
+
+# No-fly zones (optional)
+no_fly_zones:
+  - id: "nfz_tower_1"
+    type: "cylinder"
+    center: {x: 50, y: 50, z: 0}
+    radius_m: 20
+    height_m: 50
+    active: true
+
+  - id: "nfz_restricted_1"
+    type: "box"
+    bounds:
+      min: {x: 80, y: -40, z: 0}
+      max: {x: 100, y: -20, z: 40}
+    active: true
+
+# =============================================================================
+# Spawn Positions
+# =============================================================================
+spawn_positions:
+  - {x: 0, y: 0, z: 0, heading_deg: 0, name: "center"}
+  - {x: 100, y: 100, z: 0, heading_deg: 225, name: "corner_ne"}
+  - {x: -100, y: -100, z: 0, heading_deg: 45, name: "corner_sw"}
+  - {x: 25, y: 45, z: 0, heading_deg: 0, name: "near_nfz"}
+  - {x: -50, y: 50, z: 0, heading_deg: 90, name: "offset"}
+
+# =============================================================================
+# Observation Space Configuration
+# =============================================================================
+observation_space:
+  # Include position in observation (NED coordinates)
+  include_position: true
+
+  # Include velocity in observation
+  include_velocity: true
+
+  # Include attitude (roll, pitch, yaw)
+  include_attitude: true
+
+  # Include angular velocity
+  include_angular_velocity: false
+
+  # Include target position (for tracking tasks)
+  include_target_position: true
+
+  # Include target velocity (for velocity tracking)
+  include_target_velocity: false
+
+  # Include position error (relative to target)
+  include_position_error: true
+
+  # Include battery state
+  include_battery: false
+
+  # Include previous action (for smoothness computation)
+  include_previous_action: true
+
+# =============================================================================
+# Action Space Configuration
+# =============================================================================
+action_space:
+  # Action type: velocity, position, discrete
+  type: "velocity"
+
+  # For velocity actions: max velocity command (m/s)
+  max_velocity: 10.0
+  max_vertical_velocity: 5.0
+
+  # For position actions: max position offset (m)
+  max_position_offset: 10.0
+
+  # For discrete actions: number of discrete actions
+  num_actions: 8  # 4 cardinal + 2 vertical + 2 diagonal
+
+# =============================================================================
+# Reward Function Configuration
+# =============================================================================
+reward_weights:
+  # Position tracking (negative = penalty for error)
+  position_tracking: 1.0
+
+  # Velocity tracking
+  velocity_tracking: 0.5
+
+  # Smoothness (action difference penalty)
+  smoothness: 0.1
+
+  # Energy efficiency (control effort penalty)
+  energy: 0.05
+
+  # Collision penalty (large negative)
+  collision: -100.0
+
+  # Geofence/NFZ violation penalty
+  geofence: -50.0
+
+  # Goal reached bonus
+  goal_reached: 100.0
+
+  # Step penalty (encourages faster completion)
+  step_penalty: -0.01
+
+# =============================================================================
+# Domain Randomization Configuration
+# =============================================================================
+domain_randomization:
+  # Enable/disable domain randomization
+  enabled:
+    physics: true
+    sensors: true
+    environment: true
+    visual: false
+
+  # Mode: none, conservative (10%), moderate (20%), aggressive (30%), custom
+  mode: "moderate"
+
+  # Use curriculum learning (gradually increase difficulty)
+  use_curriculum: true
+
+  # Verbose logging of randomization parameters
+  verbose: false
+
+  # Custom ranges (only used if mode: custom)
+  ranges:
+    physics:
+      mass_kg: [0.9, 1.1]
+      inertia: [0.9, 1.1]
+      drag_coefficient: [0.8, 1.2]
+      motor_constant: [0.95, 1.05]
+    sensors:
+      imu_accel_noise: [0.5, 2.0]
+      imu_gyro_noise: [0.5, 2.0]
+      gps_position_noise: [0.5, 3.0]
+    environment:
+      wind_max: 5.0
+      wind_gust_max: 3.0
+
+# =============================================================================
+# Training Hyperparameters
+# =============================================================================
+training:
+  # Algorithm selection
+  # trajectory_optimizer: TD3, behavior_selector: SAC, mission_planner: PPO
+  algorithm: "TD3"
+
+  # Learning rate
+  learning_rate: 0.0003  # 3e-4
+
+  # Discount factor
+  gamma: 0.99
+
+  # Soft update coefficient for target networks
+  tau: 0.005
+
+  # Replay buffer size
+  buffer_size: 1000000  # 1M transitions
+
+  # Batch size for training
+  batch_size: 256
+
+  # Total timesteps for training
+  total_timesteps: 2000000  # 2M
+
+  # Learning starts after this many steps
+  learning_starts: 10000
+
+  # Train frequency (steps between updates)
+  train_freq: 1
+
+  # Gradient steps per update
+  gradient_steps: 1
+
+  # TD3-specific
+  td3:
+    # Policy update delay
+    policy_delay: 2
+    # Target policy noise
+    target_policy_noise: 0.2
+    # Target noise clip
+    target_noise_clip: 0.5
+    # Action noise (for exploration)
+    action_noise_std: 0.1
+
+  # SAC-specific
+  sac:
+    # Entropy coefficient (auto = automatic tuning)
+    ent_coef: "auto"
+    # Target entropy
+    target_entropy: "auto"
+    # Use State-Dependent Exploration
+    use_sde: true
+    sde_sample_freq: 4
+
+  # PPO-specific
+  ppo:
+    # Steps per update
+    n_steps: 2048
+    # Number of epochs
+    n_epochs: 10
+    # Clip range
+    clip_range: 0.2
+    # Entropy coefficient
+    ent_coef: 0.01
+    # Value function coefficient
+    vf_coef: 0.5
+    # Max gradient norm
+    max_grad_norm: 0.5
+
+# =============================================================================
+# Parallel Training Configuration
+# =============================================================================
+parallel:
+  # Number of parallel environments
+  num_envs: 4
+
+  # Use asynchronous vector environment
+  async_envs: true
+
+  # SITL instance offset (each env uses 5760 + offset + i)
+  sitl_port_offset: 0
+
+  # Headless mode (no GUI)
+  headless: true
+
+  # SITL speedup factor (1 = realtime, higher = faster)
+  sitl_speedup: 5
+
+# =============================================================================
+# Logging and Checkpointing
+# =============================================================================
+logging:
+  # TensorBoard log directory
+  tensorboard_log: "./logs/tensorboard"
+
+  # WandB project name (set to null to disable)
+  wandb_project: null  # "flyby-f11-rl"
+
+  # Log interval (training steps between logs)
+  log_interval: 10
+
+  # Verbose level (0 = no output, 1 = info, 2 = debug)
+  verbose: 1
+
+checkpointing:
+  # Checkpoint save directory
+  save_path: "./models/checkpoints"
+
+  # Save frequency (training steps)
+  save_freq: 10000
+
+  # Name prefix for checkpoints
+  name_prefix: "flyby_uav"
+
+  # Keep only latest N checkpoints (0 = keep all)
+  keep_n_checkpoints: 5
+
+# =============================================================================
+# Evaluation Configuration
+# =============================================================================
+evaluation:
+  # Evaluation frequency (training steps)
+  eval_freq: 5000
+
+  # Number of evaluation episodes
+  n_eval_episodes: 10
+
+  # Use deterministic actions for evaluation
+  deterministic: true
+
+  # Best model save path
+  best_model_save_path: "./models/best"
+
+  # Render during evaluation
+  render: false
+
+# =============================================================================
+# Curriculum Learning Configuration
+# =============================================================================
+curriculum:
+  # Enable curriculum learning
+  enabled: true
+
+  # Metric to track for curriculum progression
+  # Options: success_rate, mean_reward, episode_length
+  metric: "success_rate"
+
+  # Threshold to increase difficulty
+  increase_threshold: 0.8
+
+  # Threshold to decrease difficulty
+  decrease_threshold: 0.3
+
+  # Adaptation rate (0.0 to 1.0)
+  adaptation_rate: 0.05
+
+  # Number of episodes for moving average
+  window_size: 100
+
+  # Difficulty stages
+  stages:
+    - name: "easy"
+      domain_randomization_scale: 0.3
+      target_distance_range: [10, 30]
+      wind_max: 0.0
+      obstacle_density: 0.1
+
+    - name: "medium"
+      domain_randomization_scale: 0.6
+      target_distance_range: [20, 60]
+      wind_max: 3.0
+      obstacle_density: 0.3
+
+    - name: "hard"
+      domain_randomization_scale: 1.0
+      target_distance_range: [30, 100]
+      wind_max: 5.0
+      obstacle_density: 0.5
+
+# =============================================================================
+# Episode Termination Conditions
+# =============================================================================
+termination:
+  # Terminate on collision
+  on_collision: true
+
+  # Terminate on geofence violation
+  on_geofence_violation: true
+
+  # Terminate on NFZ violation
+  on_nfz_violation: true
+
+  # Terminate when goal is reached
+  on_goal_reached: false  # Set to true for single-goal tasks
+
+  # Terminate on low battery
+  on_low_battery: false
+  low_battery_threshold: 0.1  # 10%
+
+  # Maximum episode duration (seconds, in simulation time)
+  max_duration_seconds: 300.0
+
+# =============================================================================
+# Model Export Configuration
+# =============================================================================
+export:
+  # Export to ONNX for deployment
+  onnx:
+    enabled: true
+    output_path: "./models/deployment"
+    opset_version: 11
+
+  # Export to TensorRT for Jetson optimization
+  tensorrt:
+    enabled: false
+    fp16: true
+    output_path: "./models/deployment"
+
+# =============================================================================
+# Hardware Configuration
+# =============================================================================
+hardware:
+  # Target deployment platform
+  # Options: jetson_orin_nx, jetson_orin_nano, desktop
+  target_platform: "jetson_orin_nx"
+
+  # GPU device for training
+  device: "cuda"
+
+  # Number of CPU threads for data loading
+  num_workers: 4
+
+  # Pin memory for faster GPU transfer
+  pin_memory: true

@@ -25,7 +25,7 @@ This phase creates:
 
 | Tier | Layer | Latency | Function | Handled By |
 |------|-------|---------|----------|------------|
-| 1 | Classical Control | <1ms | PID, motor control, attitude | PX4/ArduPilot |
+| 1 | Classical Control | <1ms | PID, motor control, attitude | ArduPilot |
 | 2 | Pre-computed Safety | <10ms | Obstacle buffers, geofence | Costmaps |
 | 3 | Tactical Reasoning | ~50ms | NFZ violation, battery critical | **Vampire (this phase)** |
 | 4 | Mission Planning | ~1s | Route planning, compliance | **Vampire (this phase)** |

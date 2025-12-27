@@ -19,7 +19,7 @@ This agent receives behavior commands and generates smooth, safe trajectories th
 - Optimize energy consumption
 - Respect actuator limits
 
-The output is velocity commands sent directly to PX4/ArduPilot.
+The output is velocity commands sent directly to ArduPilot.
 
 ## AI Agent Instructions
 
@@ -27,7 +27,7 @@ The output is velocity commands sent directly to PX4/ArduPilot.
 - Phase 7-8 progress (shares ontology_rl package)
 - Understanding of TD3 algorithm
 - Familiarity with quadrotor dynamics
-- Knowledge of PX4/MAVSDK interfaces
+- Knowledge of ArduPilot/MAVROS interfaces
 
 ### Input Requirements
 See `inputs.json` for machine-readable specification.
@@ -62,7 +62,7 @@ See `inputs.json` for machine-readable specification.
    - Location: `ros2_ws/src/ontology_rl/nodes/trajectory_optimizer_node.py`
    - 100Hz control loop
    - Subscribe to behavior setpoints
-   - Publish velocity commands to PX4
+   - Publish velocity commands to ArduPilot
    - Real-time performance critical
 
 6. **Develop Training Scenarios**
@@ -107,8 +107,8 @@ bash .phases/phase-09-trajectory-optimizer-rl/verification.sh
 
 - [TD3 Paper](https://arxiv.org/abs/1802.09477)
 - [Stable-Baselines3 TD3](https://stable-baselines3.readthedocs.io/en/master/modules/td3.html)
-- [PX4 Offboard Control](https://docs.px4.io/main/en/flight_modes/offboard.html)
-- [MAVSDK Offboard](https://mavsdk.mavlink.io/main/en/cpp/guide/offboard.html)
+- [ArduPilot Guided Mode](https://ardupilot.org/copter/docs/ac2_guidedmode.html)
+- [MAVROS Documentation](https://wiki.ros.org/mavros)
 
 ### Dependencies
 See `dependencies.json` - can run in parallel with Phase 7 and 8.

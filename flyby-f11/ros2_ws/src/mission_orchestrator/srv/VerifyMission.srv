@@ -1,0 +1,28 @@
+# VerifyMission.srv
+# Pre-flight mission verification using Vampire planning queries
+#
+# Uses 5000ms timeout for comprehensive verification including:
+#   - Mission feasibility (waypoints reachable with battery)
+#   - Regulatory compliance (altitude limits, airspace)
+#   - Path safety (NFZ avoidance, geofence containment)
+#
+# Usage:
+#   ros2 service call /mission/verify mission_orchestrator/srv/VerifyMission \
+#     "{mission: {mission_id: 'test_001', waypoints: [...]}}"
+
+# Request
+mission_orchestrator/MissionPlan mission  # Mission plan to verify
+---
+# Response
+bool verified                       # True if all checks passed
+string[] issues                     # List of verification issues found
+string message                      # Human-readable summary
+
+# Detailed check results
+bool feasibility_ok                 # Mission is achievable with current state
+bool regulatory_ok                  # Complies with altitude/airspace rules
+bool path_safety_ok                 # Path avoids NFZs and stays in geofence
+bool battery_ok                     # Sufficient battery for mission + RTL
+
+# Performance
+float64 verification_latency_ms     # Total verification time

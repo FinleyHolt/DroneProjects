@@ -1,0 +1,91 @@
+%------------------------------------------------------------------------------
+% Benchmark Query: Threat Zone Avoidance Check
+% Category: Operational
+% Target Latency: <100ms
+%------------------------------------------------------------------------------
+%
+% Checks if a UAV is approaching or within a threat zone.
+% Returns THEOREM if threat exposure detected.
+% Returns COUNTER_SATISFIABLE if clear of threats.
+%
+% Parameters:
+%   {{UAV_ID}} - The UAV instance
+%   {{ZONE_ID}} - The threat zone to check
+%
+%------------------------------------------------------------------------------
+
+% ============================================================================
+% Core Type Axioms
+% ============================================================================
+
+fof(uav_is_aircraft, axiom,
+    ![X]: (uav(X) => aircraft(X))).
+
+fof(flyby_f11_is_uav, axiom,
+    ![X]: (flyby_f11(X) => uav(X))).
+
+fof(threat_zone_is_region, axiom,
+    ![X]: (threat_zone(X) => region(X))).
+
+% ============================================================================
+% Threat Zone Axioms
+% ============================================================================
+
+% AXIOM: High threat zone entry is unsafe
+fof(high_threat_unsafe, axiom,
+    ![UAV, Zone]:
+      ((uav(UAV) &
+        threat_zone(Zone) &
+        is_high_threat(Zone) &
+        is_within(UAV, Zone))
+       => (high_threat_exposure(UAV) & ~safe_state(UAV)))).
+
+% AXIOM: Medium threat zone requires increased caution
+fof(medium_threat_caution, axiom,
+    ![UAV, Zone]:
+      ((uav(UAV) &
+        threat_zone(Zone) &
+        is_medium_threat(Zone) &
+        is_within(UAV, Zone))
+       => increased_caution_required(UAV))).
+
+% AXIOM: Approaching high threat triggers warning
+fof(approaching_threat_warning, axiom,
+    ![UAV, Zone]:
+      ((uav(UAV) &
+        threat_zone(Zone) &
+        is_high_threat(Zone) &
+        approaching(UAV, Zone))
+       => threat_warning(UAV))).
+
+% ============================================================================
+% Test Instance
+% ============================================================================
+
+fof(test_uav_type, axiom, flyby_f11({{UAV_ID}})).
+fof(test_zone_type, axiom, threat_zone({{ZONE_ID}})).
+fof(test_zone_high_threat, axiom, is_high_threat({{ZONE_ID}})).
+
+% Position state - within threat zone
+fof(uav_in_zone, axiom, is_within({{UAV_ID}}, {{ZONE_ID}})).
+
+% Alternative scenarios:
+% Approaching threat zone:
+% fof(uav_approaching, axiom, approaching({{UAV_ID}}, {{ZONE_ID}})).
+
+% Clear of threat zone:
+% fof(uav_clear, axiom, ~is_within({{UAV_ID}}, {{ZONE_ID}})).
+% fof(uav_not_approaching, axiom, ~approaching({{UAV_ID}}, {{ZONE_ID}})).
+
+% ============================================================================
+% Conjecture: High threat exposure
+% ============================================================================
+
+fof(check_threat_exposure, conjecture,
+    high_threat_exposure({{UAV_ID}})).
+
+%------------------------------------------------------------------------------
+% Expected Results:
+%   - If UAV in high threat zone: THEOREM (exposure detected)
+%   - If UAV clear: COUNTER_SATISFIABLE (no exposure)
+%------------------------------------------------------------------------------

@@ -10,7 +10,7 @@
     },
     "simulation_infrastructure": {
       "gazebo_worlds": "simulation/worlds/",
-      "px4_sitl": true,
+      "ardupilot_sitl": true,
       "ros2_environment": true,
       "description": "Simulation environment for benchmarking"
     },
@@ -22,7 +22,7 @@
     "knowledge_requirements": {
       "statistical_analysis": "Hypothesis testing, significance",
       "benchmark_design": "Scenario design, metric selection",
-      "simulation": "Gazebo, PX4 SITL operation",
+      "simulation": "Gazebo, ArduPilot SITL operation",
       "description": "Technical knowledge for benchmark development"
     }
   },

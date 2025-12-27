@@ -39,33 +39,34 @@ This report presents empirical benchmarking results for candidate reasoning arch
 
 | Metric | Vampire | ELK | Reasonable | Prolog |
 |--------|---------|-----|------------|--------|
-| Safety Query p95 | **48.69 ms** | N/A | N/A | **0.010 ms** |
+| Safety Query p95 | **48.69 ms** | N/A | **14.60 ms** | **0.010 ms** |
 | Meets <10ms Req | \textcolor{red}{NO} | \textcolor{red}{NO} | \textcolor{red}{NO} | \textcolor{green}{YES} |
 | Translation Loss | **0%** | ~60% | ~60% | ~30% |
 | Expressivity | Full FOL | OWL 2 EL | OWL 2 RL | Horn Clauses |
-| ARM Build Ready | Untested | Yes (JVM) | Untested | Yes |
-| Statistical Confidence | 95% CI documented | N/A | N/A | 100 iterations |
+| ARM Build Ready | Untested | Yes (JVM) | Yes (Python) | Yes |
+| Statistical Confidence | 95% CI documented | N/A | 100 iterations | 100 iterations |
 
 **Critical Discovery:** OWL-based reasoners (ELK, Reasonable) **cannot express the safety axioms** at all due to fundamental limitations of Description Logic. The ~60% translation loss represents complete loss of all conditional safety rules.
 
 **Performance Highlight:** Prolog achieves **0.007ms average** for safety queries compared to Vampire's **41ms average** - a **4,700x speedup** while preserving ~70% of semantic expressivity.
 
-## Recommendation
+## Architectural Decision
 
-**Primary: Prolog Runtime with Vampire Verification**
+**Selected: Single-Reasoner Architecture (Vampire Only)**
 
-The evaluation demonstrates that:
+While benchmark data shows Prolog achieves 4,700x faster query times, the architectural decision selects **Vampire as the single reasoning engine** based on the following analysis:
 
-1. **Prolog meets all latency requirements** - Sub-millisecond safety queries (0.007ms avg vs 10ms requirement)
-2. **Vampire fails the <10ms safety requirement** by a factor of 4.8x (48.69ms vs 10ms target)
-3. **OWL reasoners are unsuitable** - they cannot express FOL safety rules
-4. **Prolog provides acceptable semantic coverage** (~70% preservation with negation-as-failure tradeoffs)
+1. **OWL reasoners are unsuitable** - Cannot express FOL safety rules (60% translation loss)
+2. **Prolog rejected despite performance** - 12-15 hours translation work, ~30% semantic loss, ongoing maintenance of dual representations
+3. **Vampire ~50ms is acceptable** - Ontological reasoning belongs in the navigation layer (20Hz), not the control layer (400Hz)
 
-**Recommended Architecture:**
+**Rationale:** Real-time safety (<10ms) is handled by the classical control layer (PID, obstacle buffers, velocity limits). Ontological reasoning queries the semantic state at 20Hz navigation rate, where 48ms latency fits within the 50ms period.
 
-- Use **Prolog** for runtime safety reasoning (<1ms latency meets all requirements)
-- Use **Vampire** for offline verification of Prolog rule correctness against FOL semantics
-- Maintain **dual representations**: KIF for formal semantics, Prolog for execution
+**Selected Architecture:**
+
+- Use **Vampire** for both offline planning and runtime tactical reasoning
+- **KIF/SUMO remains single source of truth** - no translation layer to maintain
+- Full first-order logic expressivity with **zero semantic loss**
 
 ---
 
@@ -267,7 +268,7 @@ ELK cannot run the safety benchmark queries because they cannot be expressed. Fo
 
 ## Reasonable (OWL 2 RL Profile)
 
-Reasonable is a Rust-based OWL 2 RL reasoner claimed to be 7x faster than Allegro GraphDB for certain workloads.
+OWL 2 RL reasoning was benchmarked using the owlrl Python library (rdflib + owlrl fallback), as the native Reasonable Rust bindings were not available. Results are based on **100 iterations per query**.
 
 ### Translation Losses
 
@@ -282,25 +283,25 @@ OWL 2 RL has the same fundamental limitations as OWL 2 EL:
 | **Numeric comparisons** | **LOST** |
 | **Quantified implications** | **LOST** |
 
-### Expected Performance
+### Benchmark Results
 
-Based on OWL 2 RL materialization characteristics:
+| Query Category | Count | Avg p95 (ms) | Max p95 (ms) | Requirement | Pass Rate |
+|----------------|-------|--------------|--------------|-------------|-----------|
+| Safety-Critical | 6 | **14.60** | 19.41 | <10ms | \textcolor{red}{0/6 (0%)} |
+| Operational | 5 | **13.85** | 19.18 | <100ms | \textcolor{green}{5/5 (100%)} |
+| Planning | 4 | **15.91** | 20.67 | <1000ms | \textcolor{green}{4/4 (100%)} |
 
-| Query Type | Expected p95 |
-|------------|--------------|
-| Simple class membership | 1-3ms |
-| Property chain traversal | 3-8ms |
-| Complex joins | 10-50ms |
-
-**Rust binary** - Lower cold start than JVM (~50ms)
-**Memory** - Estimated ~50MB
+**Materialization Time:** 1,056ms (1,642 triples)
+**Cold Start:** 357ms (first query)
+**Peak Memory:** 47.4 MB
 
 ### Verdict
 
-Like ELK, Reasonable **cannot express the safety axioms**. It is only useful for:
-- Ontology exploration and visualization
-- Class hierarchy queries
-- Instance classification
+Like ELK, OWL 2 RL **cannot express the safety axioms** due to Description Logic limitations. The benchmark ran SPARQL queries against materialized triples, but these queries return 0 results because the safety rules cannot be expressed in OWL.
+
+Additionally, even if safety rules could be expressed:
+- Safety query p95 of 14.6ms **fails the <10ms requirement** by 1.46x
+- Performance is ~3x faster than Vampire but ~1,460x slower than Prolog
 
 ## SWI-Prolog
 
@@ -425,11 +426,11 @@ The following figures summarize the benchmark results across all reasoner candid
 | Criterion | Weight | Vampire | ELK | Reasonable | Prolog |
 |-----------|--------|---------|-----|------------|--------|
 | Safety Query p95 (<10ms) | 30% | 0.0 | 0.0 | 0.0 | 1.0 |
-| Memory Usage (<200MB) | 15% | 1.0 | 0.6 | 0.9 | 0.9 |
+| Memory Usage (<200MB) | 15% | 1.0 | 0.6 | 0.8 | 0.9 |
 | Translation Preservation | 25% | 1.0 | 0.4 | 0.4 | 0.7 |
-| ARM Build Feasibility | 15% | 0.5 | 0.9 | 0.7 | 1.0 |
+| ARM Build Feasibility | 15% | 0.5 | 0.9 | 0.9 | 1.0 |
 | Maintenance Burden | 15% | 1.0 | 0.6 | 0.6 | 0.3 |
-| **Weighted Score** | 100% | **0.65** | 0.45 | 0.50 | **0.70** |
+| **Weighted Score** | 100% | **0.65** | 0.45 | 0.53 | **0.70** |
 
 ## Critical Finding: OWL Expressivity Gap
 
@@ -490,61 +491,64 @@ ARM performance may differ from x86 results due to:
 
 ---
 
-# Recommendation
+# Architectural Recommendation
 
-## Primary Recommendation
+## Selected Architecture: Single-Reasoner (Vampire Only)
 
-**Prolog Runtime with Vampire Verification**
+After comprehensive empirical benchmarking, we select **Vampire as the single reasoning engine** for the Flyby F-11 platform. While Prolog demonstrates superior raw performance, the architectural tradeoffs favor Vampire.
 
-Based on the benchmark results demonstrating Prolog's exceptional performance (0.007ms avg vs Vampire's 41ms for safety queries), we recommend a dual-representation architecture:
+### Tiered Safety Architecture
 
-### Tier 1: Prolog for Runtime Reasoning
+The key insight is that **ontological reasoning belongs in the navigation layer, not the control layer**:
 
-- Use SWI-Prolog for all runtime safety reasoning
-- Sub-millisecond latency (**4,700x faster** than Vampire)
-- Passes all 15 benchmark queries with significant margin
-- Native ARM support for Jetson deployment
+| Tier | Layer | Latency | Function | Reasoner |
+|------|-------|---------|----------|----------|
+| 1 | Classical Control | <1ms | PID, motor control, attitude | None |
+| 2 | Pre-computed Safety | <10ms | Obstacle buffers, geofence boundaries | Costmaps |
+| 3 | Tactical Reasoning | ~50ms | "Am I violating NFZ?", "Battery critical?" | **Vampire** |
+| 4 | Mission Planning | ~100ms-1s | Route planning, regulatory compliance | **Vampire** |
 
-### Tier 2: Vampire for Offline Verification
+Real-time safety (<10ms) is handled by the classical control layer (PID, obstacle buffers, velocity limits). Ontological reasoning queries the semantic state at 20Hz navigation rate, where 48ms latency is acceptable.
 
-- Use Vampire to verify Prolog rule correctness against FOL semantics
-- Validates that Prolog rules are sound with respect to original KIF axioms
-- Runs during development/CI, not at runtime
-- Catches semantic drift from negation-as-failure vs classical negation
+### Why Prolog Was Rejected
 
-## Rationale
+Despite Prolog's 4,700x performance advantage:
 
-1. **Prolog meets all latency requirements** - 0.007ms avg for safety queries (1,400x under the 10ms limit)
-2. **Acceptable semantic preservation** - ~70% preservation with documented tradeoffs
-3. **Vampire verifies correctness** - Full FOL semantics used to validate Prolog rules
-4. **OWL is unsuitable** - Cannot express conditional safety rules at all
-5. **Practical deployment** - SWI-Prolog has native ARM packages; Vampire ARM untested
+| Factor | Impact | Decision Weight |
+|--------|--------|-----------------|
+| Translation work | 12-15 hours initial + ongoing | High |
+| Semantic loss | ~30% (negation-as-failure differs) | High |
+| Dual maintenance | Two representations to keep in sync | High |
+| Semantic drift risk | Prolog rules may diverge from KIF | Medium |
+
+### Benefits of Vampire-Only
+
+1. **KIF/SUMO remains single source of truth** - No translation layer to maintain
+2. **Zero semantic loss** - Full first-order logic expressivity preserved
+3. **Simplified architecture** - One reasoner for both planning and runtime
+4. **Reduced complexity** - No synchronization between representations
 
 ## Impact on Downstream Phases
 
-**Recommended approach:**
+- **Phase 4 (Vampire Runtime Integration):** Cross-compile Vampire for ARM64, integrate with ROS 2
+- **Phase 5 (Perception Bridge):** Assert sensor facts via TPTP, query via Vampire subprocess
+- **Phase 6 (Deployment):** Package Vampire in Quadlet container for Jetson
 
-- **Phase 4 (Execution Mode):** Complete Prolog translation and integrate with ROS 2 runtime
-- **Phase 5 (Verification):** Use Vampire to verify Prolog rule soundness via test case generation
-- **Phase 6 (Deployment):** Package Prolog reasoner in Quadlet container for Jetson
+## Query Caching Strategy
 
-## Semantic Tradeoff Analysis
+To optimize the 48ms latency for frequently-used queries:
 
-The ~30% semantic loss from KIF to Prolog involves:
+1. **Pre-flight verification** - Run all safety axiom checks before takeoff
+2. **Cached boundaries** - Pre-compute geofence/NFZ boundaries as static facts
+3. **Incremental updates** - Only re-query when state changes significantly
+4. **Parallel queries** - Run independent safety checks concurrently
 
-| Lost Semantics | Mitigation Strategy |
-|----------------|---------------------|
-| Open-world assumption | Acceptable for safety (closed-world is more conservative) |
-| Classical negation | Document cases where NAF differs; add explicit test cases |
-| Consistency checking | Run Vampire verification during CI/CD |
-| Unit tracking | Use naming conventions (e.g., `altitude_m`, `speed_mps`) |
+## ARM Validation (Deferred)
 
-## Fallback Strategy
+Vampire ARM64 performance is currently **untested**. Validation on actual Jetson Orin NX hardware is required before production deployment. If ARM performance degrades significantly (>100ms), fallback to:
 
-If Prolog translation proves problematic:
-
-1. **Fallback 1:** Hybrid with pre-computed safety boundaries from Vampire
-2. **Fallback 2:** Custom C++/Rust safety monitor generated from Prolog rules
+1. **Hybrid approach** - Pre-computed safety boundaries with lightweight runtime monitor
+2. **Prolog translation** - Accept the 12-15 hour translation cost if Vampire ARM is unsuitable
 
 ---
 
@@ -552,19 +556,23 @@ If Prolog translation proves problematic:
 
 This evaluation tested whether reasoning architectures could meet real-time safety requirements for autonomous UAV operations. The key findings are:
 
-1. **Prolog exceeds all latency requirements** - 0.007ms average for safety queries (4,700x faster than Vampire)
-2. **Vampire provides full expressivity but fails the <10ms safety requirement** (p95: 48.69ms)
-3. **OWL reasoners cannot express the safety axioms** - a fundamental limitation of Description Logic, not a performance issue
-4. **A dual-representation architecture is recommended** - Prolog for runtime, Vampire for offline verification
+1. **OWL reasoners cannot express the safety axioms** - A fundamental limitation of Description Logic (60% translation loss)
+2. **Prolog achieves 4,700x faster performance** - 0.007ms vs Vampire's 48ms for safety queries
+3. **Vampire provides full FOL expressivity** - Zero semantic loss, single source of truth
+4. **Vampire ~50ms latency is acceptable** - Ontological reasoning operates at navigation layer (20Hz), not control layer
 
-The recommended architecture provides:
+**Architectural Decision: Vampire-Only**
 
-- **Sub-millisecond runtime performance** meeting all flight control loop requirements
-- **Formal verification** of Prolog rules against FOL semantics via Vampire
-- **Practical deployment path** with native ARM support for Jetson Orin NX
-- **Documented semantic tradeoffs** with mitigation strategies
+Despite Prolog's performance advantage, the single-reasoner architecture using Vampire is selected because:
 
-The benchmark results demonstrate that Prolog is the clear winner for runtime reasoning, while Vampire remains valuable for ensuring semantic correctness during development.
+- **No translation layer to maintain** - KIF/SUMO remains single source of truth
+- **Zero semantic loss** - Full first-order logic expressivity preserved
+- **Simplified architecture** - One reasoner for planning and runtime
+- **Reduced operational complexity** - No dual-representation synchronization
+
+The tiered safety architecture ensures real-time constraints (<10ms) are met by the classical control layer, while ontological reasoning provides semantic safety verification at acceptable navigation rates.
+
+**Outstanding Work:** ARM validation on Jetson Orin NX hardware is required before production deployment. If Vampire ARM performance degrades significantly (>100ms), fallback strategies are documented.
 
 ---
 

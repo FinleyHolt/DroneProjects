@@ -1,0 +1,41 @@
+# ExecuteMission.action
+# Action for mission execution with progress feedback
+#
+# Provides real-time feedback during mission execution including
+# waypoint progress, safety status, and ETA.
+#
+# Usage:
+#   ros2 action send_goal /mission/execute mission_orchestrator/action/ExecuteMission \
+#     "{mission_id: 'test_001'}"
+
+# Goal
+string mission_id                   # Mission to execute (must be verified)
+---
+# Result
+bool success                        # True if mission completed successfully
+uint8 final_state                   # Final state (COMPLETED or ABORTED)
+string message                      # Completion message
+
+uint32 waypoints_completed          # Number of waypoints reached
+float64 total_flight_time_sec       # Total flight time
+string[] safety_events              # Safety events during flight
+---
+# Feedback
+builtin_interfaces/Time stamp       # Feedback timestamp
+
+# Progress
+uint32 current_waypoint             # Current target waypoint index
+uint32 total_waypoints              # Total waypoints in mission
+float32 progress_percent            # Overall progress (0-100)
+
+# Position
+float64 distance_to_waypoint_m      # Distance to current waypoint
+float64 eta_sec                     # Estimated time to waypoint
+
+# Safety
+bool safety_ok                      # Current safety status
+string[] active_violations          # Any active safety violations
+
+# State
+uint8 state                         # Current mission state
+string state_name                   # Human-readable state name

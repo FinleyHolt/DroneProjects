@@ -96,3 +96,4 @@ flyby-f11/docs/vision/repos/jetson-inference/
 flyby-f11/docs/vision/repos/realsense-ros/
 flyby-f11/docs/vision/repos/ultralytics/
 flyby-f11/evaluation/isaac-sim/PegasusSimulator/
+flyby-f11/evaluation/isaac-sim-px4/extensions/forest_generator/

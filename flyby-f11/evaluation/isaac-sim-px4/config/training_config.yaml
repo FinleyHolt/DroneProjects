@@ -1,0 +1,279 @@
+# Flyby F-11 ISR Training Configuration
+# Configuration for ontology-constrained hierarchical RL training
+
+# =============================================================================
+# Environment Selection
+# =============================================================================
+environment:
+  # Options: comms_denied, dynamic_nfz, multi_objective
+  name: comms_denied
+
+  # Isaac Sim settings
+  headless: true
+  physics_dt: 0.004  # 250Hz physics
+  render_dt: 0.0167  # 60Hz rendering
+
+  # World coordinates (Camp Pendleton default)
+  latitude: 33.3853
+  longitude: -117.5653
+  altitude: 100.0
+
+# =============================================================================
+# Domain Randomization
+# =============================================================================
+domain_randomization:
+  enabled: true
+  seed: null  # null for random, or fixed int for reproducibility
+
+  # Lighting variation
+  lighting:
+    enabled: true
+    presets: [DAY, DAWN, DUSK, OVERCAST]
+    weights: [0.4, 0.2, 0.2, 0.2]
+
+  # Weather variation
+  weather:
+    enabled: true
+    conditions: [CLEAR, HAZY, FOGGY]
+    weights: [0.5, 0.3, 0.2]
+    wind_speed_range: [0, 10]  # m/s
+
+  # Sensor degradation
+  sensors:
+    enabled: true
+    gps_denial_probability: 0.15
+    camera_noise_range: [0.0, 0.05]
+    vio_failure_probability: 0.05
+
+  # Obstacle/environment variation
+  obstacles:
+    enabled: true
+    position_noise_std: 2.0
+    rotation_noise_std: 0.1
+
+# =============================================================================
+# Hierarchical RL Configuration
+# =============================================================================
+rl:
+  # Mission Planner (strategic decisions)
+  mission_planner:
+    algorithm: SAC
+    hidden_dims: [256, 256, 128]
+    learning_rate: 0.0003
+    batch_size: 256
+    buffer_size: 1000000
+    gamma: 0.99
+    tau: 0.005
+    update_frequency: 1
+    decision_frequency: 10  # Hz
+
+  # Behavior Selector (tactical behaviors)
+  behavior_selector:
+    algorithm: PPO
+    hidden_dims: [128, 128]
+    learning_rate: 0.0003
+    batch_size: 64
+    n_epochs: 10
+    clip_range: 0.2
+    ent_coef: 0.01
+    decision_frequency: 5  # Hz
+
+  # Trajectory Optimizer (low-level control)
+  trajectory_optimizer:
+    algorithm: TD3
+    hidden_dims: [64, 64]
+    learning_rate: 0.001
+    batch_size: 100
+    buffer_size: 100000
+    gamma: 0.99
+    tau: 0.005
+    policy_delay: 2
+    decision_frequency: 20  # Hz
+
+# =============================================================================
+# Safety Shield (Vampire Integration)
+# =============================================================================
+safety:
+  enabled: true
+
+  # Vampire theorem prover settings
+  vampire:
+    path: "/usr/local/bin/vampire"
+    timeout_ms: 50  # Target: 50ms at 20Hz
+    ontology_path: "/workspace/ontology/planning_mode"
+
+  # Hard constraints (actions blocked, not just penalized)
+  hard_constraints:
+    - geofenceViolation
+    - noFlyZoneViolation
+    - highThreatExposure
+    - mustLand
+    - mustReturnToLaunch
+    - pathProhibited
+
+  # Soft constraints (reward shaping only)
+  soft_constraints:
+    nfz_buffer_penetration: -50.0  # per penetration ratio
+    medium_threat_exposure: -3.0   # per second
+    timeline_overrun: -5.0         # per % over 100%
+
+# =============================================================================
+# Training Parameters
+# =============================================================================
+training:
+  # Episode settings
+  max_episode_steps: 10000
+  episodes_per_checkpoint: 100
+  total_episodes: 10000
+
+  # Curriculum learning
+  curriculum:
+    enabled: true
+    stages:
+      - name: basic
+        difficulty: 0.0
+        episodes: 500
+        domain_randomization: false
+
+      - name: intermediate
+        difficulty: 0.5
+        episodes: 2000
+        domain_randomization: true
+
+      - name: advanced
+        difficulty: 1.0
+        episodes: 5000
+        domain_randomization: true
+
+      - name: expert
+        difficulty: 1.0
+        episodes: 2500
+        domain_randomization: true
+        sensor_degradation: true
+
+  # Logging
+  logging:
+    tensorboard: true
+    wandb: false
+    log_frequency: 100
+    video_frequency: 500
+
+  # Checkpointing
+  checkpoints:
+    save_frequency: 100
+    keep_last_n: 5
+    path: "./checkpoints"
+
+# =============================================================================
+# Canonical Problem Configurations
+# =============================================================================
+canonical_problems:
+
+  # Problem 1: Comms-Denied Surveillance
+  comms_denied:
+    surveillance_area_size: 500.0  # meters
+    max_mission_time: 900.0  # 15 minutes
+    target_coverage: 85.0  # %
+    target_poi_count: 10
+    comms_denial_time: 30.0  # seconds
+    gps_hdop_threshold: 5.0
+    return_accuracy: 3.0  # meters
+    min_battery_at_landing: 15.0  # %
+
+    # ISR payload: Gremsy VIO
+    payload:
+      type: gremsy_vio
+      thermal_resolution: 640
+      rgb_resolution: 4096
+      optical_zoom: 20
+
+  # Problem 2: Dynamic NFZ Avoidance
+  dynamic_nfz:
+    transit_distance: 3000.0  # meters
+    cruise_speed: 6.3  # m/s
+    max_mission_time: 600.0  # 10 minutes
+    nfz_activation_time: 180.0  # T+3 min
+    nfz_dimensions: [1000.0, 500.0]  # length x width
+    destination_accuracy: 5.0  # meters
+    max_timeline_ratio: 1.2  # 120%
+    min_battery_at_dest: 20.0  # %
+    replan_timeout: 2.0  # seconds
+
+    # ISR payload: NextVision Raptor
+    payload:
+      type: nextvision_raptor
+      thermal_resolution: 1280
+
+  # Problem 3: Multi-Objective ISR
+  multi_objective:
+    max_mission_time: 1200.0  # 20 minutes
+    initial_battery: 92.0  # %
+    min_battery_at_landing: 15.0  # %
+    max_medium_threat_time: 30.0  # seconds
+    target_value_threshold: 0.8  # 80%
+    comms_availability: 0.5  # 50%
+
+    # Target distribution
+    targets:
+      - {id: toi_1, priority: 1, value: 100, battery_cost: 8, threat: MEDIUM}
+      - {id: toi_2, priority: 1, value: 100, battery_cost: 6, threat: LOW}
+      - {id: toi_3, priority: 2, value: 75, battery_cost: 15, threat: HIGH}
+      - {id: toi_4, priority: 2, value: 75, battery_cost: 5, threat: LOW}
+      - {id: toi_5, priority: 3, value: 50, battery_cost: 9, threat: MEDIUM}
+      - {id: toi_6, priority: 3, value: 50, battery_cost: 18, threat: HIGH}
+      - {id: toi_7, priority: 4, value: 25, battery_cost: 4, threat: LOW}
+      - {id: toi_8, priority: 4, value: 25, battery_cost: 10, threat: MEDIUM}
+
+    # Theoretical max: 500, Achievable (avoid HIGH): 400
+    theoretical_max: 500
+    achievable_max: 400
+
+    # ISR payload: Gremsy VIO
+    payload:
+      type: gremsy_vio
+      thermal_resolution: 640
+      rgb_resolution: 4096
+      optical_zoom: 20
+
+# =============================================================================
+# Evaluation Settings
+# =============================================================================
+evaluation:
+  # Validation frequency during training
+  validation_frequency: 500  # episodes
+  validation_episodes: 10
+
+  # Final evaluation
+  final_evaluation_episodes: 100
+
+  # Success metrics
+  success_criteria:
+    comms_denied:
+      coverage_threshold: 85.0
+      poi_threshold: 10
+      return_accuracy: 3.0
+      safety_violations: 0
+
+    dynamic_nfz:
+      timeline_ratio: 1.2
+      nfz_violations: 0
+      destination_accuracy: 5.0
+
+    multi_objective:
+      value_ratio: 0.8
+      high_threat_entries: 0
+      medium_threat_time: 30.0
+
+# =============================================================================
+# Hardware/Deployment Notes
+# =============================================================================
+deployment:
+  target_platform: flyby_f11
+  compute: jetson_orin_nx_16gb
+  inference_target_hz: 20
+
+  # Model export settings
+  export:
+    format: onnx
+    quantization: fp16
+    optimize_for_inference: true

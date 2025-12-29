@@ -1,0 +1,169 @@
+# Rural/Forest Training World Configuration
+# Flyby F-11 RL Training Environment
+
+world:
+  name: "flyby_rural"
+  sdf_file: "rural_training.sdf"
+  description: "Natural environment with trees, terrain elevation, and clearings"
+  dimensions:
+    x_min: -200
+    x_max: 200
+    y_min: -200
+    y_max: 200
+    z_min: 0
+    z_max: 80
+
+# Spherical coordinates for GPS simulation
+coordinates:
+  latitude_deg: 38.9072
+  longitude_deg: -121.0583
+  elevation: 450
+  frame: ENU
+
+spawn_points:
+  - name: "default"
+    pose: [0, 0, 0.5, 0, 0, 0]
+    description: "Central clearing"
+  - name: "hilltop_NE"
+    pose: [100, 100, 7, 0, 0, 0]
+    description: "On hilltop in NE quadrant"
+  - name: "meadow_NE"
+    pose: [150, 150, 0.5, 0, 0, 0]
+    description: "Large meadow area"
+  - name: "forest_edge"
+    pose: [-50, 50, 0.5, 0, 0, 0]
+    description: "Edge of forest cluster"
+
+landing_zones:
+  - name: "clearing_primary"
+    position: [0, 0, 0]
+    radius: 4.0
+    type: "primary"
+    surface: "grass"
+  - name: "meadow_NE"
+    position: [150, 150, 0]
+    radius: 5.0
+    type: "secondary"
+    surface: "grass"
+  - name: "hilltop"
+    position: [100, 100, 6]
+    radius: 3.0
+    type: "elevated"
+    surface: "dirt"
+  - name: "emergency_SW"
+    position: [-150, -150, 0]
+    radius: 6.0
+    type: "emergency"
+    surface: "grass"
+
+no_fly_zones:
+  - name: "wildlife_nesting_site"
+    type: "cylinder"
+    center: [-80, 100, 0]
+    radius: 30
+    height: 40
+    reason: "Protected wildlife nesting area"
+    severity: "high"
+  - name: "private_property"
+    type: "box"
+    min: [100, 50, 0]
+    max: [160, 100, 50]
+    reason: "Private property - no trespassing"
+    severity: "medium"
+
+obstacles:
+  terrain:
+    - name: "hill_NE"
+      type: "elevation"
+      pose: [100, 100, 3]
+      size: [80, 60, 6]
+    - name: "hill_SW"
+      type: "elevation"
+      pose: [-80, -120, 4]
+      size: [70, 50, 8]
+    - name: "ridge_center"
+      type: "elevation"
+      pose: [0, 50, 2.5]
+      size: [120, 20, 5]
+  trees:
+    - name: "tree_cluster_NW"
+      center: [-105, 82]
+      count: 4
+      height_range: [8, 18]
+      canopy_radius_range: [3.5, 6]
+    - name: "tree_cluster_SE"
+      center: [82, -105]
+      count: 3
+      height_range: [7, 16]
+      canopy_radius_range: [3, 5.5]
+    - name: "scattered_trees"
+      positions:
+        - [-30, -50]
+        - [50, 30]
+        - [-60, 150]
+        - [130, -30]
+      height_range: [8, 14]
+  rocks:
+    - name: "rock_formation_1"
+      type: "box"
+      pose: [-50, 0, 1.5]
+      size: [6, 4, 3]
+    - name: "rock_formation_2"
+      type: "box"
+      pose: [30, -70, 2]
+      size: [8, 5, 4]
+    - name: "boulder_1"
+      type: "sphere"
+      position: [-120, -50, 1]
+      radius: 2
+    - name: "boulder_2"
+      type: "sphere"
+      position: [60, 120, 0.8]
+      radius: 1.6
+
+training_parameters:
+  episode_timeout: 360  # seconds (larger area)
+  max_altitude: 60  # meters
+  min_altitude: 2  # meters (trees)
+  min_obstacle_distance: 4.0  # meters
+  reward_weights:
+    goal_reached: 100.0
+    nfz_violation: -200.0
+    collision: -500.0
+    geofence_violation: -300.0
+    time_penalty: -0.08
+    terrain_awareness_bonus: 1.0
+    smooth_flight_bonus: 0.5
+
+environment:
+  type: "rural"
+  ground_texture: "grass"
+  lighting: "morning"
+  complexity: "medium"
+  terrain_variation: true
+
+# Domain randomization parameters
+randomization:
+  enabled: true
+
+  obstacle_placement:
+    enabled: true
+    position_noise: 25  # meters (larger for rural - more open space)
+    rotation_noise: 0.8  # radians (trees can rotate more)
+
+  nfz_placement:
+    enabled: true
+    position_noise: 30  # meters
+    size_noise: 0.25  # fraction of original size
+
+  lighting:
+    enabled: true
+    options: ["morning", "day", "dusk", "overcast"]
+
+  ground_texture:
+    enabled: true
+    options: ["grass", "dirt", "meadow"]
+
+  spawn_variation:
+    enabled: true
+    position_noise: 8  # meters

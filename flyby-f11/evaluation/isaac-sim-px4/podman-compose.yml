@@ -1,0 +1,77 @@
+# Isaac Sim 5.1.0 + PX4 SITL + Pegasus Simulator
+# Podman Compose for GPU-accelerated drone simulation
+#
+# Usage:
+#   podman-compose up --build    # Build and start
+#   podman-compose up            # Start (if already built)
+#   podman-compose down          # Stop
+#   podman-compose down -v       # Stop and remove volumes
+
+services:
+  isaac-sim-px4:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: isaac-sim-px4:5.1.0
+    container_name: isaac-sim-px4
+
+    # GPU passthrough via CDI (NVIDIA Container Toolkit)
+    devices:
+      - nvidia.com/gpu=all
+
+    # Network mode for MAVLink communication
+    network_mode: host
+
+    # Required for GUI and proper container operation
+    ipc: host
+    security_opt:
+      - label=disable
+
+    environment:
+      # Display for GUI mode
+      - DISPLAY=${DISPLAY:-:0}
+      # NVIDIA driver capabilities
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      # Accept NVIDIA EULA
+      - ACCEPT_EULA=Y
+      - PRIVACY_CONSENT=Y
+      - OMNI_KIT_ACCEPT_EULA=YES
+      # Isaac Sim environment
+      - ISAACSIM_PATH=/isaac-sim
+      - PEGASUS_PATH=/pegasus
+      # PX4 environment
+      - PX4_HOME=/px4
+      - PX4_SIM_MODEL=none
+      # Headless mode (set to 1 for no GUI)
+      - HEADLESS=${HEADLESS:-0}
+
+    volumes:
+      # X11 socket for GUI
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # XAuthority for Wayland/XWayland
+      - ${XAUTHORITY:-/run/user/1000/.mutter-Xwaylandauth.0J83H3}:/root/.Xauthority:ro
+      # Vulkan ICD for GPU rendering
+      - /usr/share/vulkan/icd.d/nvidia_icd.json:/usr/share/vulkan/icd.d/nvidia_icd.json:ro
+      - /usr/share/vulkan/implicit_layer.d:/usr/share/vulkan/implicit_layer.d:ro
+      # Persistent caches (critical for performance)
+      - isaac-cache:/isaac-sim/kit/cache/Kit
+      - isaac-data:/isaac-sim/kit/data
+      - isaac-logs:/isaac-sim/kit/logs
+      # Workspace for development
+      - ./scripts:/workspace/scripts:rw
+
+    # Keep container running for interactive use
+    stdin_open: true
+    tty: true
+
+    # Default command - run bash for interactive development
+    command: bash
+
+volumes:
+  isaac-cache:
+    name: isaac-sim-px4-cache
+  isaac-data:
+    name: isaac-sim-px4-data
+  isaac-logs:
+    name: isaac-sim-px4-logs

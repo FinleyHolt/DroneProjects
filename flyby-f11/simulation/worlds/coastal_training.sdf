@@ -1,0 +1,1668 @@
+<?xml version="1.0" ?>
+<!--
+  Flyby F-11 Harbor/Marina ISR Training World
+
+  A realistic harbor/marina environment for ISR drone training featuring:
+  - 400m x 400m operational area (harbor basin with land facilities)
+  - Organized marina with boat slips and floating docks
+  - Multiple piers extending into water
+  - Waterfront buildings (harbor master, seafood restaurant, boat repair)
+  - Beach recreation area
+  - Parking lots near marina
+  - 10-15 people as ISR detection targets (dock workers, tourists, fishermen)
+  - 6-8 vehicles in parking areas
+  - Multiple boats (fishing boats, speedboats, sailboats)
+  - Channel marker buoys
+  - 2 NFZ regions (shipping lane, coast guard area)
+  - Multiple landing zones
+
+  Designed for ISR training: person detection, vehicle tracking, maritime surveillance.
+
+  Model Sources: https://app.gazebosim.org/fuel/models (OpenRobotics)
+-->
+<sdf version="1.9">
+  <world name="flyby_harbor_marina">
+
+    <!-- Physics optimized for training throughput -->
+    <physics name="training_physics" type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
+      <ode>
+        <solver>
+          <type>quick</type>
+          <iters>50</iters>
+          <sor>1.3</sor>
+        </solver>
+        <constraints>
+          <cfm>0.0</cfm>
+          <erp>0.2</erp>
+        </constraints>
+      </ode>
+    </physics>
+
+    <!-- Plugins -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-air-pressure-system" name="gz::sim::systems::AirPressure"/>
+    <plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer"/>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+
+    <!-- Atmosphere - coastal conditions -->
+    <atmosphere type="adiabatic">
+      <temperature>291.15</temperature>
+      <pressure>101325</pressure>
+    </atmosphere>
+
+    <!-- Coastal location: San Diego Harbor -->
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>32.7157</latitude_deg>
+      <longitude_deg>-117.1611</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <!-- ============================================ -->
+    <!-- LIGHTING PRESETS FOR DOMAIN RANDOMIZATION   -->
+    <!-- Default: Bright coastal sun                 -->
+    <!-- ============================================ -->
+
+    <!-- Bright coastal sun (default - active) -->
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 150 0 0 0</pose>
+      <diffuse>0.9 0.9 0.85 1</diffuse>
+      <specular>0.4 0.4 0.35 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.2 0.5 -0.85</direction>
+    </light>
+
+    <!-- Ambient fill for water reflections -->
+    <light type="directional" name="ambient_fill">
+      <cast_shadows>false</cast_shadows>
+      <pose>0 0 150 0 0 0</pose>
+      <diffuse>0.22 0.25 0.3 1</diffuse>
+      <specular>0 0 0 1</specular>
+      <direction>0 0 -1</direction>
+    </light>
+
+    <!-- Scene settings with optional sea fog -->
+    <scene>
+      <ambient>0.4 0.42 0.45 1</ambient>
+      <background>0.6 0.75 0.9 1</background>
+      <shadows>true</shadows>
+      <!-- Sea fog/marine layer (uncomment to enable) -->
+      <!--
+      <fog>
+        <color>0.85 0.88 0.92 1</color>
+        <type>linear</type>
+        <density>0.02</density>
+        <start>100</start>
+        <end>400</end>
+      </fog>
+      -->
+    </scene>
+
+    <!-- ============================================ -->
+    <!-- GROUND/WATER LAYOUT                         -->
+    <!-- Harbor basin in center/south               -->
+    <!-- Land facilities on north/east/west         -->
+    <!-- ============================================ -->
+
+    <!-- Harbor water basin (main harbor area) -->
+    <model name="harbor_basin">
+      <static>true</static>
+      <pose>0 -80 -0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>350 240 1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>350 240 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.08 0.25 0.4 0.95</ambient>
+            <diffuse>0.1 0.3 0.5 0.95</diffuse>
+            <specular>0.6 0.6 0.6 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Main land area (waterfront facilities) -->
+    <model name="waterfront_land">
+      <static>true</static>
+      <pose>0 120 0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>400 160</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>60</mu>
+                <mu2>30</mu2>
+              </ode>
+            </friction>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>400 160</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.45 1</ambient>
+            <diffuse>0.55 0.55 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Beach recreation area (east side) -->
+    <model name="beach_area">
+      <static>true</static>
+      <pose>150 30 0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>100 60 0.1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>100 60 0.1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.85 0.8 0.65 1</ambient>
+            <diffuse>0.9 0.85 0.7 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Seawall/bulkhead along waterfront -->
+    <model name="seawall">
+      <static>true</static>
+      <pose>0 40 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>300 2 2</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>300 2 2</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.6 0.55 1</ambient>
+            <diffuse>0.65 0.65 0.6 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================ -->
+    <!-- GEOFENCE BOUNDARY MARKERS (400m x 400m)     -->
+    <!-- ============================================ -->
+
+    <model name="geofence_north">
+      <static>true</static>
+      <pose>0 200 0.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>400 0.5 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0 1 0 0.5</ambient>
+            <diffuse>0 1 0 0.5</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="geofence_south">
+      <static>true</static>
+      <pose>0 -200 0.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>400 0.5 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0 1 0 0.5</ambient>
+            <diffuse>0 1 0 0.5</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="geofence_east">
+      <static>true</static>
+      <pose>200 0 0.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.5 400 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0 1 0 0.5</ambient>
+            <diffuse>0 1 0 0.5</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="geofence_west">
+      <static>true</static>
+      <pose>-200 0 0.5 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.5 400 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0 1 0 0.5</ambient>
+            <diffuse>0 1 0 0.5</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================ -->
+    <!-- MARINA STRUCTURE - MAIN PIER & BOAT SLIPS   -->
+    <!-- ============================================ -->
+
+    <!-- Main pier extending from harbor master -->
+    <model name="main_pier">
+      <static>true</static>
+      <pose>0 10 0.6 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>12 100 1.2</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>12 100 1.2</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.4 0.3 1</ambient>
+            <diffuse>0.6 0.5 0.4 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Main pier supports -->
+    <model name="main_pier_support_1">
+      <static>true</static>
+      <pose>-4 -10 -0.2 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.4</radius><length>1.8</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.3 0.25 0.2 1</ambient>
+            <diffuse>0.4 0.35 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="main_pier_support_2">
+      <static>true</static>
+      <pose>4 -10 -0.2 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.4</radius><length>1.8</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.3 0.25 0.2 1</ambient>
+            <diffuse>0.4 0.35 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="main_pier_support_3">
+      <static>true</static>
+      <pose>-4 -30 -0.2 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.4</radius><length>1.8</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.3 0.25 0.2 1</ambient>
+            <diffuse>0.4 0.35 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="main_pier_support_4">
+      <static>true</static>
+      <pose>4 -30 -0.2 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder><radius>0.4</radius><length>1.8</length></cylinder>
+          </geometry>
+          <material>
+            <ambient>0.3 0.25 0.2 1</ambient>
+            <diffuse>0.4 0.35 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Marina Dock A (west side - fishing boats) -->
+    <model name="dock_a">
+      <static>true</static>
+      <pose>-60 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>8 80 1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>8 80 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.45 0.38 0.3 1</ambient>
+            <diffuse>0.55 0.48 0.4 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Finger piers for Dock A (boat slips) -->
+    <model name="dock_a_finger_1">
+      <static>true</static>
+      <pose>-45 10 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.42 0.32 1</ambient>
+            <diffuse>0.6 0.52 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="dock_a_finger_2">
+      <static>true</static>
+      <pose>-45 -5 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.42 0.32 1</ambient>
+            <diffuse>0.6 0.52 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="dock_a_finger_3">
+      <static>true</static>
+      <pose>-45 -20 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.42 0.32 1</ambient>
+            <diffuse>0.6 0.52 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="dock_a_finger_4">
+      <static>true</static>
+      <pose>-45 -35 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.42 0.32 1</ambient>
+            <diffuse>0.6 0.52 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Marina Dock B (east side - pleasure boats) -->
+    <model name="dock_b">
+      <static>true</static>
+      <pose>60 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>8 80 1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>8 80 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.45 0.38 0.3 1</ambient>
+            <diffuse>0.55 0.48 0.4 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Finger piers for Dock B -->
+    <model name="dock_b_finger_1">
+      <static>true</static>
+      <pose>45 10 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.42 0.32 1</ambient>
+            <diffuse>0.6 0.52 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="dock_b_finger_2">
+      <static>true</static>
+      <pose>45 -5 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.42 0.32 1</ambient>
+            <diffuse>0.6 0.52 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="dock_b_finger_3">
+      <static>true</static>
+      <pose>45 -20 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.42 0.32 1</ambient>
+            <diffuse>0.6 0.52 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="dock_b_finger_4">
+      <static>true</static>
+      <pose>45 -35 0.4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>22 2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.42 0.32 1</ambient>
+            <diffuse>0.6 0.52 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Floating dock/platform in harbor -->
+    <model name="floating_dock">
+      <static>true</static>
+      <pose>0 -70 0.3 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>15 15 0.6</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>15 15 0.6</size></box>
+          </geometry>
+          <material>
+            <ambient>0.6 0.5 0.35 1</ambient>
+            <diffuse>0.7 0.6 0.45 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================ -->
+    <!-- WATERFRONT BUILDINGS                        -->
+    <!-- ============================================ -->
+
+    <!-- Harbor Master Office -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/House 1</uri>
+      <name>harbor_master</name>
+      <pose>0 60 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+    <model name="harbor_master_collision">
+      <static>true</static>
+      <pose>0 60 5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>20 15 10</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Seafood Restaurant -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/House 2</uri>
+      <name>seafood_restaurant</name>
+      <pose>-80 70 0 0 0 0.1</pose>
+      <static>true</static>
+    </include>
+    <model name="seafood_restaurant_collision">
+      <static>true</static>
+      <pose>-80 70 4 0 0 0.1</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>18 14 8</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Boat Repair Shop -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/House 3</uri>
+      <name>boat_repair_shop</name>
+      <pose>80 65 0 0 0 -0.1</pose>
+      <static>true</static>
+    </include>
+    <model name="boat_repair_shop_collision">
+      <static>true</static>
+      <pose>80 65 5 0 0 -0.1</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>22 16 10</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Bait and Tackle Shop -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/House 1</uri>
+      <name>bait_shop</name>
+      <pose>-40 55 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+    <model name="bait_shop_collision">
+      <static>true</static>
+      <pose>-40 55 3 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>10 8 6</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Marina Office / Boat Rentals -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/House 2</uri>
+      <name>marina_office</name>
+      <pose>40 55 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+    <model name="marina_office_collision">
+      <static>true</static>
+      <pose>40 55 3 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>12 10 6</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Beach Lifeguard Station -->
+    <model name="lifeguard_tower">
+      <static>true</static>
+      <pose>160 20 0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>4 4 5</size></box>
+          </geometry>
+        </collision>
+        <visual name="base">
+          <pose>0 0 2 0 0 0</pose>
+          <geometry>
+            <box><size>4 4 4</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.95 0.95 0.95 1</diffuse>
+          </material>
+        </visual>
+        <visual name="roof">
+          <pose>0 0 4.5 0 0 0</pose>
+          <geometry>
+            <box><size>5 5 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.2 0.2 1</ambient>
+            <diffuse>0.9 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================ -->
+    <!-- PARKING LOTS                                -->
+    <!-- ============================================ -->
+
+    <!-- Main parking lot (near harbor master) -->
+    <model name="parking_lot_main">
+      <static>true</static>
+      <pose>0 100 0.02 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>80 40 0.04</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>80 40 0.04</size></box>
+          </geometry>
+          <material>
+            <ambient>0.25 0.25 0.25 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Parking lot stripes -->
+    <model name="parking_stripes_1">
+      <static>true</static>
+      <pose>-30 100 0.03 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.15 30 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="parking_stripes_2">
+      <static>true</static>
+      <pose>-20 100 0.03 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.15 30 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="parking_stripes_3">
+      <static>true</static>
+      <pose>-10 100 0.03 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.15 30 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="parking_stripes_4">
+      <static>true</static>
+      <pose>0 100 0.03 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.15 30 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="parking_stripes_5">
+      <static>true</static>
+      <pose>10 100 0.03 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.15 30 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="parking_stripes_6">
+      <static>true</static>
+      <pose>20 100 0.03 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.15 30 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="parking_stripes_7">
+      <static>true</static>
+      <pose>30 100 0.03 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>0.15 30 0.01</size></box>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Restaurant parking lot -->
+    <model name="parking_lot_restaurant">
+      <static>true</static>
+      <pose>-80 110 0.02 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>40 30 0.04</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>40 30 0.04</size></box>
+          </geometry>
+          <material>
+            <ambient>0.25 0.25 0.25 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Beach parking lot -->
+    <model name="parking_lot_beach">
+      <static>true</static>
+      <pose>150 70 0.02 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>50 25 0.04</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>50 25 0.04</size></box>
+          </geometry>
+          <material>
+            <ambient>0.25 0.25 0.25 1</ambient>
+            <diffuse>0.3 0.3 0.3 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================ -->
+    <!-- BOATS (Gazebo Fuel Models)                  -->
+    <!-- ISR Training: Various boat types            -->
+    <!-- ============================================ -->
+
+    <!-- Fishing boat 1 - Dock A slip 1 -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Boat</uri>
+      <name>fishing_boat_1</name>
+      <pose>-35 8 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+    <model name="fishing_boat_1_collision">
+      <static>true</static>
+      <pose>-35 8 1.5 0 0 1.57</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>10 4 3</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Fishing boat 2 - Dock A slip 2 -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Boat</uri>
+      <name>fishing_boat_2</name>
+      <pose>-35 -7 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+    <model name="fishing_boat_2_collision">
+      <static>true</static>
+      <pose>-35 -7 1.5 0 0 1.57</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>10 4 3</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Fishing boat 3 - Dock A slip 3 -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Boat</uri>
+      <name>fishing_boat_3</name>
+      <pose>-35 -22 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+    <model name="fishing_boat_3_collision">
+      <static>true</static>
+      <pose>-35 -22 1.5 0 0 1.57</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>10 4 3</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Speedboat 1 - Dock B slip 1 -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Boat</uri>
+      <name>speedboat_1</name>
+      <pose>35 8 0 0 0 -1.57</pose>
+      <static>true</static>
+    </include>
+    <model name="speedboat_1_collision">
+      <static>true</static>
+      <pose>35 8 1 0 0 -1.57</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>7 2.5 2</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Speedboat 2 - Dock B slip 2 -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Boat</uri>
+      <name>speedboat_2</name>
+      <pose>35 -7 0 0 0 -1.57</pose>
+      <static>true</static>
+    </include>
+    <model name="speedboat_2_collision">
+      <static>true</static>
+      <pose>35 -7 1 0 0 -1.57</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>7 2.5 2</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Sailboat - Dock B slip 3 -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Boat</uri>
+      <name>sailboat_1</name>
+      <pose>35 -22 0 0 0 -1.57</pose>
+      <static>true</static>
+    </include>
+    <model name="sailboat_1_collision">
+      <static>true</static>
+      <pose>35 -22 4 0 0 -1.57</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>12 4 8</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Large yacht - main pier -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Boat</uri>
+      <name>yacht_1</name>
+      <pose>15 -15 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+    <model name="yacht_1_collision">
+      <static>true</static>
+      <pose>15 -15 3 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>18 6 6</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Boat in open water -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Boat</uri>
+      <name>boat_underway</name>
+      <pose>-100 -100 0 0 0 0.4</pose>
+      <static>true</static>
+    </include>
+    <model name="boat_underway_collision">
+      <static>true</static>
+      <pose>-100 -100 1.5 0 0 0.4</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>10 4 3</size></box>
+          </geometry>
+        </collision>
+      </link>
+    </model>
+
+    <!-- Jetski 1 - near beach -->
+    <model name="jetski_1">
+      <static>true</static>
+      <pose>140 15 0.2 0 0 0.3</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>3 1.2 1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>3 1.2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.1 0.4 0.8 1</ambient>
+            <diffuse>0.2 0.5 0.9 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Jetski 2 - near beach -->
+    <model name="jetski_2">
+      <static>true</static>
+      <pose>145 12 0.2 0 0 -0.2</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>3 1.2 1</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>3 1.2 0.8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.2 0.1 1</ambient>
+            <diffuse>0.9 0.3 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Kayaks on beach -->
+    <model name="kayak_1">
+      <static>true</static>
+      <pose>165 25 0.15 0 0.1 0.8</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>4 0.8 0.4</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>4 0.8 0.3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.5 0.1 1</ambient>
+            <diffuse>1 0.6 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="kayak_2">
+      <static>true</static>
+      <pose>168 27 0.15 0 0.1 0.6</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>4 0.8 0.4</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <box><size>4 0.8 0.3</size></box>
+          </geometry>
+          <material>
+            <ambient>0.2 0.7 0.3 1</ambient>
+            <diffuse>0.3 0.8 0.4 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================ -->
+    <!-- VEHICLES (ISR Detection Targets)            -->
+    <!-- 8 vehicles in parking areas                 -->
+    <!-- ============================================ -->
+
+    <!-- Main parking lot vehicles -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Hatchback</uri>
+      <name>car_1</name>
+      <pose>-25 95 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Hatchback red</uri>
+      <name>car_2</name>
+      <pose>-15 95 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Hatchback</uri>
+      <name>car_3</name>
+      <pose>5 95 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Hatchback red</uri>
+      <name>car_4</name>
+      <pose>25 95 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+
+    <!-- Restaurant parking lot vehicles -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Hatchback</uri>
+      <name>car_5</name>
+      <pose>-90 105 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Hatchback red</uri>
+      <name>car_6</name>
+      <pose>-70 105 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+
+    <!-- Beach parking lot vehicles -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Hatchback</uri>
+      <name>car_7</name>
+      <pose>140 68 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Hatchback red</uri>
+      <name>car_8</name>
+      <pose>160 68 0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+
+    <!-- ============================================ -->
+    <!-- PEOPLE (ISR Detection Targets)              -->
+    <!-- 15 people in various locations              -->
+    <!-- Using Gazebo Fuel person models             -->
+    <!-- ============================================ -->
+
+    <!-- Dock workers on main pier -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Casual female</uri>
+      <name>dock_worker_1</name>
+      <pose>5 5 1.2 0 0 0.5</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
+      <name>dock_worker_2</name>
+      <pose>-3 -10 1.2 0 0 -0.3</pose>
+      <static>true</static>
+    </include>
+
+    <!-- Fishermen on Dock A -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
+      <name>fisherman_1</name>
+      <pose>-60 5 1.0 0 0 1.57</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Casual female</uri>
+      <name>fisherman_2</name>
+      <pose>-60 -15 1.0 0 0 -1.57</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
+      <name>fisherman_3</name>
+      <pose>-45 -35 0.9 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <!-- People on boats -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Casual female</uri>
+      <name>boat_person_1</name>
+      <pose>-35 8 2.5 0 0 0.8</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
+      <name>boat_person_2</name>
+      <pose>15 -15 4 0 0 -0.5</pose>
+      <static>true</static>
+    </include>
+
+    <!-- Tourists near harbor master / waterfront -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
+      <name>tourist_1</name>
+      <pose>10 50 0.5 0 0 3.14</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Casual female</uri>
+      <name>tourist_2</name>
+      <pose>-15 52 0.5 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
+      <name>tourist_3</name>
+      <pose>-5 48 0.5 0 0 1.2</pose>
+      <static>true</static>
+    </include>
+
+    <!-- People at restaurant -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Casual female</uri>
+      <name>restaurant_guest_1</name>
+      <pose>-75 65 0.5 0 0 0.3</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
+      <name>restaurant_guest_2</name>
+      <pose>-85 63 0.5 0 0 -0.5</pose>
+      <static>true</static>
+    </include>
+
+    <!-- Beach visitors -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
+      <name>beach_visitor_1</name>
+      <pose>155 25 0.3 0 0 2.5</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Casual female</uri>
+      <name>beach_visitor_2</name>
+      <pose>170 30 0.3 0 0 -1.8</pose>
+      <static>true</static>
+    </include>
+
+    <!-- Person on floating dock -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Walking person</uri>
+      <name>floating_dock_person</name>
+      <pose>2 -68 0.9 0 0 0.7</pose>
+      <static>true</static>
+    </include>
+
+    <!-- ============================================ -->
+    <!-- BUOYS (Channel Markers)                     -->
+    <!-- ============================================ -->
+
+    <!-- Main channel entrance buoys -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Buoy</uri>
+      <name>channel_buoy_1</name>
+      <pose>-80 -50 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Buoy</uri>
+      <name>channel_buoy_2</name>
+      <pose>80 -50 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <!-- Harbor basin markers -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Buoy</uri>
+      <name>harbor_buoy_1</name>
+      <pose>-100 -100 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Buoy</uri>
+      <name>harbor_buoy_2</name>
+      <pose>100 -100 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Buoy</uri>
+      <name>harbor_buoy_3</name>
+      <pose>0 -150 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <!-- Shipping lane boundary buoys -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Buoy</uri>
+      <name>shipping_buoy_1</name>
+      <pose>-150 -160 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Buoy</uri>
+      <name>shipping_buoy_2</name>
+      <pose>150 -160 0 0 0 0</pose>
+      <static>true</static>
+    </include>
+
+    <!-- ============================================ -->
+    <!-- NO-FLY ZONE 1: Shipping Lane                -->
+    <!-- Bounds: (-200, -200) to (200, -160)         -->
+    <!-- ============================================ -->
+    <model name="nfz_shipping_lane">
+      <static>true</static>
+      <pose>0 -180 25 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <box><size>400 40 50</size></box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 0.25</ambient>
+            <diffuse>1 0 0 0.25</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================ -->
+    <!-- NO-FLY ZONE 2: Coast Guard Area             -->
+    <!-- Center: (-150, 0), Radius: 30m              -->
+    <!-- ============================================ -->
+    <model name="nfz_coast_guard">
+      <static>true</static>
+      <pose>-150 0 20 0 0 0</pose>
+      <link name="link">
+        <visual name="visual">
+          <geometry>
+            <cylinder>
+              <radius>30</radius>
+              <length>40</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0 0 0.25</ambient>
+            <diffuse>1 0 0 0.25</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Coast Guard building placeholder -->
+    <model name="coast_guard_station">
+      <static>true</static>
+      <pose>-150 30 0 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <box><size>20 15 8</size></box>
+          </geometry>
+        </collision>
+        <visual name="visual">
+          <pose>0 0 4 0 0 0</pose>
+          <geometry>
+            <box><size>20 15 8</size></box>
+          </geometry>
+          <material>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.95 0.95 0.95 1</diffuse>
+          </material>
+        </visual>
+        <visual name="stripe">
+          <pose>0 0 5 0 0 0</pose>
+          <geometry>
+            <box><size>20.1 15.1 1</size></box>
+          </geometry>
+          <material>
+            <ambient>0.8 0.3 0.1 1</ambient>
+            <diffuse>0.9 0.4 0.2 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================ -->
+    <!-- LANDING ZONES                               -->
+    <!-- ============================================ -->
+
+    <!-- Primary landing zone (harbor master helipad) -->
+    <model name="landing_zone_primary">
+      <static>true</static>
+      <pose>20 75 0.03 0 0 0</pose>
+      <link name="link">
+        <visual name="pad">
+          <geometry>
+            <cylinder>
+              <radius>5</radius>
+              <length>0.04</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.95 0.95 0.95 1</diffuse>
+          </material>
+        </visual>
+        <visual name="H_vertical">
+          <pose>0 0 0.03 0 0 0</pose>
+          <geometry>
+            <box><size>0.8 3 0.02</size></box>
+          </geometry>
+          <material>
+            <ambient>0 0 0.8 1</ambient>
+            <diffuse>0 0 0.9 1</diffuse>
+          </material>
+        </visual>
+        <visual name="H_horizontal">
+          <pose>0 0 0.03 0 0 0</pose>
+          <geometry>
+            <box><size>2 0.6 0.02</size></box>
+          </geometry>
+          <material>
+            <ambient>0 0 0.8 1</ambient>
+            <diffuse>0 0 0.9 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Pier landing zone -->
+    <model name="landing_zone_pier">
+      <static>true</static>
+      <pose>0 -25 1.21 0 0 0</pose>
+      <link name="link">
+        <visual name="pad">
+          <geometry>
+            <cylinder>
+              <radius>3</radius>
+              <length>0.02</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 0 1</ambient>
+            <diffuse>1 1 0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Floating dock landing zone -->
+    <model name="landing_zone_floating">
+      <static>true</static>
+      <pose>0 -70 0.61 0 0 0</pose>
+      <link name="link">
+        <visual name="pad">
+          <geometry>
+            <cylinder>
+              <radius>4</radius>
+              <length>0.02</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0.8 0 1</ambient>
+            <diffuse>1 0.85 0.1 1</diffuse>
+          </material>
+        </visual>
+        <visual name="X_1">
+          <pose>0 0 0.02 0 0 0.785</pose>
+          <geometry>
+            <box><size>0.5 4 0.02</size></box>
+          </geometry>
+          <material>
+            <ambient>0 0 0 1</ambient>
+            <diffuse>0.1 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+        <visual name="X_2">
+          <pose>0 0 0.02 0 0 -0.785</pose>
+          <geometry>
+            <box><size>0.5 4 0.02</size></box>
+          </geometry>
+          <material>
+            <ambient>0 0 0 1</ambient>
+            <diffuse>0.1 0.1 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Beach emergency landing zone -->
+    <model name="landing_zone_beach">
+      <static>true</static>
+      <pose>130 35 0.12 0 0 0</pose>
+      <link name="link">
+        <visual name="pad">
+          <geometry>
+            <cylinder>
+              <radius>6</radius>
+              <length>0.02</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0.5 0 1</ambient>
+            <diffuse>1 0.6 0.1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ============================================ -->
+    <!-- F-11 DRONE SPAWN POINT                      -->
+    <!-- ============================================ -->
+    <include>
+      <uri>model://f11_isr_camera</uri>
+      <name>f11_isr</name>
+      <pose>20 75 0.5 0 0 0</pose>
+
+      <plugin filename="gz-sim-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>gimbal_yaw_joint</joint_name>
+        <topic>/f11_isr/gimbal/yaw</topic>
+        <p_gain>10.0</p_gain>
+        <i_gain>0.1</i_gain>
+        <d_gain>0.5</d_gain>
+        <i_max>1.0</i_max>
+        <i_min>-1.0</i_min>
+        <cmd_max>10.0</cmd_max>
+        <cmd_min>-10.0</cmd_min>
+      </plugin>
+
+      <plugin filename="gz-sim-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>gimbal_pitch_joint</joint_name>
+        <topic>/f11_isr/gimbal/pitch</topic>
+        <p_gain>10.0</p_gain>
+        <i_gain>0.1</i_gain>
+        <d_gain>0.5</d_gain>
+        <i_max>1.0</i_max>
+        <i_min>-1.0</i_min>
+        <cmd_max>10.0</cmd_max>
+        <cmd_min>-10.0</cmd_min>
+      </plugin>
+
+      <plugin filename="gz-sim-joint-position-controller-system"
+              name="gz::sim::systems::JointPositionController">
+        <joint_name>camera_joint</joint_name>
+        <topic>/f11_isr/gimbal/roll</topic>
+        <p_gain>10.0</p_gain>
+        <i_gain>0.1</i_gain>
+        <d_gain>0.5</d_gain>
+        <i_max>1.0</i_max>
+        <i_min>-1.0</i_min>
+        <cmd_max>10.0</cmd_max>
+        <cmd_min>-10.0</cmd_min>
+      </plugin>
+    </include>
+
+  </world>
+</sdf>

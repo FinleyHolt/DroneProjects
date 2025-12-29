@@ -1,0 +1,133 @@
+# Isaac Sim 5.1.0 + PX4 SITL v1.14.3 + Pegasus Simulator v5.1.0
+# MVE for drone simulation with photorealistic rendering
+#
+# Build: podman build -t isaac-sim-px4:5.1.0 .
+# Run:   podman run -d --name px4-sim --device nvidia.com/gpu=all \
+#          -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+#          --network host isaac-sim-px4:5.1.0 bash -c "sleep infinity"
+#
+# Exec:  podman exec px4-sim /isaac-sim/python.sh /workspace/scripts/fly_mission.py
+#
+# Note: Isaac Sim 5.1.0 runs as rootless user (isaac-sim:1234) by default.
+# PX4 v1.14.3 is recommended by Pegasus Simulator for compatibility.
+
+FROM nvcr.io/nvidia/isaac-sim:5.1.0
+
+# Switch to root for system installations
+USER root
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies for PX4 build and simulation
+# Include GCC 12 for PX4 v1.14.3 compatibility (GCC 13/14 in Ubuntu 24.04 breaks build)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    wget \
+    python3-pip \
+    python3-dev \
+    python3-jinja2 \
+    python3-numpy \
+    python3-toml \
+    python3-packaging \
+    python3-jsonschema \
+    build-essential \
+    gcc-12 \
+    g++-12 \
+    cmake \
+    ninja-build \
+    lsb-release \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    gstreamer1.0-libav \
+    libxml2-dev \
+    libxslt1-dev \
+    libopencv-dev \
+    sudo \
+    astyle \
+    genromfs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set GCC 12 as the default compiler for PX4 build
+ENV CC=/usr/bin/gcc-12
+ENV CXX=/usr/bin/g++-12
+
+# Install Python packages for PX4 build (system Python - for build tools)
+# PX4 v1.14.3 requires empy<4.0 (uses 3.x API)
+RUN pip3 install --break-system-packages \
+    kconfiglib \
+    pyros-genmsg \
+    pymavlink \
+    pyyaml \
+    cerberus \
+    requests \
+    "empy>=3.3,<4.0" \
+    jinja2 \
+    jsonschema \
+    future \
+    nunavut
+
+# Give isaac-sim user sudo access (for debugging)
+RUN echo "isaac-sim ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Environment setup
+ENV ISAACSIM_PATH="/isaac-sim"
+ENV PEGASUS_PATH="/pegasus"
+ENV PX4_HOME="/px4"
+
+# Clone Pegasus Simulator v5.1.0
+WORKDIR /
+RUN git clone --branch v5.1.0 --depth 1 \
+    https://github.com/PegasusSimulator/PegasusSimulator.git ${PEGASUS_PATH} && \
+    chown -R isaac-sim:isaac-sim ${PEGASUS_PATH}
+
+# Clone PX4-Autopilot v1.14.3 (Pegasus recommended version)
+RUN git clone --branch v1.14.3 --recursive \
+    https://github.com/PX4/PX4-Autopilot.git ${PX4_HOME} && \
+    chown -R isaac-sim:isaac-sim ${PX4_HOME}
+
+# Create workspace directory
+RUN mkdir -p /workspace/scripts && \
+    chown -R isaac-sim:isaac-sim /workspace
+
+# Copy scripts before switching user
+COPY --chown=isaac-sim:isaac-sim scripts/ /workspace/scripts/
+
+# Switch to isaac-sim user for remaining operations
+USER isaac-sim
+
+# Build PX4 SITL (headless, no simulator)
+WORKDIR ${PX4_HOME}
+RUN DONT_RUN=1 make px4_sitl_default
+
+# Create symlink for Pegasus compatibility (expects ~/PX4-Autopilot)
+RUN ln -sfn ${PX4_HOME} /isaac-sim/PX4-Autopilot
+
+# Install Python packages in Isaac Sim's Python environment
+# This is separate from system Python - Isaac Sim uses its own Python
+RUN /isaac-sim/python.sh -m pip install --no-cache-dir \
+    pymavlink \
+    scipy
+
+# Set working directory
+WORKDIR /workspace
+
+# Add PX4 to PATH
+ENV PATH="${PX4_HOME}/build/px4_sitl_default/bin:${PATH}"
+
+# Accept EULA by default (required for headless operation)
+ENV ACCEPT_EULA=Y
+ENV PRIVACY_CONSENT=Y
+ENV OMNI_KIT_ACCEPT_EULA=YES
+
+# Expose MAVLink ports
+# 14540: PX4 SITL default
+# 14550: QGroundControl
+# 18570: Lockstep
+EXPOSE 14540 14550 18570
+
+# Default: keep container running for exec commands
+CMD ["/bin/bash", "-c", "echo 'Isaac Sim + PX4 container ready. Use podman exec to run scripts.' && sleep infinity"]

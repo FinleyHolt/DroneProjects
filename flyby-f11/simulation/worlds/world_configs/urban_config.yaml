@@ -1,0 +1,161 @@
+# Urban Training World Configuration
+# Flyby F-11 RL Training Environment
+
+world:
+  name: "flyby_urban"
+  sdf_file: "urban_training.sdf"
+  description: "Dense urban environment with buildings, street canyons, and rooftop landing zones"
+  dimensions:
+    x_min: -150
+    x_max: 150
+    y_min: -150
+    y_max: 150
+    z_min: 0
+    z_max: 100
+
+# Spherical coordinates for GPS simulation
+coordinates:
+  latitude_deg: 33.4484
+  longitude_deg: -112.0740
+  elevation: 331
+  frame: ENU
+
+spawn_points:
+  - name: "default"
+    pose: [0, 0, 0.5, 0, 0, 0]  # [x, y, z, roll, pitch, yaw]
+    description: "Ground level at origin"
+  - name: "rooftop_A1"
+    pose: [-80, -80, 51, 0, 0, 0]
+    description: "On top of building A1 (50m)"
+  - name: "rooftop_B2"
+    pose: [0, 0, 26, 0, 0, 0]
+    description: "On top of commercial complex (25m)"
+  - name: "street_level_east"
+    pose: [50, 0, 0.5, 0, 0, 0]
+    description: "Street level near east buildings"
+
+landing_zones:
+  - name: "ground_primary"
+    position: [0, 0, 0]
+    radius: 3.0
+    type: "primary"
+    surface: "concrete"
+  - name: "rooftop_A1"
+    position: [-80, -80, 50]
+    radius: 2.5
+    type: "rooftop"
+    surface: "building_roof"
+  - name: "rooftop_B2"
+    position: [0, 0, 25]
+    radius: 2.5
+    type: "rooftop"
+    surface: "building_roof"
+  - name: "emergency_SW"
+    position: [-120, -120, 0]
+    radius: 4.0
+    type: "emergency"
+    surface: "concrete"
+
+no_fly_zones:
+  - name: "hospital_helipad"
+    type: "cylinder"
+    center: [0, 80, 0]
+    radius: 25
+    height: 60
+    reason: "Active hospital helipad"
+    severity: "critical"
+  - name: "government_building"
+    type: "box"
+    min: [60, -15, 0]
+    max: [100, 15, 45]
+    reason: "Government facility restricted airspace"
+    severity: "critical"
+
+obstacles:
+  buildings:
+    - name: "building_A1"
+      type: "box"
+      pose: [-80, -80, 25]
+      size: [30, 30, 50]
+    - name: "building_A2"
+      type: "box"
+      pose: [-80, 0, 15]
+      size: [35, 25, 30]
+    - name: "building_A3"
+      type: "box"
+      pose: [-80, 80, 7.5]
+      size: [28, 32, 15]
+    - name: "building_B1_tower1"
+      type: "box"
+      pose: [0, -90, 20]
+      size: [15, 15, 40]
+    - name: "building_B1_tower2"
+      type: "box"
+      pose: [0, -70, 20]
+      size: [15, 15, 40]
+    - name: "building_B2"
+      type: "box"
+      pose: [0, 0, 12.5]
+      size: [40, 40, 25]
+    - name: "hospital_building"
+      type: "box"
+      pose: [0, 80, 17.5]
+      size: [45, 35, 35]
+    - name: "building_C1"
+      type: "box"
+      pose: [80, -80, 22.5]
+      size: [25, 25, 45]
+    - name: "government_building"
+      type: "box"
+      pose: [80, 0, 15]
+      size: [40, 30, 30]
+    - name: "building_C3"
+      type: "box"
+      pose: [80, 80, 10]
+      size: [35, 30, 20]
+  vehicles:
+    count: 5
+    height_range: [1.0, 3.0]
+    positions: "street_level"
+
+training_parameters:
+  episode_timeout: 300  # seconds
+  max_altitude: 80  # meters
+  min_altitude: 1  # meters
+  min_obstacle_distance: 3.0  # meters
+  reward_weights:
+    goal_reached: 100.0
+    nfz_violation: -200.0
+    collision: -500.0
+    geofence_violation: -300.0
+    time_penalty: -0.1
+    altitude_violation: -50.0
+    smooth_flight_bonus: 0.5
+
+environment:
+  type: "urban"
+  ground_texture: "asphalt"
+  lighting: "day"
+  complexity: "high"
+
+# Domain randomization parameters
+randomization:
+  enabled: true
+
+  obstacle_placement:
+    enabled: true
+    position_noise: 15  # meters (smaller for urban - tighter spaces)
+    rotation_noise: 0.3  # radians
+
+  nfz_placement:
+    enabled: true
+    position_noise: 20  # meters
+    size_noise: 0.2  # fraction of original size
+
+  lighting:
+    enabled: true
+    options: ["day", "dusk", "overcast", "morning"]
+
+  spawn_variation:
+    enabled: true
+    position_noise: 5  # meters

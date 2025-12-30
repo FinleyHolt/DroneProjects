@@ -32,8 +32,14 @@ xhost +local: 2>/dev/null || true
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+# Shader cache directory for persistent shader compilation
+# This avoids recompiling shaders on every container run (~10 min savings)
+SHADER_CACHE_DIR="$HOME/.cache/isaac-sim-shaders"
+mkdir -p "$SHADER_CACHE_DIR"
+
 echo "Starting Isaac Sim container: $CONTAINER_NAME"
 echo "Project dir: $PROJECT_DIR"
+echo "Shader cache: $SHADER_CACHE_DIR"
 
 # Override entrypoint to use GUI mode instead of headless
 podman run -d --name "$CONTAINER_NAME" \
@@ -52,6 +58,7 @@ podman run -d --name "$CONTAINER_NAME" \
     -v "$XAUTH":/tmp/.Xauthority:ro \
     -v "$PROJECT_DIR/extensions":/workspace/extensions:z \
     -v "$PROJECT_DIR/scripts":/workspace/scripts:z \
+    -v "$SHADER_CACHE_DIR":/root/.cache/ov:z \
     --network host \
     --ipc host \
     --security-opt label=disable \

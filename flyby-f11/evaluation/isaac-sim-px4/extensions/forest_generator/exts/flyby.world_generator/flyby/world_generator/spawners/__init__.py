@@ -12,6 +12,7 @@ from .base_spawner import BaseSpawner, SpawnConfig
 from .vegetation_spawner import VegetationSpawner, TreeConfig, BushConfig
 from .vehicle_spawner import VehicleSpawner, VehicleConfig
 from .people_spawner import PeopleSpawner, PersonConfig
+from .drone_spawner import DroneSpawner, DroneConfig, F11_VARIANTS
 
 __all__ = [
     "BaseSpawner",
@@ -23,4 +24,7 @@ __all__ = [
     "VehicleConfig",
     "PeopleSpawner",
     "PersonConfig",
+    "DroneSpawner",
+    "DroneConfig",
+    "F11_VARIANTS",
 ]

@@ -1,0 +1,15 @@
+{
+  "phase": "phase-06e-isaac-sim-rl-bridge",
+  "phase_number": "6e",
+  "depends_on": [
+    "phase-06b-simulation-training-env",
+    "phase-06c-diverse-training-worlds"
+  ],
+  "required_by": [
+    "phase-07-mission-planner-rl",
+    "phase-08-behavior-selector-rl",
+    "phase-09-trajectory-optimizer-rl"
+  ],
+  "blocking": true,
+  "description": "Gymnasium wrapper, SB3 agents, action bridge for Isaac Sim RL training"
+}

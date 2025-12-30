@@ -1,0 +1,30 @@
+{
+  "phase": "phase-06e-isaac-sim-rl-bridge",
+  "required_inputs": {
+    "isaac_sim_environments": {
+      "base_isr_env": "evaluation/isaac-sim-px4/environments/base_isr_env.py",
+      "comms_denied_env": "evaluation/isaac-sim-px4/environments/comms_denied_env.py",
+      "dynamic_nfz_env": "evaluation/isaac-sim-px4/environments/dynamic_nfz_env.py",
+      "multi_objective_env": "evaluation/isaac-sim-px4/environments/multi_objective_env.py"
+    },
+    "training_infrastructure": {
+      "training_config": "evaluation/isaac-sim-px4/config/training_config.yaml",
+      "train_canonical": "evaluation/isaac-sim-px4/scripts/training/train_canonical.py"
+    },
+    "container": {
+      "containerfile": "evaluation/isaac-sim-px4/Containerfile.sitl"
+    },
+    "ontology": {
+      "planning_mode": "ontology/planning_mode/",
+      "vampire_bridge": "ros2_ws/src/vampire_bridge/package.xml"
+    },
+    "python_dependencies": [
+      "gymnasium>=0.29.0",
+      "stable-baselines3[extra]>=2.0.0",
+      "torch>=2.0.0",
+      "numpy>=1.24.0",
+      "tensorboard>=2.14.0",
+      "pymavlink>=2.4.0"
+    ]
+  }
+}

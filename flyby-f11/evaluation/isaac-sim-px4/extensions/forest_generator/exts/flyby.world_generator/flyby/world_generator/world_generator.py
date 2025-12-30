@@ -25,6 +25,7 @@ from .spawners.base_spawner import SpawnConfig, BaseSpawner
 from .spawners.vegetation_spawner import VegetationSpawner
 from .spawners.vehicle_spawner import VehicleSpawner
 from .spawners.people_spawner import PeopleSpawner
+from .spawners.drone_spawner import DroneSpawner
 
 
 @dataclass
@@ -122,6 +123,9 @@ class WorldGenerator:
             self.stage, models_path, spawn_config
         )
         self.people = PeopleSpawner(
+            self.stage, models_path, spawn_config
+        )
+        self.drones = DroneSpawner(
             self.stage, models_path, spawn_config
         )
 
@@ -507,11 +511,56 @@ class WorldGenerator:
         if self.config.randomize_lighting:
             self.setup_lighting()
 
+    def spawn_drone(
+        self,
+        variant: str = "isr_camera",
+        position: Tuple[float, float, float] = None,
+        heading: float = 0.0,
+    ) -> str:
+        """
+        Spawn an F-11 drone.
+
+        Args:
+            variant: Drone variant ("base", "isr_camera", "lidar", "multispectral")
+            position: (x, y, z) spawn position in meters. If None, uses (0, 0, 10)
+            heading: Yaw angle in radians
+
+        Returns:
+            Prim path of spawned drone
+        """
+        if position is None:
+            position = (0.0, 0.0, 10.0)
+        return self.drones.spawn(variant, position, heading)
+
+    def spawn_drone_formation(
+        self,
+        variant: str = "isr_camera",
+        center: Tuple[float, float, float] = (0, 0, 15),
+        count: int = 1,
+        spacing: float = 5.0,
+        formation: str = "line",
+    ) -> List[str]:
+        """
+        Spawn multiple drones in formation.
+
+        Args:
+            variant: Drone variant to spawn
+            center: Center position (x, y, z) in meters
+            count: Number of drones (default 1)
+            spacing: Distance between drones in meters
+            formation: "line", "wedge", "box", or "circle"
+
+        Returns:
+            List of spawned drone prim paths
+        """
+        return self.drones.spawn_formation(variant, center, count, spacing, formation)
+
     def clear_spawned_objects(self) -> None:
-        """Clear all spawned objects (vegetation, vehicles, people)."""
+        """Clear all spawned objects (vegetation, vehicles, people, drones)."""
         self.vegetation.clear_all()
         self.vehicles.clear_all()
         self.people.clear_all()
+        self.drones.clear_all()
         # Clear position registry for overlap prevention
         BaseSpawner.clear_position_registry()
 
@@ -540,4 +589,5 @@ class WorldGenerator:
             "bushes": self.vegetation.bush_count,
             "vehicles": self.vehicles.vehicle_count,
             "people": self.people.person_count,
+            "drones": self.drones.drone_count,
         }

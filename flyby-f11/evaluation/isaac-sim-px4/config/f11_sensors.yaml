@@ -1,0 +1,246 @@
+# Flyby F-11 ISR Sensor Configuration for Isaac Sim
+# Based on real F-11 specifications from flybyrobotics.com
+#
+# This config defines all sensors for functional sim-to-real transfer.
+# Priority is accurate FUNCTIONAL behavior, not visual fidelity.
+
+# =============================================================================
+# Platform Identification
+# =============================================================================
+platform:
+  name: "Flyby F-11 ISR"
+  manufacturer: "Flyby Robotics"
+  compute: "NVIDIA Jetson Orin NX 16GB"
+  compute_tops: 50
+  max_payload_kg: 3.0
+
+# =============================================================================
+# Navigation Sensors (Pegasus-provided)
+# =============================================================================
+navigation:
+  # GPS: u-blox NEO-F9P Dual RTK
+  gps:
+    model: "u-blox NEO-F9P"
+    type: "dual_rtk"
+    horizontal_accuracy_m: 0.01  # 1cm RTK
+    vertical_accuracy_m: 0.02
+    update_rate_hz: 10
+    # Isaac Sim implementation: Pegasus GPS sensor
+    isaac_sim:
+      sensor_class: "pegasus.simulator.logic.sensors.GPS"
+      # Note: Basic GPS in Pegasus; RTK accuracy simulated via noise params
+
+  # IMU: Internal 9-axis
+  imu:
+    model: "Internal"
+    type: "9-axis"
+    accelerometer_range_g: 16
+    gyroscope_range_dps: 2000
+    update_rate_hz: 400
+    # Isaac Sim implementation: Pegasus IMU sensor
+    isaac_sim:
+      sensor_class: "pegasus.simulator.logic.sensors.IMU"
+
+  # Barometer: Internal
+  barometer:
+    model: "Internal"
+    type: "pressure"
+    accuracy_m: 0.5
+    update_rate_hz: 50
+    # Isaac Sim implementation: Pegasus Barometer
+    isaac_sim:
+      sensor_class: "pegasus.simulator.logic.sensors.Barometer"
+
+  # Magnetometer: Internal 3-axis
+  magnetometer:
+    model: "Internal"
+    type: "3-axis"
+    update_rate_hz: 100
+    # Isaac Sim implementation: Pegasus Magnetometer
+    isaac_sim:
+      sensor_class: "pegasus.simulator.logic.sensors.Magnetometer"
+
+# =============================================================================
+# ISR Payload - Primary EO/IR Camera System
+# =============================================================================
+isr_payload:
+  # Gremsy VIO/ZIO Gimbal
+  gimbal:
+    model: "Gremsy VIO"
+    type: "3-axis"
+    pitch_range_deg: [-120, 30]
+    yaw_range_deg: [-345, 345]
+    roll_range_deg: [-45, 45]
+    stabilization_accuracy_deg: 0.01
+    max_rotation_speed_dps: 90
+    # Isaac Sim implementation: Camera pose manipulation
+    isaac_sim:
+      control_method: "camera_local_pose"
+      update_rate_hz: 50
+
+  # Primary EO Camera: Sony Block 4K with 20x optical zoom
+  eo_camera:
+    model: "Sony Block Camera"
+    type: "electro_optical"
+    sensor:
+      resolution: [3840, 2160]  # 4K
+      pixel_size_um: 1.55
+      sensor_size_mm: [7.82, 4.40]  # 1/2.3"
+    lens:
+      focal_length_mm: [4.3, 86]  # 20x optical zoom
+      aperture: "f/1.8-3.4"
+      fov_deg: [63.7, 3.5]  # Wide to tele
+    performance:
+      frame_rate_hz: 30
+      low_light_lux: 1.0
+      dynamic_range_db: 60
+    # Isaac Sim implementation: isaacsim.sensors.camera.Camera
+    isaac_sim:
+      sensor_class: "isaacsim.sensors.camera.Camera"
+      # Default to wide angle for navigation/survey
+      resolution: [1920, 1080]  # Can use 4K but heavier on GPU
+      focal_length_mm: 4.5  # Wide angle mode
+      clipping_range_m: [0.1, 500]
+      # Belly mount position to avoid body obstruction
+      mount_position: [0.0, 0.0, -0.15]  # 15cm below body center
+      mount_orientation_deg: [0, 45, 0]  # 45 deg pitch down
+
+  # Thermal Camera: FLIR Boson 640
+  thermal_camera:
+    model: "FLIR Boson 640"
+    type: "lwir"  # Long-wave infrared (7.5-13.5 um)
+    sensor:
+      resolution: [640, 512]
+      pixel_pitch_um: 12
+      spectral_range_um: [7.5, 13.5]
+    lens:
+      focal_length_mm: 9.1  # 50 deg HFOV option
+      fov_deg: [50, 40]
+    performance:
+      frame_rate_hz: 60
+      netd_mk: 40  # Noise equivalent temp difference
+      scene_range_c: [-40, 160]
+      response_time_ms: 8
+    # Isaac Sim implementation: isaacsim.sensors.camera.Camera with thermal annotator
+    isaac_sim:
+      sensor_class: "isaacsim.sensors.camera.Camera"
+      resolution: [640, 512]
+      # Note: Isaac Sim doesn't have native thermal simulation
+      # Use RGB camera + post-processing for functional behavior
+      # Or use semantic segmentation as proxy for heat signatures
+      simulated_via: "semantic_segmentation_proxy"
+      focal_length_mm: 9.1
+      mount_position: [0.0, 0.0, -0.12]  # Slightly above EO camera
+      mount_orientation_deg: [0, 45, 0]  # Co-aligned with EO
+
+  # Depth sensing (RGB-D mode)
+  depth_camera:
+    enabled: true
+    max_range_m: 50
+    min_range_m: 0.3
+    # Isaac Sim implementation: Camera depth buffer
+    isaac_sim:
+      method: "distance_to_image_plane"
+      # Enabled via camera.add_distance_to_image_plane_to_frame()
+
+# =============================================================================
+# Optional LiDAR Payload
+# =============================================================================
+lidar:
+  # Ouster OS-1 (optional payload)
+  model: "Ouster OS-1"
+  type: "3d_scanning"
+  enabled: false  # Set true when LiDAR payload installed
+  specs:
+    channels: 64
+    range_m: 120
+    points_per_second: 1310720
+    horizontal_fov_deg: 360
+    vertical_fov_deg: 45  # -22.5 to +22.5
+    angular_resolution_deg: 0.35
+    accuracy_cm: 3
+    update_rate_hz: 20
+  # Isaac Sim implementation: RTX Lidar
+  isaac_sim:
+    sensor_class: "omni.isaac.sensor.LidarRtx"
+    # Or use non-RTX: omni.isaac.range_sensor.Lidar
+    config_file: "OS1_64ch.json"
+    mount_position: [0.0, 0.0, 0.05]  # Top of drone body
+    mount_orientation_deg: [0, 0, 0]
+
+# =============================================================================
+# Sensor Mounting Positions (Body Frame)
+# =============================================================================
+# Coordinate system: X-forward, Y-left, Z-up (NED converted internally)
+# Origin at drone center of mass
+mounts:
+  isr_gimbal:
+    position: [0.0, 0.0, -0.15]  # Belly mounted, 15cm below CoM
+    default_orientation_deg: [0, 45, 0]  # Pitched down 45 deg
+    children:
+      - eo_camera
+      - thermal_camera
+      - depth_camera
+
+  lidar:
+    position: [0.0, 0.0, 0.05]  # Top mounted
+    orientation_deg: [0, 0, 0]
+
+  gps_antenna:
+    position: [0.0, 0.0, 0.08]  # Top mounted
+    # Secondary antenna for RTK baseline
+    secondary_position: [-0.15, 0.0, 0.08]  # 15cm rear
+
+# =============================================================================
+# Sensor Fusion Configuration
+# =============================================================================
+fusion:
+  # VIO (Visual-Inertial Odometry) for GPS-denied navigation
+  vio:
+    enabled: true
+    camera_source: "eo_camera"
+    imu_source: "imu"
+    update_rate_hz: 30
+
+  # State estimation
+  state_estimator:
+    type: "ekf"  # Extended Kalman Filter
+    inputs:
+      - gps
+      - imu
+      - barometer
+      - magnetometer
+      - vio
+    output_rate_hz: 100
+
+# =============================================================================
+# Domain Randomization for Sim-to-Real Transfer
+# =============================================================================
+domain_randomization:
+  # GPS degradation
+  gps:
+    denial_probability: 0.15
+    hdop_range: [0.8, 5.0]
+    multipath_noise_std: 0.5
+
+  # Camera noise
+  eo_camera:
+    brightness_range: [0.8, 1.2]
+    contrast_range: [0.9, 1.1]
+    noise_std_range: [0.0, 0.05]
+    motion_blur_probability: 0.1
+
+  # Thermal camera noise
+  thermal_camera:
+    netd_range: [30, 60]  # mK
+    gain_nonuniformity: 0.02
+
+  # IMU bias drift
+  imu:
+    accelerometer_bias_std: 0.01
+    gyroscope_bias_std: 0.001
+
+  # LiDAR degradation
+  lidar:
+    point_dropout_probability: 0.05
+    range_noise_std: 0.03

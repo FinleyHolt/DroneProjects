@@ -74,6 +74,7 @@ Phases are numbered sequentially. **Phases 1-3 complete, Phase 4+ updated for si
 | **6c** | **diverse-training-worlds** | **Multiple Gazebo worlds for domain randomization** | **NEW** |
 | **6d** | **perception-pipeline** | **Camera to TPTP facts (YOLO + segmentation)** | **NEW** |
 | **6b** | **simulation-training-env** | **Gymnasium RL environments + training loop** | **UPDATED** |
+| **6e** | **isaac-sim-rl-bridge** | **Gymnasium wrapper, SB3 agents, action bridge** | **NEW** |
 | 07 | mission-planner-rl | Level 1 SAC agent (10s horizon) | Pending |
 | 08 | behavior-selector-rl | Level 2 PPO agent (1s horizon) | Pending |
 | 09 | trajectory-optimizer-rl | Level 3 TD3 agent (100ms horizon) | Pending |
@@ -93,6 +94,7 @@ Phases are numbered sequentially. **Phases 1-3 complete, Phase 4+ updated for si
 6. **Phase 6c added**: Diverse training worlds for domain randomization (prevents RL overfitting)
 7. **Phase 6d added**: Perception pipeline converting camera images to TPTP facts for Vampire
 8. **Phase 6b updated**: Now depends on 6c (worlds) and 6d (perception) for complete training env
+9. **Phase 6e added**: Isaac Sim RL bridge - Gymnasium wrapper, SB3 agents, action-to-MAVLink bridge
 
 See [APPROACH.qmd](../APPROACH.qmd) for complete architecture details.
 
@@ -230,6 +232,8 @@ phase-06c-diverse-training-worlds                   (provides camera topics)
                      ↓
       phase-06b-simulation-training-env ← Gymnasium RL (needs perception + worlds)
                      ↓
+      phase-06e-isaac-sim-rl-bridge ← SB3 agents, Gymnasium wrapper, action bridge
+                     ↓
   ┌─────────────────────────────────────┐
   ↓                   ↓                 ↓
 phase-07-mission    phase-08-behavior  phase-09-trajectory
@@ -248,11 +252,12 @@ phase-07-mission    phase-08-behavior  phase-09-trajectory
          phase-14-documentation-release
 ```
 
-**New Pre-RL Pipeline (6a → 6c → 6d → 6b)**:
+**New Pre-RL Pipeline (6a → 6c → 6d → 6b → 6e)**:
 - **6a**: ISR sensors provide camera topics
 - **6c**: Diverse worlds provide objects to detect (buildings, vehicles, people)
 - **6d**: Perception converts images to TPTP facts (what the ontology can reason about)
 - **6b**: Training env ties everything together for RL
+- **6e**: Isaac Sim RL bridge - Gymnasium wrapper, SB3 agents, action-to-MAVLink bridge
 
 **Parallelization**: Phases 7, 8, 9 (RL agents) can be developed in parallel.
 

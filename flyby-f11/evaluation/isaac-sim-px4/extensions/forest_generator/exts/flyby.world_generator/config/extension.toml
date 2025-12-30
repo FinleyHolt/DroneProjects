@@ -1,0 +1,26 @@
+[package]
+version = "1.0.0"
+authors = ["Finley Holt", "Joel Ventola (original forest generator)"]
+title = "Flyby World Generator"
+description = "Procedural world generation for ISR training environments - terrain, vegetation, vehicles, and people"
+readme = "docs/README.md"
+repository = "https://github.com/finleyholt/flyby-f11"
+category = "Simulation"
+keywords = ["procedural", "terrain", "forest", "isr", "training", "world", "generator"]
+changelog = "docs/CHANGELOG.md"
+preview_image = "data/preview.png"
+icon = "data/icon.png"
+
+[dependencies]
+"omni.kit.uiapp" = {}
+"omni.isaac.core" = {}
+"omni.replicator.core" = {}
+"omni.physx" = {}
+
+[[python.module]]
+name = "flyby.world_generator"
+
+[[test]]
+dependencies = [
+    "omni.kit.ui_test"
+]

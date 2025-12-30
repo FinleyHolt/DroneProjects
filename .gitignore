@@ -96,4 +96,15 @@ flyby-f11/docs/vision/repos/jetson-inference/
 flyby-f11/docs/vision/repos/realsense-ros/
 flyby-f11/docs/vision/repos/ultralytics/
 flyby-f11/evaluation/isaac-sim/PegasusSimulator/
-flyby-f11/evaluation/isaac-sim-px4/extensions/forest_generator/
+
+# Isaac Sim forest generator - exclude large source files, keep GLB models and code
+flyby-f11/evaluation/isaac-sim-px4/extensions/forest_generator/models/*_obj/
+flyby-f11/evaluation/isaac-sim-px4/extensions/forest_generator/models/*.blend/
+flyby-f11/evaluation/isaac-sim-px4/extensions/forest_generator/models/characters/
+flyby-f11/evaluation/isaac-sim-px4/extensions/forest_generator/models/quaternius_*/
+*.fbx
+*.FBX
+*.obj
+*.OBJ
+*.mtl
+*.MTL

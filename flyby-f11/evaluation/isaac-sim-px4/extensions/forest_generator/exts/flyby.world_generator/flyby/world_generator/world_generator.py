@@ -29,6 +29,124 @@ from .spawners.drone_spawner import DroneSpawner
 
 
 @dataclass
+class WeatherConfig:
+    """Weather/atmosphere configuration for domain randomization."""
+    # Visibility range in meters (affects camera sensing)
+    visibility_range: float = 10000.0  # Clear day default
+    # Fog density (0.0 = none, 1.0 = maximum)
+    fog_density: float = 0.0
+    # Fog color tint (bluish for atmospheric haze)
+    fog_color: Tuple[float, float, float] = (0.7, 0.75, 0.85)
+    # Dome light intensity multiplier (reduced in haze)
+    light_intensity_multiplier: float = 1.0
+    # Sun intensity multiplier (reduced in haze)
+    sun_intensity_multiplier: float = 1.0
+    # Color saturation (reduced in haze for washed-out look)
+    saturation: float = 1.0
+
+
+@dataclass
+class TimeOfDayPreset:
+    """Lighting preset for a specific time of day."""
+    name: str
+    sun_intensity: float
+    sun_elevation: Tuple[float, float]  # (min, max) elevation angle in degrees
+    sun_color: Tuple[float, float, float]  # RGB color
+    dome_intensity: float
+    color_temperature: float  # Kelvin (warm ~3000K, neutral ~5500K, cool ~7000K)
+
+
+# Time of day presets for realistic lighting variation
+TIME_OF_DAY_PRESETS: Dict[str, TimeOfDayPreset] = {
+    "dawn": TimeOfDayPreset(
+        name="dawn",
+        sun_intensity=1500.0,
+        sun_elevation=(5.0, 15.0),  # Very low sun
+        sun_color=(1.0, 0.65, 0.35),   # Deep warm orange
+        dome_intensity=600.0,
+        color_temperature=3000.0,       # Warm
+    ),
+    "morning": TimeOfDayPreset(
+        name="morning",
+        sun_intensity=2500.0,
+        sun_elevation=(30.0, 50.0),   # Rising sun
+        sun_color=(1.0, 0.9, 0.75),     # Slightly warm
+        dome_intensity=800.0,
+        color_temperature=5000.0,       # Neutral-warm
+    ),
+    "noon": TimeOfDayPreset(
+        name="noon",
+        sun_intensity=3500.0,
+        sun_elevation=(70.0, 80.0),   # High overhead
+        sun_color=(1.0, 0.98, 0.95),    # Slightly cool white
+        dome_intensity=1000.0,
+        color_temperature=6000.0,       # Slightly cool
+    ),
+    "afternoon": TimeOfDayPreset(
+        name="afternoon",
+        sun_intensity=3000.0,
+        sun_elevation=(30.0, 50.0),   # Descending sun
+        sun_color=(1.0, 0.92, 0.8),     # Warm golden
+        dome_intensity=900.0,
+        color_temperature=5200.0,       # Neutral-warm
+    ),
+    "dusk": TimeOfDayPreset(
+        name="dusk",
+        sun_intensity=1200.0,
+        sun_elevation=(5.0, 15.0),   # Very low sun
+        sun_color=(1.0, 0.5, 0.25),     # Deep orange-red
+        dome_intensity=500.0,
+        color_temperature=2500.0,       # Very warm
+    ),
+    "overcast": TimeOfDayPreset(
+        name="overcast",
+        sun_intensity=500.0,            # Very dim direct light
+        sun_elevation=(40.0, 60.0),   # Mid elevation (doesn't matter much)
+        sun_color=(0.9, 0.9, 0.95),     # Neutral gray-blue
+        dome_intensity=1800.0,          # High diffuse light
+        color_temperature=6500.0,       # Cool diffuse
+    ),
+}
+
+
+# Predefined weather presets for domain randomization
+WEATHER_PRESETS: Dict[str, WeatherConfig] = {
+    "clear": WeatherConfig(
+        visibility_range=10000.0,
+        fog_density=0.0,
+        fog_color=(0.7, 0.75, 0.85),
+        light_intensity_multiplier=1.0,
+        sun_intensity_multiplier=1.0,
+        saturation=1.0,
+    ),
+    "light_haze": WeatherConfig(
+        visibility_range=5000.0,
+        fog_density=0.15,
+        fog_color=(0.75, 0.8, 0.9),
+        light_intensity_multiplier=0.9,
+        sun_intensity_multiplier=0.85,
+        saturation=0.9,
+    ),
+    "moderate_haze": WeatherConfig(
+        visibility_range=2000.0,
+        fog_density=0.35,
+        fog_color=(0.8, 0.82, 0.88),
+        light_intensity_multiplier=0.75,
+        sun_intensity_multiplier=0.65,
+        saturation=0.75,
+    ),
+    "heavy_haze": WeatherConfig(
+        visibility_range=800.0,
+        fog_density=0.6,
+        fog_color=(0.85, 0.85, 0.88),
+        light_intensity_multiplier=0.55,
+        sun_intensity_multiplier=0.4,
+        saturation=0.55,
+    ),
+}
+
+
+@dataclass
 class WorldConfig:
     """Configuration for world generation."""
     # Terrain
@@ -40,6 +158,10 @@ class WorldConfig:
     hdri_path: str = None
     sun_intensity: float = 3000.0
     sun_angle: Tuple[float, float] = (-45.0, 30.0)
+    time_of_day: Optional[str] = None  # "dawn", "morning", "noon", "afternoon", "dusk", "overcast"
+
+    # Weather/Atmosphere
+    weather: Optional[str] = None  # "clear", "light_haze", "moderate_haze", "heavy_haze"
 
     # Vegetation (lower defaults for performance)
     tree_density: float = 1.5  # Trees per 100m² (reduced from 3.0)
@@ -132,6 +254,9 @@ class WorldGenerator:
         # Track generated elements
         self.terrain_prim = None
         self.skybox_light = None
+        self._current_weather: WeatherConfig = WEATHER_PRESETS["clear"]
+        self._weather_name: str = "clear"
+        self._current_time_of_day: Optional[str] = None
 
     def _init_world_structure(self) -> None:
         """Create base prim structure."""
@@ -376,6 +501,77 @@ class WorldGenerator:
         terrain_prim = self.stage.GetPrimAtPath(prim_path)
         UsdShade.MaterialBindingAPI(terrain_prim).Bind(material)
 
+    def _get_time_of_day_preset(self) -> Optional[TimeOfDayPreset]:
+        """
+        Get the time of day preset to use for lighting.
+
+        Returns:
+            TimeOfDayPreset if a preset should be used, None otherwise
+        """
+        # If time_of_day is explicitly set, use that preset
+        if self.config.time_of_day is not None:
+            if self.config.time_of_day in TIME_OF_DAY_PRESETS:
+                return TIME_OF_DAY_PRESETS[self.config.time_of_day]
+            else:
+                print(f"Warning: Unknown time_of_day '{self.config.time_of_day}', "
+                      f"valid options: {list(TIME_OF_DAY_PRESETS.keys())}")
+                return None
+
+        # If randomize_lighting is enabled and no time_of_day specified, pick randomly
+        if self.config.randomize_lighting:
+            preset_name = random.choice(list(TIME_OF_DAY_PRESETS.keys()))
+            return TIME_OF_DAY_PRESETS[preset_name]
+
+        return None
+
+    def _color_temperature_to_rgb(self, kelvin: float) -> Tuple[float, float, float]:
+        """
+        Convert color temperature in Kelvin to RGB tint.
+
+        Uses approximation for the visible range (1000K - 10000K).
+
+        Args:
+            kelvin: Color temperature in Kelvin
+
+        Returns:
+            Tuple of (R, G, B) values in 0-1 range
+        """
+        # Clamp to valid range
+        kelvin = max(1000.0, min(10000.0, kelvin))
+
+        # Normalize to 0-1 range for calculation
+        temp = kelvin / 100.0
+
+        # Calculate red
+        if temp <= 66:
+            red = 1.0
+        else:
+            red = temp - 60
+            red = 329.698727446 * (red ** -0.1332047592)
+            red = max(0.0, min(255.0, red)) / 255.0
+
+        # Calculate green
+        if temp <= 66:
+            green = temp
+            green = 99.4708025861 * np.log(max(1.0, green)) - 161.1195681661
+            green = max(0.0, min(255.0, green)) / 255.0
+        else:
+            green = temp - 60
+            green = 288.1221695283 * (green ** -0.0755148492)
+            green = max(0.0, min(255.0, green)) / 255.0
+
+        # Calculate blue
+        if temp >= 66:
+            blue = 1.0
+        elif temp <= 19:
+            blue = 0.0
+        else:
+            blue = temp - 10
+            blue = 138.5177312231 * np.log(max(1.0, blue)) - 305.0447927307
+            blue = max(0.0, min(255.0, blue)) / 255.0
+
+        return (red, green, blue)
+
     def setup_lighting(
         self,
         hdri_path: str = None,
@@ -384,52 +580,306 @@ class WorldGenerator:
         """
         Setup environment lighting with HDRI skybox and sun.
 
+        Supports time-of-day presets for realistic lighting variation:
+        - dawn: Low sun, warm orange tint, intensity ~1500
+        - morning: Rising sun, neutral, intensity ~2500
+        - noon: High sun, slightly cool, intensity ~3500
+        - afternoon: Descending sun, warm golden, intensity ~3000
+        - dusk: Very low sun, deep orange/red, intensity ~1200
+        - overcast: No direct sun, high diffuse dome light
+
         Args:
             hdri_path: Path to HDR image (uses default if None)
-            sun_intensity: Intensity of directional sun light
+            sun_intensity: Intensity of directional sun light (overridden by time_of_day preset)
         """
         if hdri_path is None:
             hdri_path = f"{self.textures_path}/{self.DEFAULT_HDRI}"
 
-        sun_intensity = sun_intensity or self.config.sun_intensity
+        # Get time of day preset if applicable
+        tod_preset = self._get_time_of_day_preset()
+        self._current_time_of_day = tod_preset.name if tod_preset else None
 
-        # Create dome light for sky background ONLY (no significant lighting contribution)
-        # This provides the visible sky texture but doesn't contribute to scene lighting
+        # Determine lighting parameters from preset or config
+        if tod_preset:
+            # Use preset values
+            effective_sun_intensity = tod_preset.sun_intensity
+            dome_intensity = tod_preset.dome_intensity
+            sun_color = Gf.Vec3f(*tod_preset.sun_color)
+            sun_elevation = random.uniform(*tod_preset.sun_elevation)
+            sun_azimuth = random.uniform(-180, 180)  # Random azimuth for variety
+            color_temp = tod_preset.color_temperature
+        else:
+            # Use config values (fallback)
+            effective_sun_intensity = sun_intensity or self.config.sun_intensity
+            dome_intensity = 1000.0
+            sun_color = Gf.Vec3f(1.0, 0.95, 0.85)
+            sun_elevation = self.config.sun_angle[0]
+            sun_azimuth = self.config.sun_angle[1]
+            color_temp = 5500.0  # Neutral daylight
+
+        # Create dome light for sky background
+        # Provides visible sky texture AND ambient lighting for realistic outdoor scenes
         dome_path = "/World/Lighting/DomeLight"
         dome_light = UsdLux.DomeLight.Define(self.stage, dome_path)
-        dome_light.CreateIntensityAttr(50)  # Very low - just for sky background visibility
+        dome_light.CreateIntensityAttr(dome_intensity)
 
         # Use clean sky HDRI for realistic background
         dome_light.CreateTextureFileAttr().Set(hdri_path)
         dome_light.CreateTextureFormatAttr().Set("latlong")
 
-        # Disable shadow casting and color temperature on dome light
+        # Apply color temperature tint to dome light for time-of-day ambiance
         dome_prim = dome_light.GetPrim()
-        dome_prim.CreateAttribute("inputs:enableColorTemperature", Sdf.ValueTypeNames.Bool).Set(False)
+        dome_prim.CreateAttribute("inputs:enableColorTemperature", Sdf.ValueTypeNames.Bool).Set(True)
+        dome_prim.CreateAttribute("inputs:colorTemperature", Sdf.ValueTypeNames.Float).Set(color_temp)
+
+        # Apply color tint based on temperature for additional warmth/coolness
+        temp_tint = self._color_temperature_to_rgb(color_temp)
+        dome_light.CreateColorAttr(Gf.Vec3f(*temp_tint))
+
+        # Disable shadow casting from dome light - only sun should cast shadows
+        from pxr import UsdLux as UsdLuxShadow
+        shadow_api = UsdLuxShadow.ShadowAPI.Apply(dome_prim)
+        shadow_api.CreateShadowEnableAttr().Set(False)
+
+        # Expose sky texture - important for RayTracedLighting mode
+        dome_light.CreateSpecularAttr().Set(1.0)  # Full specular reflection of sky
 
         # Create distant light (sun) - THE ONLY PRIMARY LIGHT SOURCE
         sun_path = "/World/Lighting/SunLight"
         sun_light = UsdLux.DistantLight.Define(self.stage, sun_path)
-        sun_light.CreateIntensityAttr(sun_intensity)
-        sun_light.CreateColorAttr(Gf.Vec3f(1.0, 0.95, 0.85))
+        sun_light.CreateIntensityAttr(effective_sun_intensity)
+        sun_light.CreateColorAttr(sun_color)
         sun_light.CreateAngleAttr(0.53)  # Sun angular diameter
 
-        # Rotate sun
+        # Rotate sun based on elevation and azimuth
         sun_xform = UsdGeom.Xformable(sun_light.GetPrim())
-        sun_xform.AddRotateXYZOp().Set(Gf.Vec3f(*self.config.sun_angle, 0.0))
+        sun_xform.AddRotateXYZOp().Set(Gf.Vec3f(sun_elevation, sun_azimuth, 0.0))
 
-        # Randomize lighting if enabled
-        if self.config.randomize_lighting:
+        # Apply additional randomization if enabled and not using a preset
+        # (presets already have built-in variation through random elevation/azimuth selection)
+        if self.config.randomize_lighting and not tod_preset:
             # Random sun angle variation
-            angle_x = self.config.sun_angle[0] + random.uniform(-15, 15)
-            angle_y = self.config.sun_angle[1] + random.uniform(-30, 30)
+            angle_x = sun_elevation + random.uniform(-15, 15)
+            angle_y = sun_azimuth + random.uniform(-30, 30)
             sun_xform.GetOrderedXformOps()[0].Set(Gf.Vec3f(angle_x, angle_y, 0.0))
 
             # Random intensity variation
             intensity_var = random.uniform(0.8, 1.2)
-            sun_light.GetIntensityAttr().Set(sun_intensity * intensity_var)
+            sun_light.GetIntensityAttr().Set(effective_sun_intensity * intensity_var)
 
         self.skybox_light = dome_path
+
+        # Apply atmosphere effects after lighting setup
+        self.setup_atmosphere()
+
+    def setup_atmosphere(
+        self,
+        weather: str = None,
+    ) -> None:
+        """
+        Setup atmosphere/weather effects for domain randomization.
+
+        This method configures fog, visibility, and lighting adjustments
+        to simulate various atmospheric conditions. These effects are
+        critical for sim-to-real transfer in aerial ISR scenarios where
+        visibility conditions significantly impact detection performance.
+
+        Weather presets:
+        - clear: 10km visibility, no fog, full light intensity
+        - light_haze: 5km visibility, slight fog, 90% light
+        - moderate_haze: 2km visibility, noticeable fog, 75% light
+        - heavy_haze: 800m visibility, significant fog, 55% light
+
+        Args:
+            weather: Weather preset name ("clear", "light_haze",
+                    "moderate_haze", "heavy_haze"). If None, uses config
+                    or randomizes if randomize_weather is enabled.
+        """
+        # Determine weather preset
+        if weather is not None:
+            weather_name = weather
+        elif self.config.weather is not None:
+            weather_name = self.config.weather
+        elif self.config.randomize_weather:
+            # Weighted random selection (more common conditions more likely)
+            weights = [0.4, 0.3, 0.2, 0.1]  # clear more likely than heavy haze
+            weather_options = ["clear", "light_haze", "moderate_haze", "heavy_haze"]
+            weather_name = random.choices(weather_options, weights=weights)[0]
+        else:
+            weather_name = "clear"
+
+        # Validate and get config
+        if weather_name not in WEATHER_PRESETS:
+            print(f"Warning: Unknown weather preset '{weather_name}', using 'clear'")
+            weather_name = "clear"
+
+        weather_config = WEATHER_PRESETS[weather_name]
+        self._current_weather = weather_config
+        self._weather_name = weather_name
+
+        # Apply fog/atmosphere effects
+        self._apply_fog(weather_config)
+
+        # Adjust existing lights based on weather
+        self._adjust_lights_for_weather(weather_config)
+
+        if weather_name != "clear":
+            print(f"[WorldGenerator] Atmosphere set to '{weather_name}' "
+                  f"(visibility: {weather_config.visibility_range:.0f}m)")
+
+    def _apply_fog(self, weather_config: WeatherConfig) -> None:
+        """
+        Apply fog/haze effects to the scene.
+
+        Uses Isaac Sim's render settings for fog when available,
+        with fallback to visual approximations via lighting.
+
+        Args:
+            weather_config: Weather configuration to apply
+        """
+        if weather_config.fog_density <= 0.0:
+            # No fog needed, ensure any existing fog is cleared
+            self._clear_fog()
+            return
+
+        # Try to use Isaac Sim's built-in fog settings via render settings
+        try:
+            import carb.settings
+            settings = carb.settings.get_settings()
+
+            # Calculate fog distances based on visibility
+            fog_start = 10.0  # Start fog close for gradual effect
+            fog_end = weather_config.visibility_range
+
+            # Set fog parameters via render settings
+            # These are RTX renderer settings for distance fog
+            settings.set("/rtx/fog/enabled", True)
+            settings.set("/rtx/fog/fogStartDistance", fog_start)
+            settings.set("/rtx/fog/fogEndDistance", fog_end)
+            settings.set("/rtx/fog/fogColorR", weather_config.fog_color[0])
+            settings.set("/rtx/fog/fogColorG", weather_config.fog_color[1])
+            settings.set("/rtx/fog/fogColorB", weather_config.fog_color[2])
+            settings.set("/rtx/fog/fogDensity", weather_config.fog_density)
+
+            # Height fog for more realistic atmospheric effect (denser near ground)
+            settings.set("/rtx/fog/fogHeightDensity", weather_config.fog_density * 0.5)
+            settings.set("/rtx/fog/fogHeightFalloff", 0.02)  # Gradual falloff with altitude
+
+        except (ImportError, AttributeError) as e:
+            # Fallback: use lighting-based atmosphere simulation only
+            print(f"[WorldGenerator] RTX fog settings unavailable ({e}), "
+                  "using lighting-based atmosphere simulation")
+
+    def _clear_fog(self) -> None:
+        """Clear any existing fog settings."""
+        try:
+            import carb.settings
+            settings = carb.settings.get_settings()
+            settings.set("/rtx/fog/enabled", False)
+        except (ImportError, AttributeError):
+            pass
+
+    def _adjust_lights_for_weather(self, weather_config: WeatherConfig) -> None:
+        """
+        Adjust scene lights to simulate atmospheric scattering.
+
+        Reduces light intensity and shifts colors to simulate
+        the visual effects of haze and reduced visibility.
+
+        Args:
+            weather_config: Weather configuration to apply
+        """
+        # Adjust dome light (skybox)
+        dome_path = "/World/Lighting/DomeLight"
+        dome_prim = self.stage.GetPrimAtPath(dome_path)
+        if dome_prim.IsValid():
+            dome_light = UsdLux.DomeLight(dome_prim)
+
+            # Get current intensity and apply weather multiplier
+            current_intensity = dome_light.GetIntensityAttr().Get()
+            if current_intensity:
+                # Apply weather multiplier
+                new_intensity = current_intensity * weather_config.light_intensity_multiplier
+                dome_light.GetIntensityAttr().Set(new_intensity)
+
+            # Apply slight color tint for haze (desaturated, bluish)
+            if weather_config.fog_density > 0:
+                # Blend dome light color toward fog color
+                blend_factor = weather_config.fog_density * 0.5  # Subtle effect
+                tint = Gf.Vec3f(
+                    1.0 - blend_factor * (1.0 - weather_config.fog_color[0]),
+                    1.0 - blend_factor * (1.0 - weather_config.fog_color[1]),
+                    1.0 - blend_factor * (1.0 - weather_config.fog_color[2]),
+                )
+                dome_light.CreateColorAttr(tint)
+
+        # Adjust sun light
+        sun_path = "/World/Lighting/SunLight"
+        sun_prim = self.stage.GetPrimAtPath(sun_path)
+        if sun_prim.IsValid():
+            sun_light = UsdLux.DistantLight(sun_prim)
+
+            # Get current intensity and apply weather multiplier
+            current_intensity = sun_light.GetIntensityAttr().Get()
+            if current_intensity:
+                new_sun = current_intensity * weather_config.sun_intensity_multiplier
+                sun_light.GetIntensityAttr().Set(new_sun)
+
+            # Shift sun color toward warmer/hazier tones
+            if weather_config.fog_density > 0:
+                # Haze causes warm color shift and reduced contrast
+                haze_factor = weather_config.fog_density * 0.3
+                sun_color = Gf.Vec3f(
+                    1.0,
+                    0.95 - haze_factor * 0.1,
+                    0.85 - haze_factor * 0.2,
+                )
+                sun_light.GetColorAttr().Set(sun_color)
+
+    @property
+    def visibility_range(self) -> float:
+        """
+        Current visibility range in meters.
+
+        This property is useful for RL environments to:
+        - Adjust reward functions based on sensing conditions
+        - Scale detection thresholds appropriately
+        - Log environment conditions for analysis
+
+        Returns:
+            Visibility range in meters (10000 = clear, 800 = heavy haze)
+        """
+        return self._current_weather.visibility_range
+
+    @property
+    def current_weather(self) -> str:
+        """
+        Current weather condition name.
+
+        Returns:
+            Weather preset name ("clear", "light_haze", etc.)
+        """
+        return self._weather_name
+
+    @property
+    def weather_cfg(self) -> WeatherConfig:
+        """
+        Current weather configuration object.
+
+        Returns:
+            Full WeatherConfig with all atmosphere parameters
+        """
+        return self._current_weather
+
+    @property
+    def time_of_day(self) -> Optional[str]:
+        """
+        Current time of day setting.
+
+        Returns:
+            Time of day preset name if set, None otherwise
+        """
+        return self._current_time_of_day
 
     def generate_forest(
         self,
@@ -493,6 +943,11 @@ class WorldGenerator:
         """
         Randomize environment for new episode.
 
+        Supports randomization of:
+        - Terrain (if randomize_terrain=True)
+        - Lighting/time of day (if randomize_lighting=True)
+        - Weather/atmosphere (if randomize_weather=True)
+
         Args:
             seed: Random seed for reproducibility
         """
@@ -509,7 +964,11 @@ class WorldGenerator:
             self.generate_terrain()
 
         if self.config.randomize_lighting:
+            # setup_lighting() calls setup_atmosphere() automatically
             self.setup_lighting()
+        elif self.config.randomize_weather:
+            # Only weather randomization (lighting stays the same)
+            self.setup_atmosphere()
 
     def spawn_drone(
         self,
@@ -555,6 +1014,111 @@ class WorldGenerator:
         """
         return self.drones.spawn_formation(variant, center, count, spacing, formation)
 
+    def spawn_poi_clusters(
+        self,
+        num_clusters: int = 3,
+        targets_per_cluster: Tuple[int, int] = (3, 8),
+        cluster_radius: float = 30.0,
+        include_vehicles: bool = True,
+        include_people: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """
+        Spawn realistic POI clusters for ISR training.
+
+        Each cluster contains a mix of vehicles and people grouped together,
+        simulating real-world scenarios (encampments, convoys, activity sites).
+        This creates realistic detection scenarios where targets are clustered
+        rather than uniformly distributed.
+
+        Args:
+            num_clusters: Number of clusters to spawn
+            targets_per_cluster: (min, max) targets per cluster
+            cluster_radius: Maximum spread of targets from cluster center
+            include_vehicles: Whether to include vehicles
+            include_people: Whether to include people
+
+        Returns:
+            List of cluster dicts with 'id', 'center', 'targets', 'radius' keys
+        """
+        clusters = []
+        half_size = min(self.config.terrain_size) / 2 * 0.8  # 80% of area for margin
+
+        for i in range(num_clusters):
+            # Find non-overlapping cluster center
+            center_x, center_y = None, None
+            for _ in range(50):  # Max attempts to find valid center
+                candidate_x = random.uniform(-half_size, half_size)
+                candidate_y = random.uniform(-half_size, half_size)
+
+                # Check distance from existing clusters
+                if clusters:
+                    min_dist = min(
+                        np.sqrt((candidate_x - c['center'][0])**2 +
+                               (candidate_y - c['center'][1])**2)
+                        for c in clusters
+                    )
+                    if min_dist > cluster_radius * 2.5:
+                        center_x, center_y = candidate_x, candidate_y
+                        break
+                else:
+                    center_x, center_y = candidate_x, candidate_y
+                    break
+
+            if center_x is None:
+                # Fallback: use random position
+                center_x = random.uniform(-half_size, half_size)
+                center_y = random.uniform(-half_size, half_size)
+
+            center = (center_x, center_y)
+            num_targets = random.randint(*targets_per_cluster)
+            cluster_targets = []
+
+            # Decide composition (mix of vehicles and people)
+            if include_vehicles and include_people:
+                num_vehicles = random.randint(1, max(1, num_targets // 2))
+                num_people = num_targets - num_vehicles
+            elif include_vehicles:
+                num_vehicles, num_people = num_targets, 0
+            else:
+                num_vehicles, num_people = 0, num_targets
+
+            # Spawn vehicles at explicit cluster center
+            if num_vehicles > 0:
+                vehicle_types = ["sedan", "sedan2", "suv", "tank", "tank2"]
+                available_types = [vt for vt in vehicle_types
+                                  if vt in self.vehicles.vehicle_configs]
+                if available_types:
+                    vehicle_paths = self.vehicles.spawn_vehicle_group(
+                        vehicle_types=available_types,
+                        count=num_vehicles,
+                        clustering=0.8,  # Tight clustering
+                        center=center,
+                    )
+                    for vp in vehicle_paths:
+                        cluster_targets.append({'type': 'vehicle', 'path': vp})
+
+            # Spawn people in cluster
+            if num_people > 0 and self.people.person_configs:
+                person_types = list(self.people.person_configs.keys())
+                people_paths = self.people.spawn_crowd(
+                    person_types=person_types,
+                    count=num_people,
+                    center=center,
+                    radius=cluster_radius * 0.5,
+                )
+                for pp in people_paths:
+                    cluster_targets.append({'type': 'person', 'path': pp})
+
+            clusters.append({
+                'id': f'cluster_{i}',
+                'center': center,
+                'radius': cluster_radius,
+                'targets': cluster_targets,
+                'num_targets': len(cluster_targets),
+            })
+
+        return clusters
+
     def clear_spawned_objects(self) -> None:
         """Clear all spawned objects (vegetation, vehicles, people, drones)."""
         self.vegetation.clear_all()
@@ -582,7 +1146,7 @@ class WorldGenerator:
                 self.stage.RemovePrim("/World/Lighting")
             self.skybox_light = None
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> Dict[str, Any]:
         """Get statistics about generated world."""
         return {
             "trees": self.vegetation.tree_count,
@@ -590,4 +1154,15 @@ class WorldGenerator:
             "vehicles": self.vehicles.vehicle_count,
             "people": self.people.person_count,
             "drones": self.drones.drone_count,
+            "time_of_day": self._current_time_of_day,
+            "weather": self._weather_name,
         }
+
+    def get_current_time_of_day(self) -> Optional[str]:
+        """
+        Get the current time of day preset name.
+
+        Returns:
+            Name of current time of day preset, or None if using default lighting
+        """
+        return self._current_time_of_day

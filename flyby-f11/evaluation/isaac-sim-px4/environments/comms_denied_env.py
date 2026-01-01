@@ -31,6 +31,9 @@ from .ontology_bridge import OntologyStateBridge
 @dataclass
 class CommsDeniedConfig(EnvironmentConfig):
     """Configuration for Comms-Denied Surveillance environment."""
+    # Skip default gridroom since we use procedural world generation
+    skip_default_environment: bool = True
+
     # Surveillance area (centered at origin)
     surveillance_area_size: float = 500.0  # meters
 
@@ -98,25 +101,102 @@ class CommsDeniedSurveillanceEnv(BaseISREnvironment):
         self.returning_to_launch = False
         self.launch_position = config.spawn_position.copy()
 
+        # Detection tracking for adaptive search learning
+        # Helps agent learn that POIs cluster together
+        self._detection_times: List[float] = []
+        self._detection_window: float = 30.0  # seconds to consider "recent"
+
     def _setup_environment(self) -> None:
-        """Setup surveillance environment elements."""
+        """Setup surveillance environment with optional procedural world generation."""
+        import random as py_random
+        import sys
+
         # Initialize coverage grid
         grid_size = int(self.config.surveillance_area_size / self.grid_resolution)
         self.coverage_grid = np.zeros((grid_size, grid_size), dtype=bool)
 
-        # Setup POIs
-        if self.config.poi_positions:
-            for i, pos in enumerate(self.config.poi_positions):
-                self.pois.append(POI(
-                    id=f"poi_{i}",
-                    position=np.array(pos),
-                ))
+        half_size = self.config.surveillance_area_size / 2
+
+        # World generator reference (set during Isaac Sim initialization)
+        self.world_gen = None
+
+        # Try to use world generator for realistic POI clusters
+        if self.simulation_app is not None:
+            try:
+                # Add extension path for world generator import
+                ext_path = "/workspace/extensions/forest_generator/exts/flyby.world_generator"
+                if ext_path not in sys.path:
+                    sys.path.insert(0, ext_path)
+
+                from flyby.world_generator import WorldGenerator, WorldConfig
+
+                world_config = WorldConfig(
+                    terrain_size=(self.config.surveillance_area_size,
+                                  self.config.surveillance_area_size),
+                    terrain_roughness=3.0,
+                    randomize_lighting=self.config.randomize_lighting,
+                    seed=None,  # Random each episode
+                )
+
+                self.world_gen = WorldGenerator(
+                    models_path="/workspace/extensions/forest_generator/models",
+                    config=world_config,
+                )
+
+                # Generate terrain and lighting
+                self.world_gen.generate_terrain()
+                self.world_gen.setup_lighting()
+
+                # Generate forest/vegetation for realistic ISR environment
+                self.world_gen.generate_forest(
+                    density=0.6,  # Higher tree density for realistic forest
+                    proportions={"pine": 0.4, "birch": 0.3, "spruce": 0.3},
+                )
+
+                # Generate POI clusters (realistic groupings of vehicles/people)
+                num_clusters = py_random.randint(3, 6)
+                clusters = self.world_gen.spawn_poi_clusters(
+                    num_clusters=num_clusters,
+                    targets_per_cluster=(3, 8),
+                    cluster_radius=30.0,
+                )
+
+                # Convert clusters to POI objects for reward tracking
+                self.pois = []
+                for cluster in clusters:
+                    for target in cluster['targets']:
+                        # Position is stored in cluster center + offset
+                        # We need to get actual prim position
+                        prim_path = target['path']
+                        try:
+                            import omni.isaac.core.utils.prims as prim_utils
+                            translate = prim_utils.get_prim_property(prim_path, "xformOp:translate")
+                            if translate:
+                                self.pois.append(POI(
+                                    id=prim_path,
+                                    position=np.array([translate[0], translate[1], 0.0]),
+                                ))
+                        except Exception:
+                            # Fallback: use cluster center
+                            self.pois.append(POI(
+                                id=prim_path,
+                                position=np.array([cluster['center'][0],
+                                                  cluster['center'][1], 0.0]),
+                            ))
+
+                print(f"  World generator: {num_clusters} clusters, {len(self.pois)} POIs")
+
+            except ImportError:
+                print("  World generator not available, using random POIs")
+                self._setup_fallback_pois()
+            except Exception as e:
+                print(f"  World generator error: {e}, using random POIs")
+                self._setup_fallback_pois()
         else:
-            # Generate random POIs within surveillance area
-            self._generate_random_pois()
+            # No simulation app - use provided or random POIs
+            self._setup_fallback_pois()
 
         # Setup comms zone (covers entire area initially)
-        half_size = self.config.surveillance_area_size / 2
         self.comms_zones = [
             CommsZone(
                 id="full_coverage",
@@ -154,6 +234,18 @@ class CommsDeniedSurveillanceEnv(BaseISREnvironment):
         print(f"  POIs to capture: {len(self.pois)}")
         print(f"  Target coverage: {self.config.target_coverage}%")
 
+    def _setup_fallback_pois(self) -> None:
+        """Setup POIs without world generator (fallback)."""
+        if self.config.poi_positions:
+            for i, pos in enumerate(self.config.poi_positions):
+                self.pois.append(POI(
+                    id=f"poi_{i}",
+                    position=np.array(pos),
+                ))
+        else:
+            # Generate random POIs within surveillance area
+            self._generate_random_pois()
+
     def _generate_random_pois(self) -> None:
         """Generate random POI locations within surveillance area."""
         half_size = self.config.surveillance_area_size / 2 * 0.9  # 10% margin
@@ -187,6 +279,9 @@ class CommsDeniedSurveillanceEnv(BaseISREnvironment):
         state.poi_captured = 0
         state.autonomous_mode = False
         state.comms_status = CommsStatus.OPERATIONAL
+
+        # Reset detection tracking for adaptive search
+        self._detection_times.clear()
 
         # Randomize POI positions if enabled
         if self.randomizer and self.config.randomize_obstacles:
@@ -287,6 +382,8 @@ class CommsDeniedSurveillanceEnv(BaseISREnvironment):
             if dist < footprint_radius:
                 poi.captured = True
                 poi.capture_time = self.uav_state.mission_time
+                # Track detection time for adaptive search learning
+                self._detection_times.append(poi.capture_time)
                 print(f">>> POI {poi.id} captured at T+{poi.capture_time:.1f}s")
 
     def compute_reward(self, state: UAVState, next_state: UAVState) -> float:
@@ -430,21 +527,37 @@ class CommsDeniedSurveillanceEnv(BaseISREnvironment):
     def observation_dim(self) -> int:
         """Extended observation dimension for surveillance task."""
         base_dim = super().observation_dim
-        # Add: coverage%, poi count, distance to home, comms denied flag
-        return base_dim + 4
+        # Add: coverage%, poi_ratio, dist_home, returning, recent_detections, time_since_detection
+        return base_dim + 6
 
     def state_to_observation(self, state: UAVState) -> np.ndarray:
-        """Convert state to observation with surveillance features."""
+        """Convert state to observation with surveillance and cluster-aware features."""
         base_obs = super().state_to_observation(state)
 
         # Add surveillance-specific features
         dist_to_home = np.linalg.norm(state.position - self.launch_position)
 
+        # Cluster-aware features for adaptive search learning
+        # Count recent detections within the detection window
+        current_time = state.mission_time
+        recent_detections = sum(
+            1 for t in self._detection_times
+            if current_time - t <= self._detection_window
+        )
+
+        # Time since last detection (helps agent learn to stay in productive areas)
+        if self._detection_times:
+            time_since_detection = current_time - self._detection_times[-1]
+        else:
+            time_since_detection = current_time  # No detections yet = full mission time
+
         extra_features = np.array([
             state.coverage_pct / 100.0,
-            state.poi_captured / len(self.pois),
+            state.poi_captured / max(1, len(self.pois)),  # Avoid div by zero
             np.clip(dist_to_home / 500.0, 0, 1),  # Normalized distance
             float(self.returning_to_launch),
+            np.clip(recent_detections / 5.0, 0, 1),  # Normalize to ~5 max recent
+            np.clip(time_since_detection / self._detection_window, 0, 1),  # Normalized
         ], dtype=np.float32)
 
         return np.concatenate([base_obs, extra_features])

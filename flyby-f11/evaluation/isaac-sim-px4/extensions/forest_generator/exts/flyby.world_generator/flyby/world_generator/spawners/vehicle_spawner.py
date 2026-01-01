@@ -44,43 +44,54 @@ class VehicleConfig:
 #   - Tanks: 15% smaller for realistic proportions
 DEFAULT_VEHICLES = {
     # Civilian vehicles - scale 2.25x
+    # Note: Quaternius GLB models have varied coordinate systems
+    # Isaac Sim's GLB importer handles Y-up to Z-up conversion, but individual
+    # models may need additional rotation. Verify each model visually.
+    # rotation_offset is applied BEFORE random heading rotation.
     "sedan": VehicleConfig(
         usd_path="vehicles/glb/NormalCar1.glb",
         category="civilian",
         base_scale=2.25,
+        # No rotation offset needed - model imports correctly
     ),
     "sedan2": VehicleConfig(
         usd_path="vehicles/glb/NormalCar2.glb",
         category="civilian",
         base_scale=2.25,
+        # No rotation offset needed - model imports correctly
     ),
     "suv": VehicleConfig(
         usd_path="vehicles/glb/SUV.glb",
         category="civilian",
         base_scale=2.3,
+        # No rotation offset needed - model imports correctly
     ),
     "sports_car": VehicleConfig(
         usd_path="vehicles/glb/SportsCar.glb",
         category="civilian",
         base_scale=2.2,
+        # No rotation offset needed - model imports correctly
     ),
     "sports_car2": VehicleConfig(
         usd_path="vehicles/glb/SportsCar2.glb",
         category="civilian",
         base_scale=2.2,
-        rotation_offset=(-90, 0, 0),  # Fix Y-up to Z-up orientation
+        # No rotation offset needed - model imports correctly
     ),
     "taxi": VehicleConfig(
         usd_path="vehicles/glb/Taxi.glb",
         category="civilian",
         base_scale=2.25,
+        # No rotation offset needed - model imports correctly
     ),
     "police": VehicleConfig(
         usd_path="vehicles/glb/Cop.glb",
         category="civilian",
         base_scale=2.25,
+        # No rotation offset needed - model imports correctly
     ),
     # Military vehicles - scale ~1.0 (0.85 * 1.15 ≈ 0.98)
+    # Tank.glb imports correctly, but Tank2/3/4 need 90 degree X rotation
     "tank": VehicleConfig(
         usd_path="tanks/glb/Tank.glb",
         category="military",
@@ -90,16 +101,19 @@ DEFAULT_VEHICLES = {
         usd_path="tanks/glb/Tank2.glb",
         category="military",
         base_scale=1.0,
+        rotation_offset=(90, 0, 0),  # This model needs X rotation to stand upright
     ),
     "tank3": VehicleConfig(
         usd_path="tanks/glb/Tank3.glb",
         category="military",
         base_scale=1.0,
+        rotation_offset=(90, 0, 0),  # This model needs X rotation to stand upright
     ),
     "tank4": VehicleConfig(
         usd_path="tanks/glb/Tank4.glb",
         category="military",
         base_scale=1.0,
+        rotation_offset=(90, 0, 0),  # This model needs X rotation to stand upright
     ),
 }
 
@@ -355,6 +369,7 @@ class VehicleSpawner(BaseSpawner):
         vehicle_types: List[str],
         count: int,
         clustering: float = 0.0,
+        center: Tuple[float, float] = None,
     ) -> List[str]:
         """
         Spawn a group of vehicles.
@@ -363,34 +378,42 @@ class VehicleSpawner(BaseSpawner):
             vehicle_types: List of vehicle types to randomly select from
             count: Number of vehicles to spawn
             clustering: 0.0 = random placement, 1.0 = tight clustering
+            center: Optional explicit (x, y) center for cluster. If None,
+                   first vehicle position becomes the center.
 
         Returns:
             List of spawned vehicle prim paths
         """
         spawned = []
-        center_x, center_y = None, None
+        center_x, center_y = center if center else (None, None)
 
         for i in range(count):
             vehicle_type = random.choice(vehicle_types)
 
-            if clustering > 0 and i > 0:
-                # Cluster around first vehicle
-                spread = (1.0 - clustering) * min(self.config.area_size) / 2
-                offset_x = random.gauss(0, spread)
-                offset_y = random.gauss(0, spread)
-                position = (center_x + offset_x, center_y + offset_y)
+            if center_x is not None:
+                if i == 0 and center is not None:
+                    # First vehicle at explicit center
+                    position = (center_x, center_y)
+                else:
+                    # Subsequent vehicles clustered around center
+                    # Max spread is 30m when clustering=0, minimum 5m spread always
+                    spread = (1.0 - clustering) * 30.0
+                    offset_x = random.gauss(0, max(5.0, spread))
+                    offset_y = random.gauss(0, max(5.0, spread))
+                    position = (center_x + offset_x, center_y + offset_y)
             else:
                 position = None
 
             path = self.spawn_vehicle(vehicle_type, position=position)
             spawned.append(path)
 
-            if i == 0:
-                # Record center for clustering
+            if i == 0 and center is None:
+                # Record center from first vehicle for subsequent clustering
                 prim = self.stage.GetPrimAtPath(path)
                 if prim.IsValid():
                     translate = prim_utils.get_prim_property(path, "xformOp:translate")
-                    center_x, center_y = translate[0], translate[1]
+                    if translate:
+                        center_x, center_y = translate[0], translate[1]
 
         return spawned
 

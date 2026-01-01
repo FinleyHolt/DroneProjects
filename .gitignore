@@ -108,3 +108,7 @@ flyby-f11/evaluation/isaac-sim-px4/extensions/forest_generator/models/quaternius
 *.OBJ
 *.mtl
 *.MTL
+
+# Isaac Sim caches (rebuild on first run, container-local)
+flyby-f11/evaluation/isaac-sim-px4/nv_shadercache/
+flyby-f11/evaluation/isaac-sim-px4/training_logging/

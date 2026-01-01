@@ -95,6 +95,33 @@ def create_environment(config: Dict[str, Any], problem: str):
         raise ValueError(f"Unknown problem type: {problem}")
 
 
+def create_agent(env, config: Dict[str, Any], agent_type: str, log_dir: str):
+    """
+    Create RL agent based on type.
+
+    Args:
+        env: Gymnasium-wrapped environment
+        config: Training configuration
+        agent_type: One of 'mission_planner', 'behavior_selector', 'trajectory_optimizer'
+        log_dir: Directory for tensorboard logs
+
+    Returns:
+        Configured SB3 agent
+    """
+    from agents.sac_agent import create_sac_agent, create_ppo_agent, create_td3_agent
+
+    rl_config = config.get('rl', {}).get(agent_type, {})
+
+    if agent_type == 'mission_planner':
+        return create_sac_agent(env, rl_config, tensorboard_log=log_dir)
+    elif agent_type == 'behavior_selector':
+        return create_ppo_agent(env, rl_config, tensorboard_log=log_dir)
+    elif agent_type == 'trajectory_optimizer':
+        return create_td3_agent(env, rl_config, tensorboard_log=log_dir)
+    else:
+        raise ValueError(f"Unknown agent type: {agent_type}")
+
+
 class DummyAgent:
     """
     Placeholder agent for testing environment setup.
@@ -140,12 +167,16 @@ class TrainingRunner:
         config: Dict[str, Any],
         problem: str,
         checkpoint_dir: str,
-        log_dir: str
+        log_dir: str,
+        agent_type: str = 'trajectory_optimizer',
+        use_sb3: bool = True
     ):
         self.config = config
         self.problem = problem
         self.checkpoint_dir = Path(checkpoint_dir)
         self.log_dir = Path(log_dir)
+        self.agent_type = agent_type
+        self.use_sb3 = use_sb3
 
         # Create directories
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
@@ -170,45 +201,82 @@ class TrainingRunner:
 
         # Create environment
         print("\nCreating environment...")
-        self.env = create_environment(self.config, self.problem)
-        self.env.setup()
+        isaac_env = create_environment(self.config, self.problem)
+        isaac_env.setup()
 
-        # Create agent
-        print("\nCreating agent...")
-        rl_config = self.config.get('rl', {}).get('trajectory_optimizer', {})
-        self.agent = DummyAgent(
-            obs_dim=self.env.observation_dim,
-            action_dim=self.env.action_dim,
-            config=rl_config
-        )
+        if self.use_sb3:
+            # Wrap with Gymnasium wrapper for SB3 compatibility
+            from environments.gymnasium_wrapper import IsaacSimGymWrapper
 
-        print(f"  Observation dim: {self.env.observation_dim}")
-        print(f"  Action dim: {self.env.action_dim}")
+            gym_config = {
+                'max_episode_steps': self.config.get('training', {}).get('max_episode_steps', 10000)
+            }
+            self.env = IsaacSimGymWrapper(isaac_env, gym_config)
+
+            # Create SB3 agent
+            print("\nCreating SB3 agent...")
+            self.agent = create_agent(
+                self.env,
+                self.config,
+                self.agent_type,
+                str(self.log_dir)
+            )
+            print(f"  Agent type: {type(self.agent).__name__}")
+            print(f"  Observation space: {self.env.observation_space}")
+            print(f"  Action space: {self.env.action_space}")
+        else:
+            # Use raw Isaac Sim environment with DummyAgent
+            self.env = isaac_env
+
+            # Create dummy agent
+            print("\nCreating agent...")
+            rl_config = self.config.get('rl', {}).get(self.agent_type, {})
+            self.agent = DummyAgent(
+                obs_dim=self.env.observation_dim,
+                action_dim=self.env.action_dim,
+                config=rl_config
+            )
+            print(f"  Observation dim: {self.env.observation_dim}")
+            print(f"  Action dim: {self.env.action_dim}")
 
     def run_episode(self, evaluate: bool = False, seed: Optional[int] = None) -> Dict[str, Any]:
         """Run a single episode."""
-        state = self.env.reset(seed=seed)
-        observation = self.env.state_to_observation(state)
+        if self.use_sb3:
+            # SB3 agent with Gymnasium wrapper
+            obs, info = self.env.reset(seed=seed)
+            observation = obs
+        else:
+            # DummyAgent with raw Isaac Sim environment
+            state = self.env.reset(seed=seed)
+            observation = self.env.state_to_observation(state)
 
         episode_reward = 0.0
         episode_steps = 0
         done = False
+        truncated = False
 
         transitions = []
+        info = {}
 
-        while not done and episode_steps < self.config.get('training', {}).get('max_episode_steps', 10000):
+        while not done and not truncated and episode_steps < self.config.get('training', {}).get('max_episode_steps', 10000):
             # Select action
-            action = self.agent.select_action(observation, evaluate=evaluate)
+            if self.use_sb3:
+                action, _ = self.agent.predict(observation, deterministic=evaluate)
+            else:
+                action = self.agent.select_action(observation, evaluate=evaluate)
 
-            # Safety shield check
-            if self.config.get('safety', {}).get('enabled', True):
+            # Safety shield check (only for non-SB3 mode, SB3 handles this in wrapper)
+            if not self.use_sb3 and self.config.get('safety', {}).get('enabled', True):
                 is_safe, safe_action = self.env.check_action_safety(action)
                 if not is_safe and safe_action is not None:
                     action = safe_action
 
             # Execute action
-            next_state, reward, done, info = self.env.step(action)
-            next_observation = self.env.state_to_observation(next_state)
+            if self.use_sb3:
+                next_observation, reward, done, truncated, info = self.env.step(action)
+            else:
+                next_state, reward, done, info = self.env.step(action)
+                next_observation = self.env.state_to_observation(next_state)
 
             # Store transition
             transitions.append({
@@ -224,7 +292,8 @@ class TrainingRunner:
             self.total_steps += 1
 
             observation = next_observation
-            state = next_state
+            if not self.use_sb3:
+                state = next_state
 
         # Episode summary
         episode_info = {
@@ -293,6 +362,74 @@ class TrainingRunner:
         print("\n" + "=" * 60)
         print("Training Complete!")
         print("=" * 60)
+
+    def train_sb3(self) -> None:
+        """Run training using SB3's built-in training loop."""
+        from stable_baselines3.common.callbacks import (
+            CheckpointCallback,
+            EvalCallback
+        )
+
+        # Setup gymnasium environment
+        from environments.gymnasium_wrapper import IsaacSimGymWrapper
+
+        print("=" * 60)
+        print(f"Training Setup: {self.problem} with SB3")
+        print("=" * 60)
+
+        # Create and wrap environment
+        print("\nCreating environment...")
+        isaac_env = create_environment(self.config, self.problem)
+        isaac_env.setup()
+
+        gym_config = {
+            'max_episode_steps': self.config.get('training', {}).get('max_episode_steps', 10000)
+        }
+        self.env = IsaacSimGymWrapper(isaac_env, gym_config)
+
+        # Create agent
+        print("\nCreating SB3 agent...")
+        self.agent = create_agent(
+            self.env,
+            self.config,
+            self.agent_type,
+            str(self.log_dir)
+        )
+
+        print(f"  Agent type: {type(self.agent).__name__}")
+        print(f"  Observation space: {self.env.observation_space}")
+        print(f"  Action space: {self.env.action_space}")
+
+        # Setup callbacks
+        training_config = self.config.get('training', {})
+        checkpoint_freq = training_config.get('checkpoints', {}).get('save_frequency', 100)
+
+        checkpoint_callback = CheckpointCallback(
+            save_freq=checkpoint_freq * 1000,  # Convert episodes to steps
+            save_path=str(self.checkpoint_dir),
+            name_prefix=f"{self.problem}_{self.agent_type}"
+        )
+
+        callbacks = [checkpoint_callback]
+
+        # Calculate total timesteps
+        total_episodes = training_config.get('total_episodes', 1000)
+        max_steps = training_config.get('max_episode_steps', 10000)
+        total_timesteps = total_episodes * max_steps
+
+        print(f"\nStarting training for {total_timesteps} timesteps...")
+
+        # Train
+        self.agent.learn(
+            total_timesteps=total_timesteps,
+            callback=callbacks,
+            progress_bar=True
+        )
+
+        # Save final model
+        final_path = self.checkpoint_dir / f"{self.problem}_{self.agent_type}_final"
+        self.agent.save(str(final_path))
+        print(f"\nFinal model saved to {final_path}")
 
     def _update_curriculum(self, episode: int, stages: list) -> None:
         """Update curriculum stage based on episode count."""
@@ -391,6 +528,23 @@ def main():
         action="store_true",
         help="Run in headless mode (no GUI)"
     )
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Run with GUI (overrides config headless=true)"
+    )
+    parser.add_argument(
+        "--agent-type",
+        type=str,
+        choices=['mission_planner', 'behavior_selector', 'trajectory_optimizer'],
+        default='trajectory_optimizer',
+        help="Type of RL agent to train"
+    )
+    parser.add_argument(
+        "--use-dummy-agent",
+        action="store_true",
+        help="Use DummyAgent instead of SB3 (for testing)"
+    )
 
     args = parser.parse_args()
 
@@ -400,19 +554,32 @@ def main():
     # Apply overrides
     if args.headless:
         config['environment']['headless'] = True
+    elif args.gui:
+        config['environment']['headless'] = False
     if args.episodes is not None:
         config['training']['total_episodes'] = args.episodes
+
+    # Check for perception mode override from environment variable
+    perception_mode = os.environ.get('FLYBY_PERCEPTION_MODE')
+    if perception_mode:
+        config['perception']['mode'] = perception_mode
+        print(f"[Config] Perception mode overridden to: {perception_mode}")
 
     # Create runner
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     checkpoint_dir = Path(args.checkpoint_dir) / args.problem / timestamp
     log_dir = Path(args.log_dir) / args.problem / timestamp
 
+    # Determine whether to use SB3 or DummyAgent
+    use_sb3 = not args.use_dummy_agent
+
     runner = TrainingRunner(
         config=config,
         problem=args.problem,
         checkpoint_dir=str(checkpoint_dir),
-        log_dir=str(log_dir)
+        log_dir=str(log_dir),
+        agent_type=args.agent_type,
+        use_sb3=use_sb3
     )
 
     try:
@@ -420,7 +587,12 @@ def main():
             runner.setup()
             runner.evaluate()
         else:
-            runner.train()
+            if use_sb3:
+                # Use SB3's built-in training loop
+                runner.train_sb3()
+            else:
+                # Use custom training loop with DummyAgent
+                runner.train()
             runner.evaluate()
     except KeyboardInterrupt:
         print("\nTraining interrupted by user")

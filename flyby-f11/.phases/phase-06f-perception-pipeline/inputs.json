@@ -1,0 +1,100 @@
+{
+  "phase": "06f",
+  "name": "Production Perception Pipeline",
+  "description": "Full perception pipeline for real-world RL deployment",
+  "inputs": {
+    "required_files": [
+      {
+        "path": "evaluation/isaac-sim-px4/environments/base_isr_env.py",
+        "description": "Base environment with state observation"
+      },
+      {
+        "path": "evaluation/isaac-sim-px4/environments/gymnasium_wrapper.py",
+        "description": "Gymnasium wrapper to integrate perception"
+      },
+      {
+        "path": "evaluation/isaac-sim-px4/environments/safety_filter.py",
+        "description": "Vampire safety filter for TPTP integration"
+      },
+      {
+        "path": "docs/vision/MODEL_CONFIGURATIONS.md",
+        "description": "Model benchmarks and configurations"
+      },
+      {
+        "path": "ontology/planning_mode/uav_domain.kif",
+        "description": "Ontology definitions for TPTP facts"
+      }
+    ],
+    "required_capabilities": [
+      {
+        "name": "isaac_sim_camera",
+        "description": "Camera image access from Isaac Sim",
+        "verified_by": "Phase 6a"
+      },
+      {
+        "name": "gymnasium_wrapper",
+        "description": "Working Gymnasium environment wrapper",
+        "verified_by": "Phase 6e"
+      },
+      {
+        "name": "vampire_integration",
+        "description": "Vampire ATP safety queries",
+        "verified_by": "Phase 6e"
+      }
+    ],
+    "hardware_requirements": {
+      "platform": "NVIDIA Jetson Orin NX 16GB",
+      "compute": "50 TOPS",
+      "vram_available": "16 GB",
+      "vram_budget": "710 MB for perception",
+      "latency_budget": "20 ms (leaving 30 ms for Vampire)"
+    },
+    "software_dependencies": [
+      {
+        "package": "numpy",
+        "version": ">=1.21.0",
+        "purpose": "Array operations"
+      },
+      {
+        "package": "ultralytics",
+        "version": ">=8.0.0",
+        "purpose": "YOLOv11 inference",
+        "optional": true,
+        "fallback": "ground_truth mode"
+      },
+      {
+        "package": "pyyaml",
+        "version": ">=6.0",
+        "purpose": "Configuration loading"
+      },
+      {
+        "package": "pytest",
+        "version": ">=7.0.0",
+        "purpose": "Testing"
+      }
+    ]
+  },
+  "constraints": {
+    "timing": {
+      "control_loop_hz": 20,
+      "control_loop_budget_ms": 50,
+      "perception_budget_ms": 20,
+      "vampire_budget_ms": 25,
+      "action_budget_ms": 5
+    },
+    "observation_space": {
+      "base_state_dim": 28,
+      "priority_detections_dim": 100,
+      "spatial_grid_dim": 384,
+      "scene_statistics_dim": 32,
+      "total_perception_dim": 516,
+      "total_observation_dim": 544
+    },
+    "detection": {
+      "no_detection_limit": true,
+      "spatial_grid_captures_all": true,
+      "person_priority": 1,
+      "safety_distance_meters": 15.0
+    }
+  }
+}

@@ -90,11 +90,18 @@ RUN git clone --branch v1.14.3 --recursive \
     chown -R isaac-sim:isaac-sim ${PX4_HOME}
 
 # Create workspace directory
-RUN mkdir -p /workspace/scripts && \
+RUN mkdir -p /workspace/scripts /workspace/environments /workspace/config && \
     chown -R isaac-sim:isaac-sim /workspace
 
 # Copy scripts before switching user
 COPY --chown=isaac-sim:isaac-sim scripts/ /workspace/scripts/
+
+# Copy environments and config for RL training
+COPY --chown=isaac-sim:isaac-sim environments/ /workspace/environments/
+COPY --chown=isaac-sim:isaac-sim config/ /workspace/config/
+
+# Copy world generator extension
+COPY --chown=isaac-sim:isaac-sim extensions/ /workspace/extensions/
 
 # Switch to isaac-sim user for remaining operations
 USER isaac-sim
@@ -110,7 +117,102 @@ RUN ln -sfn ${PX4_HOME} /isaac-sim/PX4-Autopilot
 # This is separate from system Python - Isaac Sim uses its own Python
 RUN /isaac-sim/python.sh -m pip install --no-cache-dir \
     pymavlink \
-    scipy
+    scipy \
+    gymnasium \
+    "stable-baselines3[extra]" \
+    tensorboard \
+    pyyaml
+
+# ============================================================================
+# SHADER WARMUP - Pre-compile shaders to avoid runtime compilation overhead
+# ============================================================================
+# Isaac Sim compiles Vulkan shaders on first run, which takes 2-3 minutes
+# and causes high CPU utilization. By running a warmup during build,
+# we bake the compiled shaders into the image.
+#
+# The warmup script:
+# 1. Starts Isaac Sim in headless mode
+# 2. Loads a basic scene to trigger shader compilation
+# 3. Runs for ~60 seconds to let all shaders compile
+# 4. Exits cleanly
+#
+# Shader caches are stored in:
+# - /isaac-sim/kit/cache/shadercache (~11MB)
+# - /isaac-sim/kit/cache/nv_shadercache (~170MB)
+# - /isaac-sim/extscache/omni.hydra.rtx.shadercache.vulkan-*/cache/shadercache (~300MB)
+
+# Create shader warmup script
+RUN echo '#!/usr/bin/env python3\n\
+"""Shader warmup script - compiles Vulkan shaders during container build."""\n\
+import sys\n\
+import time\n\
+\n\
+print("Starting shader warmup...")\n\
+print("This will take 60-90 seconds to compile all shaders.")\n\
+\n\
+# Start Isaac Sim in headless mode\n\
+from isaacsim import SimulationApp\n\
+simulation_app = SimulationApp({\n\
+    "headless": True,\n\
+    "width": 1280,\n\
+    "height": 720,\n\
+    "anti_aliasing": 0,\n\
+    "renderer": "RayTracedLighting",  # Force RTX to compile RTX shaders\n\
+})\n\
+\n\
+print("Isaac Sim started, loading scene...")\n\
+\n\
+# Import after SimulationApp is created\n\
+import omni\n\
+from omni.isaac.core import World\n\
+from omni.isaac.core.objects import DynamicSphere, GroundPlane\n\
+from omni.isaac.core.prims import XFormPrim\n\
+import numpy as np\n\
+\n\
+# Create world with physics\n\
+world = World(stage_units_in_meters=1.0)\n\
+world.scene.add_default_ground_plane()\n\
+\n\
+# Add some objects to trigger material/shader compilation\n\
+for i in range(5):\n\
+    sphere = world.scene.add(\n\
+        DynamicSphere(\n\
+            prim_path=f"/World/Sphere_{i}",\n\
+            name=f"sphere_{i}",\n\
+            position=np.array([i * 2.0, 0, 1.0]),\n\
+            radius=0.5,\n\
+            color=np.array([1.0, 0.0, 0.0]),\n\
+        )\n\
+    )\n\
+\n\
+print("Scene loaded, warming up shaders...")\n\
+\n\
+# Reset world to start simulation\n\
+world.reset()\n\
+\n\
+# Run simulation for 60 seconds to compile all shaders\n\
+start_time = time.time()\n\
+warmup_duration = 60  # seconds\n\
+step_count = 0\n\
+\n\
+while time.time() - start_time < warmup_duration:\n\
+    world.step(render=True)\n\
+    step_count += 1\n\
+    if step_count % 100 == 0:\n\
+        elapsed = time.time() - start_time\n\
+        print(f"  Warmup progress: {elapsed:.0f}s / {warmup_duration}s")\n\
+\n\
+print(f"Shader warmup complete! ({step_count} steps)")\n\
+\n\
+# Clean shutdown\n\
+simulation_app.close()\n\
+print("Isaac Sim closed successfully.")\n\
+' > /tmp/shader_warmup.py
+
+# Run shader warmup (requires GPU during build)
+# Note: This step requires --device nvidia.com/gpu=all during podman build
+# If building without GPU, comment out this RUN command
+RUN /isaac-sim/python.sh /tmp/shader_warmup.py || echo "Shader warmup skipped (no GPU during build)"
 
 # Set working directory
 WORKDIR /workspace

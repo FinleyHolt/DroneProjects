@@ -1,0 +1,83 @@
+# Detection classes for ISR missions
+# Matches ontology concepts in uav_domain.kif and isr_extensions.kif
+
+detection_classes:
+  # Class ID -> Ontology mapping
+  # Priority determines sorting order (lower = higher priority)
+
+  1:  # SAFETY CRITICAL - Always highest priority
+    name: "person"
+    ontology_class: "Person"
+    priority: 1
+    safety_distance: 15.0  # meters (from ontology minPersonDistance)
+    color: [255, 0, 0]     # red
+
+  2:
+    name: "vehicle"
+    ontology_class: "DynamicObstacle"
+    priority: 2
+    safety_distance: 10.0
+    color: [255, 165, 0]   # orange
+
+  3:
+    name: "building"
+    ontology_class: "StaticObstacle"
+    priority: 3
+    safety_distance: 5.0
+    color: [128, 128, 128] # gray
+
+  4:
+    name: "poi_target"
+    ontology_class: "TargetOfInterest"
+    priority: 4
+    safety_distance: 0.0   # We want to approach these
+    color: [0, 255, 0]     # green
+
+  5:
+    name: "landing_zone"
+    ontology_class: "LandingZone"
+    priority: 5
+    safety_distance: 0.0
+    color: [0, 255, 255]   # cyan
+
+  6:
+    name: "tree"
+    ontology_class: "StaticObstacle"
+    priority: 6
+    safety_distance: 3.0
+    color: [0, 100, 0]     # dark green
+
+  7:
+    name: "power_line"
+    ontology_class: "StaticObstacle"
+    priority: 2            # High priority - hard to see
+    safety_distance: 10.0
+    color: [255, 255, 0]   # yellow
+
+  8:
+    name: "water"
+    ontology_class: "WaterSurface"
+    priority: 7
+    safety_distance: 0.0   # Terrain, not obstacle
+    color: [0, 0, 255]     # blue
+
+# COCO class mapping (for pretrained YOLO)
+coco_to_ontology:
+  0: 1    # person -> person
+  1: 2    # bicycle -> vehicle
+  2: 2    # car -> vehicle
+  3: 2    # motorcycle -> vehicle
+  5: 2    # bus -> vehicle
+  7: 2    # truck -> vehicle
+  # Note: buildings, POIs, landing zones need custom training
+  # For Isaac Sim, use ground truth labels instead
+
+# Model configuration
+model:
+  name: "yolo11n"
+  weights: "yolo11n.pt"      # Or .engine for TensorRT
+  input_size: [640, 480]
+  confidence_threshold: 0.4
+  nms_iou_threshold: 0.45
+  device: "cuda:0"
+  half_precision: true       # FP16 for Jetson

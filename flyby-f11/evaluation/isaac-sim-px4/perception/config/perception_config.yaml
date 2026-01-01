@@ -1,0 +1,52 @@
+# Perception Pipeline Configuration
+# For Flyby F-11 UAV RL Training
+
+# Detector settings
+detector:
+  mode: "ground_truth"  # "ground_truth", "inference", "hybrid"
+  config_path: null     # Path to detection_classes.yaml (null = use default)
+
+# Priority detections (top-K for RL observation)
+priority_detections:
+  max_count: 10
+  feature_dim: 10  # Features per detection
+
+# Spatial grid encoder
+spatial_grid:
+  grid_size: [8, 8]
+  channels: 6
+  max_count_per_cell: 10
+  max_distance: 100.0  # meters
+
+# Scene statistics
+scene_statistics:
+  person_danger_distance: 15.0   # meters (ontology: minPersonDistance)
+  person_warning_distance: 30.0  # meters
+  obstacle_danger_distance: 5.0  # meters
+  max_detection_count: 50
+
+# Temporal tracker
+tracker:
+  iou_threshold: 0.3
+  max_age: 10       # Frames before track deleted
+  min_hits: 2       # Hits before track confirmed
+
+# TPTP generator
+tptp:
+  max_facts_per_query: 100
+  dedup_window_ms: 500.0
+  include_velocity: true
+  include_tracking: true
+
+# Performance targets (Jetson Orin NX 16GB)
+performance:
+  target_encoding_time_ms: 20.0   # Leaves 30ms for Vampire
+  control_loop_budget_ms: 50.0    # 20Hz control loop
+  max_detections_per_frame: 200   # Memory limit
+
+# Output dimensions (computed)
+output:
+  priority_dim: 100   # 10 detections x 10 features
+  grid_dim: 384       # 8 x 8 x 6
+  stats_dim: 32
+  total_dim: 516

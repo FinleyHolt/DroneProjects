@@ -11,6 +11,7 @@ Key Features:
 - Ontology state extraction
 - Reward computation framework
 - Safety shield integration via Vampire ATP
+- Live perception integration (YOLO detection during RL training)
 """
 
 import sys
@@ -19,7 +20,10 @@ import threading
 import subprocess
 import numpy as np
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any, Callable
+from typing import Dict, List, Optional, Tuple, Any, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .perception_integration import PerceptionIntegration
 from enum import Enum, auto
 from abc import ABC, abstractmethod
 
@@ -121,6 +125,29 @@ class CommsZone:
 
 
 @dataclass
+class DomainRandomizationConfig:
+    """Domain randomization configuration for sensor noise and disturbances."""
+    # Master enable/disable
+    enabled: bool = True
+
+    # Battery variation (±percentage of base drain rate)
+    battery_variation_enabled: bool = True
+    battery_drain_rate_variation: float = 0.1  # ±10% variation
+
+    # GNSS degradation
+    gnss_degradation_enabled: bool = True
+    gnss_degradation_prob: float = 0.1  # 10% chance per episode
+
+    # VIO noise
+    vio_noise_enabled: bool = True
+    vio_noise_scale: float = 0.0  # Additional position drift (meters)
+
+    # Wind disturbance (applied to PX4 SITL physics via SIM_WIND_SPD/DIR params)
+    wind_enabled: bool = True
+    wind_speed_range: Tuple[float, float] = (0.0, 5.0)  # m/s magnitude range
+
+
+@dataclass
 class UAVState:
     """Complete UAV state for RL observation."""
     # Position and velocity
@@ -160,6 +187,50 @@ class UAVState:
     # Autonomy
     autonomous_mode: bool = False
 
+    # Domain randomization state (sampled per episode)
+    wind_vector: np.ndarray = field(default_factory=lambda: np.zeros(3))  # Wind in world frame (m/s)
+    vio_position_drift: np.ndarray = field(default_factory=lambda: np.zeros(3))  # Accumulated VIO drift
+    battery_drain_multiplier: float = 1.0  # Sampled battery drain rate multiplier
+    gnss_degradation_triggered: bool = False  # Whether GNSS degradation has been triggered this episode
+    gnss_degradation_step: int = -1  # Step at which GNSS degradation was triggered (-1 = not triggered)
+
+
+@dataclass
+class PerceptionConfig:
+    """
+    Configuration for dual-mode perception during RL training.
+
+    DUAL-MODE ARCHITECTURE:
+    - "gt" (Training Mode): Uses GroundTruthDetector with frustum math.
+      No rendering required, runs at 1000+ env steps/second.
+    - "full" (E2E Mode): Uses YOLODetector with real inference.
+      Requires rendered images, runs at ~20 Hz for validation.
+
+    Both modes produce identical 516-dim observation vectors.
+    """
+    # Enable perception in observation space
+    enabled: bool = True
+
+    # Perception mode: "gt" (training) or "full" (E2E validation)
+    # Legacy values "ground_truth", "inference", "hybrid" map to "gt"
+    mode: str = "gt"
+
+    # Camera settings
+    camera_resolution: Tuple[int, int] = (640, 480)
+    camera_fov_degrees: float = 90.0
+
+    # Performance
+    max_encode_time_ms: float = 20.0  # Max encoding time budget
+    skip_frames: int = 0  # Skip N frames between perception updates
+
+    # Ground truth detector noise (for sim-to-real transfer)
+    gt_bbox_noise_std: float = 0.02
+    gt_confidence_noise_std: float = 0.05
+    gt_position_noise_std: float = 0.5
+
+    # Observation dimension (100 priority + 384 grid + 32 stats)
+    observation_dim: int = 516
+
 
 @dataclass
 class EnvironmentConfig:
@@ -172,6 +243,7 @@ class EnvironmentConfig:
     # World
     world_name: str = "isr_training"
     environment_usd: Optional[str] = None  # Custom USD path
+    skip_default_environment: bool = False  # Skip loading default gridroom (for procedural worlds)
     geofence: GeofenceConfig = field(default_factory=GeofenceConfig)
 
     # Coordinates (default: Camp Pendleton)
@@ -180,17 +252,23 @@ class EnvironmentConfig:
     altitude: float = 100.0
 
     # UAV
-    spawn_position: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.5]))
+    spawn_position: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
     spawn_orientation: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))  # euler
 
     # Mission
     max_mission_time: float = 900.0  # 15 minutes
 
-    # Domain randomization
+    # Domain randomization (legacy flags for visual randomization)
     randomize_lighting: bool = True
     randomize_weather: bool = True
     randomize_obstacles: bool = True
     randomize_sensors: bool = True
+
+    # Domain randomization config (sensor noise, wind, battery variation)
+    domain_randomization: DomainRandomizationConfig = field(default_factory=DomainRandomizationConfig)
+
+    # Perception configuration for live YOLO detection during training
+    perception: PerceptionConfig = field(default_factory=PerceptionConfig)
 
 
 class BaseISREnvironment(ABC):
@@ -230,11 +308,34 @@ class BaseISREnvironment(ABC):
         # Domain randomizer
         self.randomizer = None
 
+        # Domain randomization state (sampled per episode)
+        self._dr_rng = np.random.default_rng()  # RNG for domain randomization
+        self._episode_battery_drain_multiplier = 1.0
+        self._episode_gnss_degradation_step = -1  # Step at which GNSS degrades (-1 = never)
+        self._episode_wind_vector = np.zeros(3)
+        self._episode_vio_noise_scale = 0.0
+
         # Ontology bridge
         self.ontology_bridge = None
 
+        # Perception integration for live YOLO detection
+        self.perception: Optional['PerceptionIntegration'] = None
+        self._camera = None  # Isaac Sim camera object
+        self._perception_obs = None  # Cached perception observation
+
         # PX4 command path
         self._px4_cmd = "/px4/build/px4_sitl_default/bin/px4-commander"
+
+        # Action bridge for RL-to-PX4 control
+        self.action_bridge = None
+        self._mav_connection = None
+        self._offboard_engaged = False
+
+        # Safety filter (Vampire theorem prover)
+        self.safety_filter = None
+        self._safety_filter_enabled = True
+        self._safety_violations_count = 0
+        self._safety_interventions_count = 0
 
     def setup(self) -> None:
         """Initialize the simulation environment."""
@@ -273,8 +374,11 @@ class BaseISREnvironment(ABC):
         self.pg._world = World(**self.pg._world_settings)
         self.world = self.pg.world
 
+        # Set PX4 path (container has PX4 at /px4, not ~/PX4-Autopilot)
+        self.pg.set_px4_path("/px4")
+
         # Set global coordinates
-        self.pg.set_new_global_coordinates(
+        self.pg.set_global_coordinates(
             self.config.latitude,
             self.config.longitude,
             self.config.altitude
@@ -283,8 +387,8 @@ class BaseISREnvironment(ABC):
         # Load environment
         if self.config.environment_usd:
             self.pg.load_environment(self.config.environment_usd)
-        else:
-            # Use default curved gridroom
+        elif not self.config.skip_default_environment:
+            # Use default curved gridroom (unless procedural world will be generated)
             self.pg.load_environment(SIMULATION_ENVIRONMENTS["Curved Gridroom"])
         print("  Environment loaded")
 
@@ -315,8 +419,23 @@ class BaseISREnvironment(ABC):
         )
         print("  Vehicle spawned")
 
+        # Initialize action bridge for RL control
+        print("\n[5/7] Setting up MAVLink action bridge...")
+        self._setup_action_bridge()
+        print("  Action bridge ready")
+
+        # Initialize Vampire safety filter
+        print("\n[6/8] Setting up Vampire safety filter...")
+        self._setup_safety_filter()
+        print("  Safety filter ready")
+
+        # Initialize perception for live YOLO detection
+        print("\n[7/8] Setting up live perception...")
+        self._setup_perception()
+        print("  Perception ready")
+
         # Setup environment-specific elements
-        print("\n[5/5] Setting up environment elements...")
+        print("\n[8/8] Setting up environment elements...")
         self._setup_environment()
         print("  Environment ready")
 
@@ -403,16 +522,32 @@ class BaseISREnvironment(ABC):
         if self.randomizer and seed is not None:
             self.randomizer.randomize(seed)
 
+        # Sample new domain randomization values for this episode
+        self._sample_domain_randomization(seed)
+
+        # Apply wind to PX4 SITL physics
+        self._apply_wind_to_px4()
+
         # Reset simulation
         self.timeline.stop()
         self.world.reset()
         self.timeline.play()
+
+        # Reset offboard mode flag (will re-engage on first action)
+        self._offboard_engaged = False
+
+        # Reset safety filter counters
+        self._safety_violations_count = 0
+        self._safety_interventions_count = 0
 
         # Reset state
         self._step_count = 0
         self.uav_state = UAVState(
             position=self.config.spawn_position.copy(),
             battery_pct=100.0,
+            wind_vector=self._episode_wind_vector.copy(),
+            battery_drain_multiplier=self._episode_battery_drain_multiplier,
+            gnss_degradation_step=self._episode_gnss_degradation_step,
         )
 
         # Wait for initialization
@@ -422,6 +557,114 @@ class BaseISREnvironment(ABC):
         self._update_state()
         return self.uav_state
 
+    def _sample_domain_randomization(self, seed: Optional[int] = None) -> None:
+        """
+        Sample domain randomization values for a new episode.
+
+        Args:
+            seed: Optional random seed for reproducibility
+        """
+        dr_config = self.config.domain_randomization
+
+        # Reset RNG with seed if provided
+        if seed is not None:
+            self._dr_rng = np.random.default_rng(seed)
+
+        if not dr_config.enabled:
+            # Reset to defaults when DR is disabled
+            self._episode_battery_drain_multiplier = 1.0
+            self._episode_gnss_degradation_step = -1
+            self._episode_wind_vector = np.zeros(3)
+            self._episode_vio_noise_scale = 0.0
+            return
+
+        # Battery drain rate variation: sample multiplier from uniform(1-var, 1+var)
+        if dr_config.battery_variation_enabled:
+            var = dr_config.battery_drain_rate_variation
+            self._episode_battery_drain_multiplier = self._dr_rng.uniform(1.0 - var, 1.0 + var)
+        else:
+            self._episode_battery_drain_multiplier = 1.0
+
+        # GNSS degradation: randomly select a step at which degradation occurs
+        if dr_config.gnss_degradation_enabled and self._dr_rng.random() < dr_config.gnss_degradation_prob:
+            # Degradation occurs at a random point in the first 80% of max mission time
+            max_steps = int(self.config.max_mission_time * 60 * 0.8)  # 80% of episode at 60Hz
+            self._episode_gnss_degradation_step = self._dr_rng.integers(0, max(1, max_steps))
+        else:
+            self._episode_gnss_degradation_step = -1  # No degradation
+
+        # Wind disturbance: sample magnitude and direction
+        if dr_config.wind_enabled:
+            min_speed, max_speed = dr_config.wind_speed_range
+            wind_magnitude = self._dr_rng.uniform(min_speed, max_speed)
+            wind_direction = self._dr_rng.uniform(0, 2 * np.pi)  # 0-360 degrees in radians
+            self._episode_wind_vector = np.array([
+                wind_magnitude * np.cos(wind_direction),
+                wind_magnitude * np.sin(wind_direction),
+                0.0  # Horizontal wind only
+            ])
+        else:
+            self._episode_wind_vector = np.zeros(3)
+
+        # VIO noise scale
+        if dr_config.vio_noise_enabled:
+            self._episode_vio_noise_scale = dr_config.vio_noise_scale
+        else:
+            self._episode_vio_noise_scale = 0.0
+
+
+    def _apply_wind_to_px4(self) -> None:
+        """
+        Apply wind parameters to PX4 SITL physics.
+        
+        Updates PX4 SIM_WIND_SPD and SIM_WIND_DIR parameters based on
+        the episode's randomized wind vector. This ensures the drone
+        actually experiences wind forces, not just observing them.
+        """
+        if self._mav_connection is None:
+            return
+        
+        from pymavlink import mavutil
+        import time
+        
+        # Convert wind vector (world frame: +X=East, +Y=North) to speed + direction
+        wind_magnitude = np.linalg.norm(self._episode_wind_vector[:2])
+        
+        if wind_magnitude < 0.1:
+            # No significant wind, skip update
+            return
+        
+        wind_direction_rad = np.arctan2(
+            self._episode_wind_vector[1],  # North component
+            self._episode_wind_vector[0]   # East component
+        )
+        wind_direction_deg = np.degrees(wind_direction_rad)
+        
+        # Convert from math convention (CCW from +X=East) to aviation (CW from North)
+        # In PX4: 0=North, 90=East, 180=South, 270=West
+        aviation_heading = (90.0 - wind_direction_deg) % 360.0
+        
+        # Set PX4 wind speed parameter
+        self._mav_connection.mav.param_set_send(
+            self._mav_connection.target_system,
+            self._mav_connection.target_component,
+            b'SIM_WIND_SPD',
+            wind_magnitude,
+            mavutil.mavlink.MAV_PARAM_TYPE_REAL32
+        )
+        
+        # Set PX4 wind direction parameter
+        self._mav_connection.mav.param_set_send(
+            self._mav_connection.target_system,
+            self._mav_connection.target_component,
+            b'SIM_WIND_DIR',
+            aviation_heading,
+            mavutil.mavlink.MAV_PARAM_TYPE_REAL32
+        )
+        
+        # Give PX4 time to process parameter changes
+        time.sleep(0.1)
+
     def close(self) -> None:
         """Cleanup and close the environment."""
         if self._initialized:
@@ -429,14 +672,280 @@ class BaseISREnvironment(ABC):
             self.simulation_app.close()
             self._initialized = False
 
+    def _setup_action_bridge(self) -> None:
+        """
+        Setup MAVLink connection and action bridge for RL control.
+
+        This establishes the link between the RL agent's actions and
+        PX4's offboard velocity control mode.
+        """
+        from .action_bridge import PX4ActionBridge
+        from pymavlink import mavutil
+
+        # Wait a moment for PX4 SITL to be ready
+        import time
+        time.sleep(2.0)
+
+        # Connect to PX4 via MAVLink
+        try:
+            self._mav_connection = mavutil.mavlink_connection(
+                'udpin:localhost:14550',
+                source_system=255
+            )
+            self._mav_connection.wait_heartbeat(timeout=30)
+            print(f"  MAVLink connected to system {self._mav_connection.target_system}")
+        except Exception as e:
+            print(f"  Warning: MAVLink connection failed: {e}")
+            print("  Actions will not control the drone (visual-only mode)")
+            self._mav_connection = None
+
+        # Initialize action bridge
+        self.action_bridge = PX4ActionBridge(self._mav_connection)
+
+    def _setup_safety_filter(self) -> None:
+        """
+        Setup Vampire-based safety filter for action shielding.
+
+        The safety filter checks each proposed action against the ontology
+        constraints before execution. If an action would violate a hard
+        constraint (NFZ entry, geofence violation, etc.), it is replaced
+        with a safe fallback action (hover).
+        """
+        from .safety_filter import VampireSafetyFilter
+
+        # Check if Vampire is available
+        import shutil
+        vampire_available = shutil.which('vampire') is not None
+
+        if not vampire_available:
+            print("  Warning: Vampire theorem prover not found in PATH")
+            print("  Safety filter will use fast rule-based fallback")
+
+        # Initialize safety filter
+        self.safety_filter = VampireSafetyFilter(
+            ontology_path="/workspace/ontology/planning_mode",
+            timeout_ms=50,  # 50ms budget per action check
+            enabled=self._safety_filter_enabled
+        )
+
+        if self._safety_filter_enabled:
+            print(f"  Vampire safety shielding: ENABLED")
+            print(f"  Hard constraints: {', '.join(self.safety_filter.hard_constraints)}")
+        else:
+            print(f"  Vampire safety shielding: DISABLED (training without shield)")
+
+    def _setup_perception(self) -> None:
+        """
+        Setup dual-mode perception for RL training.
+
+        DUAL-MODE ARCHITECTURE:
+        - "gt" mode: Ground truth detection using frustum math (no rendering)
+        - "full" mode: Real YOLO inference on camera images
+
+        Creates:
+        1. Camera attached to the drone body (for "full" mode or visualization)
+        2. DualModePerception wrapper with mode-specific detector
+        3. World object registry for GT mode
+
+        Output: 516-dimensional observation vector (identical format both modes)
+        """
+        if not self.config.perception.enabled:
+            print("  Perception: DISABLED")
+            return
+
+        # Import dual-mode perception
+        try:
+            import sys
+            sys.path.insert(0, '/workspace/perception')
+            from perception import (
+                DualModePerception, DualModeConfig, CameraParams
+            )
+        except ImportError:
+            # Fallback to legacy perception integration
+            print("  Warning: DualModePerception not available, using legacy")
+            from .perception_integration import (
+                PerceptionIntegration,
+                PerceptionIntegrationConfig
+            )
+            perception_config = PerceptionIntegrationConfig(
+                mode=self.config.perception.mode,
+                camera_resolution=self.config.perception.camera_resolution,
+                max_encode_time_ms=self.config.perception.max_encode_time_ms,
+                skip_frames=self.config.perception.skip_frames,
+                observation_dim=self.config.perception.observation_dim,
+            )
+            self.perception = PerceptionIntegration(perception_config)
+            self.perception.initialize(None)
+            print(f"  Mode: {self.config.perception.mode} (legacy)")
+            return
+
+        # Normalize mode string
+        mode = self.config.perception.mode.lower()
+        if mode in ["ground_truth", "hybrid", "training"]:
+            mode = "gt"
+        elif mode in ["inference", "e2e", "yolo"]:
+            mode = "full"
+
+        # Create camera only if needed (E2E mode or for visualization)
+        if mode == "full":
+            try:
+                from isaacsim.sensors.camera import Camera
+                from scipy.spatial.transform import Rotation
+
+                camera_path = "/World/uav/body/perception_camera"
+                res = self.config.perception.camera_resolution
+                self._camera = Camera(
+                    prim_path=camera_path,
+                    frequency=30,
+                    resolution=res,
+                )
+
+                # Camera pointing down at 45 degrees for ISR
+                self._camera.set_local_pose(
+                    np.array([0.1, 0.0, -0.05]),  # Forward and below
+                    Rotation.from_euler("ZYX", [0.0, 45.0, 0.0], degrees=True).as_quat()
+                )
+                self._camera.initialize()
+                self._camera.set_focal_length(4.5)  # Wide angle
+                self._camera.set_clipping_range(0.1, 500.0)
+
+                print(f"  Camera: {res[0]}x{res[1]} @ 30Hz")
+            except Exception as e:
+                print(f"  Warning: Could not create camera: {e}")
+                print(f"  Falling back to GT mode (no rendering)")
+                mode = "gt"
+                self._camera = None
+        else:
+            print(f"  Camera: Not needed for GT mode (no rendering)")
+            self._camera = None
+
+        # Initialize dual-mode perception
+        perception_config = DualModeConfig(
+            mode=mode,
+            camera_params=CameraParams(
+                width=self.config.perception.camera_resolution[0],
+                height=self.config.perception.camera_resolution[1],
+                fov_horizontal=self.config.perception.camera_fov_degrees,
+            ),
+            gt_bbox_noise_std=self.config.perception.gt_bbox_noise_std,
+            gt_confidence_noise_std=self.config.perception.gt_confidence_noise_std,
+            gt_position_noise_std=self.config.perception.gt_position_noise_std,
+            skip_frames=self.config.perception.skip_frames,
+            max_encode_time_ms=self.config.perception.max_encode_time_ms,
+        )
+
+        self.perception = DualModePerception(perception_config)
+
+        print(f"  Mode: {mode} ({'ground truth' if mode == 'gt' else 'full inference'})")
+        print(f"  Observation dim: {self.perception.OUTPUT_DIM}")
+
+    def _engage_offboard_mode(self) -> bool:
+        """
+        Engage PX4 offboard mode for velocity control.
+
+        Must send setpoints before arming (PX4 requirement).
+        Returns True if successful.
+        """
+        if self._mav_connection is None:
+            return False
+
+        if self._offboard_engaged:
+            return True
+
+        from pymavlink import mavutil
+        import time
+
+        mav = self._mav_connection
+
+        # Send initial setpoints (required before OFFBOARD)
+        for _ in range(50):
+            self.action_bridge.hover()
+            time.sleep(0.02)
+
+        # Set OFFBOARD mode
+        mav.mav.command_long_send(
+            mav.target_system, mav.target_component,
+            mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
+            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            6, 0, 0, 0, 0, 0  # 6 = OFFBOARD
+        )
+        time.sleep(0.5)
+
+        # Arm
+        mav.mav.command_long_send(
+            mav.target_system, mav.target_component,
+            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0,
+            1, 0, 0, 0, 0, 0, 0
+        )
+        time.sleep(0.5)
+
+        # Set OFFBOARD again (sometimes needed after arming)
+        mav.mav.command_long_send(
+            mav.target_system, mav.target_component,
+            mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
+            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+            6, 0, 0, 0, 0, 0
+        )
+
+        self._offboard_engaged = True
+        print("  Offboard mode engaged, vehicle armed")
+        return True
+
     def _apply_action(self, action: np.ndarray) -> None:
         """
-        Apply action to the vehicle.
-        Override in subclass for specific control modes.
+        Apply RL action to the vehicle via PX4 offboard velocity control.
+
+        Action format: [vx, vy, vz, yaw_rate] normalized to [-1, 1]
+        Converted to velocity commands via action_bridge.
+
+        Safety shielding: If enabled, the action is first checked against
+        the Vampire theorem prover. If the action would violate a hard
+        constraint, it is replaced with a safe fallback (hover).
+
+        If MAVLink is not connected (visual-only mode), action is ignored.
         """
-        # Default: position setpoint
-        # This would interface with PX4 offboard mode
-        pass
+        if self.action_bridge is None:
+            return
+
+        # Engage offboard mode on first action
+        if not self._offboard_engaged:
+            self._engage_offboard_mode()
+
+        # Apply safety filter if enabled
+        safe_action = action
+        if self.safety_filter is not None and self._safety_filter_enabled:
+            # Build current state dict for safety filter
+            current_state = {
+                'x': self.uav_state.position[0],
+                'y': self.uav_state.position[1],
+                'z': self.uav_state.position[2],
+                'battery': self.uav_state.battery_pct,
+                'in_geofence': self.uav_state.in_geofence,
+                'in_nfz': self.uav_state.in_nfz,
+            }
+
+            # Convert normalized action to velocity for prediction
+            vx, vy, vz, _ = self.action_bridge.action_to_velocity(action)
+            velocity_action = np.array([vx, vy, vz, 0.0])
+
+            # Filter action through Vampire safety check
+            safe_action, was_modified, violation = self.safety_filter.filter_action(
+                current_state,
+                velocity_action,
+                dt=1.0 / 60.0  # Assume 60Hz control rate
+            )
+
+            if was_modified:
+                self._safety_interventions_count += 1
+                if violation:
+                    self._safety_violations_count += 1
+                # Convert safe velocity back to normalized action
+                safe_action = self.action_bridge.velocity_to_action(
+                    safe_action[0], safe_action[1], safe_action[2], 0.0
+                )
+
+        # Convert normalized action to velocity and send
+        self.action_bridge.execute_action(safe_action)
 
     def _update_state(self) -> None:
         """Update UAV state from simulation."""
@@ -455,6 +964,9 @@ class BaseISREnvironment(ABC):
         # Update timing
         self.uav_state.mission_time = self._step_count / 60.0  # Assuming 60Hz
 
+        # Apply domain randomization effects
+        self._apply_domain_randomization_effects()
+
         # Check geofence
         self.uav_state.in_geofence = self._check_geofence()
 
@@ -470,7 +982,57 @@ class BaseISREnvironment(ABC):
         # Update autonomy mode
         if self.uav_state.comms_status == CommsStatus.DENIED:
             self.uav_state.autonomous_mode = True
-            self.uav_state.battery_reserve = 30.0  # Increased reserve per ontology
+
+        # Update battery reserve dynamically based on distance to home
+        self.uav_state.battery_reserve = self.compute_required_battery_reserve()
+
+    def _apply_domain_randomization_effects(self) -> None:
+        """
+        Apply domain randomization effects during state update.
+
+        This method applies:
+        - Battery drain rate variation
+        - GNSS degradation triggering
+        - VIO position drift accumulation
+        - Wind vector updates
+        """
+        dr_config = self.config.domain_randomization
+
+        if not dr_config.enabled:
+            return
+
+        dt = 1.0 / 60.0  # Assuming 60Hz simulation
+
+        # Battery drain with variation
+        # Base drain rate: ~0.1% per second at cruise (F-11 spec)
+        base_drain_rate = 0.1  # % per second
+        actual_drain_rate = base_drain_rate * self._episode_battery_drain_multiplier
+        # Note: Assumes _update_state() called once per simulation step
+        self.uav_state.battery_pct -= actual_drain_rate * dt
+        self.uav_state.battery_pct = max(0.0, self.uav_state.battery_pct)
+
+        # GNSS degradation trigger
+        if (self._episode_gnss_degradation_step >= 0 and
+                self._step_count >= self._episode_gnss_degradation_step and
+                not self.uav_state.gnss_degradation_triggered):
+            self.uav_state.gnss_status = GNSSStatus.DEGRADED
+            self.uav_state.gnss_degradation_triggered = True
+            self.uav_state.gnss_degradation_step = self._step_count
+
+        # VIO position drift accumulation (random walk)
+        if self._episode_vio_noise_scale > 0.0:
+            # Accumulate drift as a random walk
+            drift_increment = self._dr_rng.normal(0, self._episode_vio_noise_scale * dt, 3)
+            self.uav_state.vio_position_drift += drift_increment
+
+            # Cap VIO drift at realistic bounds (real VIO has loop closure)
+            max_drift = 10.0  # meters
+            drift_magnitude = np.linalg.norm(self.uav_state.vio_position_drift)
+            if drift_magnitude > max_drift:
+                self.uav_state.vio_position_drift *= (max_drift / drift_magnitude)
+
+        # Update wind vector in state (constant for episode, but exposed for observation)
+        self.uav_state.wind_vector = self._episode_wind_vector.copy()
 
     def _check_geofence(self) -> bool:
         """Check if UAV is within geofence."""
@@ -551,6 +1113,51 @@ class BaseISREnvironment(ABC):
         # Outside all zones = denied
         self.uav_state.comms_status = CommsStatus.DENIED
 
+    def compute_required_battery_reserve(self) -> float:
+        """
+        Compute required battery reserve based on distance to home.
+
+        Uses F-11 flight characteristics to calculate minimum battery needed
+        to safely return to launch point. This replaces hardcoded flat reserves.
+
+        Formula: reserve = (distance / cruise_speed) * power_rate * safety_factor
+
+        F-11 parameters:
+        - Cruise speed: 6.3 m/s
+        - Power consumption: ~0.1% per second at cruise
+        - Safety factor: 1.5 (accounts for wind, altitude changes, maneuvering)
+        - Minimum reserve: 10% (hard floor for landing buffer)
+
+        Returns:
+            Required battery reserve percentage
+        """
+        # Calculate 3D distance to home (spawn position)
+        distance_to_home = np.linalg.norm(
+            self.uav_state.position - self.config.spawn_position
+        )
+
+        # F-11 flight parameters
+        cruise_speed = 6.3   # m/s (F-11 cruise speed)
+        power_rate = 0.1     # % per second at cruise
+        safety_factor = 1.5  # Wind, altitude changes, maneuvering buffer
+        min_reserve = 10.0   # % hard floor for landing
+
+        # Time to fly home at cruise speed
+        time_to_home = distance_to_home / cruise_speed
+
+        # Battery needed to return
+        required = time_to_home * power_rate * safety_factor
+        # Apply domain randomization battery drain multiplier
+        # If drain is faster, we need more reserve to get home
+        required *= self.uav_state.battery_drain_multiplier
+
+
+        # Apply comms-denied multiplier (more conservative when autonomous)
+        if self.uav_state.comms_status == CommsStatus.DENIED:
+            required *= 1.2  # 20% extra buffer when comms-denied
+
+        return max(min_reserve, required)
+
     def px4_cmd_async(self, cmd_args: str, callback: Optional[Callable] = None) -> None:
         """Execute PX4 commander command in background thread."""
         def run():
@@ -619,12 +1226,22 @@ class BaseISREnvironment(ABC):
         Convert UAV state to RL observation vector.
 
         Returns:
-            Flat numpy array suitable for neural network input
+            Flat numpy array suitable for neural network input.
+            If perception is enabled, includes 516-dim perception observation.
+
+        DUAL-MODE PERCEPTION:
+        - GT mode: Uses world_objects from _get_world_objects() (no rendering)
+        - Full mode: Uses camera image from _camera
         """
-        obs = np.concatenate([
+        # Normalize wind vector (max 10 m/s for normalization)
+        wind_normalized = state.wind_vector / 10.0
+
+        # Base state observation
+        state_obs = np.concatenate([
             state.position,
             state.velocity,
             state.orientation,
+            wind_normalized,  # Wind vector for planning (3 values)
             [
                 state.battery_pct / 100.0,
                 state.mission_time / self.config.max_mission_time,
@@ -639,16 +1256,179 @@ class BaseISREnvironment(ABC):
                 state.comms_status.value / 2.0,
                 state.gnss_status.value / 2.0,
                 float(state.vio_valid),
+                float(state.gnss_degradation_triggered),  # GNSS degradation flag
+                state.battery_drain_multiplier,  # Battery drain rate (for awareness)
             ]
         ])
-        return obs.astype(np.float32)
+
+        # Add perception observation if enabled
+        if self.config.perception.enabled and self.perception is not None:
+            # Check if we're using DualModePerception (new) or PerceptionIntegration (legacy)
+            if hasattr(self.perception, 'get_observation'):
+                # New DualModePerception
+                perception_obs = self._get_perception_observation_dual_mode(state)
+            else:
+                # Legacy PerceptionIntegration
+                image = None
+                if self._camera is not None and hasattr(self.perception, 'capture_image'):
+                    image = self.perception.capture_image()
+
+                perception_obs = self.perception.encode(
+                    image=image,
+                    uav_position=state.position,
+                    uav_orientation=state.orientation,
+                )
+
+            # Cache for info dict
+            self._perception_obs = perception_obs
+
+            # Combine state + perception
+            return np.concatenate([state_obs, perception_obs]).astype(np.float32)
+
+        return state_obs.astype(np.float32)
+
+    def _get_perception_observation_dual_mode(self, state: UAVState) -> np.ndarray:
+        """
+        Get perception observation using DualModePerception.
+
+        Handles both GT mode (world objects) and full mode (camera image).
+        """
+        mode = self.perception.mode if hasattr(self.perception, 'mode') else 'gt'
+
+        if mode == 'gt':
+            # Get world objects from simulation for ground truth detection
+            world_objects = self._get_world_objects_for_perception()
+            return self.perception.get_observation_gt(
+                world_objects=world_objects,
+                uav_position=state.position,
+                uav_orientation=state.orientation,
+            )
+        else:
+            # Full mode: get camera image
+            image = None
+            if self._camera is not None:
+                try:
+                    rgba = self._camera.get_rgba()
+                    if rgba is not None and rgba.max() > 5:
+                        image = rgba[:, :, :3]  # RGB only
+                except Exception:
+                    pass
+
+            if image is None:
+                # Return zeros if no image available
+                return np.zeros(self.perception.OUTPUT_DIM, dtype=np.float32)
+
+            return self.perception.get_observation_full(
+                image=image,
+                uav_position=state.position,
+            )
+
+    def _get_world_objects_for_perception(self) -> List:
+        """
+        Get world objects from simulation for ground truth perception.
+
+        Override this in subclasses to provide simulation-specific object extraction.
+
+        Returns:
+            List of WorldObject instances representing detectable objects
+        """
+        # Import WorldObject type
+        try:
+            import sys
+            sys.path.insert(0, '/workspace/perception')
+            from perception import WorldObject
+        except ImportError:
+            return []
+
+        world_objects = []
+
+        # Convert targets to world objects
+        for target in self.targets:
+            world_objects.append(WorldObject(
+                id=target.id,
+                class_id=4,  # POI target
+                class_name='poi_target',
+                position=target.position,
+                ontology_class='TargetOfInterest',
+                priority=target.priority,
+            ))
+
+        # Subclasses should override this to add more objects
+        # (people, vehicles, buildings from procedural generation, etc.)
+
+        return world_objects
 
     @property
     def observation_dim(self) -> int:
         """Dimension of observation space."""
-        return 3 + 3 + 4 + 13  # pos + vel + quat + scalars
+        # pos(3) + vel(3) + quat(4) + wind(3) + scalars(15) = 28
+        base_dim = 3 + 3 + 4 + 3 + 15
+
+        # Add perception dimension if enabled
+        if self.config.perception.enabled:
+            return base_dim + self.config.perception.observation_dim
+
+        return base_dim
+
+    def get_camera_image(self) -> Optional[np.ndarray]:
+        """
+        Get RGB image from drone camera for rendering.
+
+        Returns:
+            RGB image as numpy array (H, W, 3) or None
+        """
+        if self._camera is None:
+            return None
+        if self.perception is not None:
+            return self.perception.capture_image()
+        return None
+
+    def get_perception_stats(self) -> Dict[str, Any]:
+        """Get perception statistics for logging."""
+        if self.perception is not None:
+            return self.perception.get_stats()
+        return {"perception_enabled": False}
 
     @property
     def action_dim(self) -> int:
         """Dimension of action space."""
         return 4  # x, y, z velocity + yaw rate (or position setpoint)
+
+    def get_safety_stats(self) -> Dict[str, Any]:
+        """
+        Get safety filter statistics for logging/info dict.
+
+        Returns:
+            Dict with safety intervention counts and rates
+        """
+        total_steps = max(1, self._step_count)
+        return {
+            'safety_filter_enabled': self._safety_filter_enabled,
+            'safety_violations': self._safety_violations_count,
+            'safety_interventions': self._safety_interventions_count,
+            'intervention_rate': self._safety_interventions_count / total_steps,
+        }
+
+    def get_domain_randomization_stats(self) -> Dict[str, Any]:
+        """
+        Get domain randomization statistics for logging/info dict.
+
+        Returns:
+            Dict with current episode's DR parameters
+        """
+        wind_magnitude = np.linalg.norm(self._episode_wind_vector)
+        wind_direction_deg = np.degrees(np.arctan2(
+            self._episode_wind_vector[1],
+            self._episode_wind_vector[0]
+        )) if wind_magnitude > 0 else 0.0
+
+        return {
+            'dr_enabled': self.config.domain_randomization.enabled,
+            'battery_drain_multiplier': self._episode_battery_drain_multiplier,
+            'gnss_degradation_step': self._episode_gnss_degradation_step,
+            'gnss_degraded': self.uav_state.gnss_degradation_triggered,
+            'wind_magnitude_mps': wind_magnitude,
+            'wind_direction_deg': wind_direction_deg,
+            'vio_noise_scale': self._episode_vio_noise_scale,
+            'vio_drift_magnitude': np.linalg.norm(self.uav_state.vio_position_drift),
+        }

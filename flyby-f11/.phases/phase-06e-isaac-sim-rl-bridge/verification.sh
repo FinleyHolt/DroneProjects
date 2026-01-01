@@ -87,7 +87,7 @@ check_pattern "evaluation/isaac-sim-px4/scripts/training/train_canonical.py" \
     "stable_baselines3\|create_sac_agent\|create_ppo_agent" \
     "Training script uses real agents"
 
-check_pattern "evaluation/isaac-sim-px4/Containerfile.sitl" \
+check_pattern "evaluation/isaac-sim-px4/Containerfile" \
     "stable-baselines3" "Container includes SB3"
 
 echo ""

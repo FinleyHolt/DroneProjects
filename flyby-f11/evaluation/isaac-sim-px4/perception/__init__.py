@@ -11,6 +11,7 @@ This package supports two perception modes for sim-to-real transfer:
 
 2. E2E VALIDATION MODE ("full"):
    - YOLODetector runs real inference on camera images
+   - Built-in ByteTrack tracking via model.track()
    - Runs at ~20 Hz (real-time)
    - Validates full pipeline before deployment
 
@@ -19,11 +20,10 @@ Both modes produce IDENTICAL 516-dimensional observation vectors.
 Components:
 - DualModePerception: Top-level interface with mode switching
 - GroundTruthDetector: Fast frustum-based detection for training
-- YOLODetector: Real YOLO inference for E2E validation
+- YOLODetector: Real YOLO inference with ByteTrack tracking
 - PerceptionEncoder: Shared encoding (detections → 516-dim obs)
 - SpatialGridEncoder: 8x8 grid encoding (384 dims)
 - SceneStatistics: Aggregate scene metrics (32 dims)
-- TemporalTracker: Multi-object tracking with velocity estimation
 - TPTPGenerator: Vampire ATP fact generation for safety checking
 
 Output: 516-dimensional observation vector
@@ -39,7 +39,6 @@ Performance targets:
 from .detector import YOLODetector, Detection
 from .spatial_encoder import SpatialGridEncoder, SpatialGridConfig
 from .scene_statistics import SceneStatistics, SceneStatisticsConfig
-from .temporal_tracker import TemporalTracker, Track
 from .perception_encoder import PerceptionEncoder, PerceptionConfig, OUTPUT_DIM
 from .tptp_generator import TPTPGenerator, TPTPConfig
 from .frustum import CameraFrustum, CameraParams, AABB, camera_pose_from_position_orientation
@@ -50,6 +49,10 @@ from .ground_truth_detector import (
 from .dual_mode_perception import (
     DualModePerception, DualModeConfig,
     create_dual_mode_perception
+)
+from .viewport_camera import (
+    ViewportCamera, ViewportCameraConfig,
+    DetectionLogger
 )
 
 __all__ = [
@@ -67,7 +70,7 @@ __all__ = [
     'CameraParams',
     'AABB',
     'camera_pose_from_position_orientation',
-    # YOLO detector (E2E mode)
+    # YOLO detector with ByteTrack (E2E mode)
     'YOLODetector',
     'Detection',
     # Main encoder
@@ -80,12 +83,13 @@ __all__ = [
     # Scene statistics
     'SceneStatistics',
     'SceneStatisticsConfig',
-    # Temporal tracker
-    'TemporalTracker',
-    'Track',
     # TPTP generator
     'TPTPGenerator',
     'TPTPConfig',
+    # Viewport camera (Isaac Sim camera API workaround)
+    'ViewportCamera',
+    'ViewportCameraConfig',
+    'DetectionLogger',
 ]
 
 __version__ = '0.2.0'

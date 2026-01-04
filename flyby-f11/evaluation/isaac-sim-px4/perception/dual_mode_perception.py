@@ -53,6 +53,7 @@ try:
     )
     from .frustum import CameraParams, camera_pose_from_position_orientation
     from .tptp_generator import TPTPGenerator
+    from .viewport_camera import ViewportCamera, ViewportCameraConfig, DetectionLogger
 except ImportError:
     from perception_encoder import PerceptionEncoder, PerceptionConfig, OUTPUT_DIM
     from detector import YOLODetector, Detection
@@ -62,6 +63,12 @@ except ImportError:
     )
     from frustum import CameraParams, camera_pose_from_position_orientation
     from tptp_generator import TPTPGenerator
+    try:
+        from viewport_camera import ViewportCamera, ViewportCameraConfig, DetectionLogger
+    except ImportError:
+        ViewportCamera = None
+        ViewportCameraConfig = None
+        DetectionLogger = None
 
 
 PerceptionMode = Literal["gt", "full", "ground_truth", "inference"]
@@ -97,6 +104,17 @@ class DualModeConfig:
     skip_frames: int = 0
     max_encode_time_ms: float = 20.0
 
+    # Isaac Sim viewport camera config (E2E mode)
+    use_viewport_camera: bool = False
+    viewport_resolution: Tuple[int, int] = (640, 480)
+    viewport_pitch_down: float = 45.0
+    capture_frames_to_disk: bool = False
+    frame_output_dir: str = "/tmp/perception_frames"
+
+    # Detection logging
+    log_detections: bool = True
+    detection_log_dir: str = "/tmp/detection_logs"
+
 
 class DualModePerception:
     """
@@ -131,6 +149,10 @@ class DualModePerception:
         self._yolo_detector: Optional[YOLODetector] = None
         self._tptp_generator: Optional[TPTPGenerator] = None
 
+        # Viewport camera for Isaac Sim E2E mode
+        self._viewport_camera: Optional[ViewportCamera] = None
+        self._detection_logger: Optional[DetectionLogger] = None
+
         # Initialize detectors based on mode
         self._init_detectors()
 
@@ -143,6 +165,7 @@ class DualModePerception:
         # Statistics
         self._total_detect_time = 0.0
         self._total_encode_time = 0.0
+        self._total_capture_time = 0.0
         self._detection_counts = {"person": 0, "vehicle": 0, "building": 0, "other": 0}
 
     def _normalize_mode(self, mode: str) -> str:
@@ -177,6 +200,58 @@ class DualModePerception:
             self._tptp_generator = TPTPGenerator()
         except Exception:
             self._tptp_generator = None
+
+        # Initialize detection logger for E2E mode
+        if self.config.log_detections and DetectionLogger is not None:
+            try:
+                self._detection_logger = DetectionLogger(
+                    log_dir=self.config.detection_log_dir
+                )
+            except Exception as e:
+                print(f"[DualModePerception] Warning: Could not init detection logger: {e}")
+                self._detection_logger = None
+
+    def init_viewport_camera(self, stage, drone_prim_path: str = "/World/quadrotor") -> bool:
+        """
+        Initialize viewport camera for Isaac Sim E2E mode.
+
+        Call this method after world initialization to enable viewport-based
+        image capture for YOLO inference.
+
+        Args:
+            stage: USD stage object
+            drone_prim_path: Path to drone prim
+
+        Returns:
+            True if initialization successful
+        """
+        if ViewportCamera is None:
+            print("[DualModePerception] ViewportCamera not available")
+            return False
+
+        if not self.config.use_viewport_camera and self.mode != "full":
+            return False
+
+        try:
+            vp_config = ViewportCameraConfig(
+                resolution=self.config.viewport_resolution,
+                pitch_down_degrees=self.config.viewport_pitch_down,
+                capture_to_file=self.config.capture_frames_to_disk,
+                output_dir=self.config.frame_output_dir,
+                log_detections=self.config.log_detections,
+                detection_log_path=f"{self.config.detection_log_dir}/viewport_detections.jsonl",
+            )
+
+            self._viewport_camera = ViewportCamera(vp_config)
+            success = self._viewport_camera.initialize(stage, drone_prim_path)
+
+            if success:
+                print(f"[DualModePerception] Viewport camera initialized")
+            return success
+
+        except Exception as e:
+            print(f"[DualModePerception] Viewport camera init error: {e}")
+            return False
 
     @property
     def output_dim(self) -> int:
@@ -316,6 +391,78 @@ class DualModePerception:
 
         return observation
 
+    def get_observation_viewport(
+        self,
+        uav_position: np.ndarray,
+        uav_orientation: np.ndarray,
+        uav_velocity: np.ndarray,
+        dt: float = 0.05,
+    ) -> np.ndarray:
+        """
+        Get perception observation using viewport camera capture + YOLO.
+
+        This is the Isaac Sim E2E PATH - captures from viewport and runs inference.
+        Requires init_viewport_camera() to be called first.
+
+        Args:
+            uav_position: UAV position (x, y, z) in world frame
+            uav_orientation: UAV orientation as quaternion (x, y, z, w)
+            uav_velocity: UAV velocity (vx, vy, vz)
+            dt: Time since last frame
+
+        Returns:
+            516-dimensional perception observation
+        """
+        if self._viewport_camera is None:
+            # Fallback to zero observation if viewport not initialized
+            return np.zeros(self.OUTPUT_DIM, dtype=np.float32)
+
+        # Handle frame skipping
+        if self._should_skip_frame():
+            return self._get_cached_observation()
+
+        start_time = time.perf_counter()
+
+        # Update camera pose to follow drone
+        capture_start = time.perf_counter()
+        self._viewport_camera.update_pose(uav_position, uav_orientation)
+
+        # Capture image from viewport
+        image = self._viewport_camera.capture()
+        self._total_capture_time += time.perf_counter() - capture_start
+
+        if image is None:
+            return self._get_cached_observation()
+
+        # Run YOLO detection
+        detect_start = time.perf_counter()
+        detections = self._yolo_detector.detect(image, uav_position=uav_position)
+        self._total_detect_time += time.perf_counter() - detect_start
+
+        # Log detections
+        if self._detection_logger is not None:
+            self._detection_logger.log_frame(
+                frame_id=self._frame_count,
+                timestamp=time.time(),
+                uav_position=uav_position,
+                uav_orientation=uav_orientation,
+                uav_velocity=uav_velocity,
+                detections=detections,
+                perception_mode="full"
+            )
+
+        # Encode detections
+        encode_start = time.perf_counter()
+        observation = self.encoder.encode_from_detections(detections, uav_position, dt)
+        self._total_encode_time += time.perf_counter() - encode_start
+
+        # Update state
+        self._update_stats(detections, time.perf_counter() - start_time)
+        self._last_observation = observation
+        self._last_detections = detections
+
+        return observation
+
     def get_detections(self) -> List[Detection]:
         """Get the last set of detections (for TPTP generation, visualization)."""
         return self._last_detections
@@ -361,15 +508,28 @@ class DualModePerception:
     def get_stats(self) -> Dict[str, Any]:
         """Get perception statistics for logging."""
         frames = max(1, self._frame_count)
-        return {
+        total_time = self._total_detect_time + self._total_encode_time + self._total_capture_time
+
+        stats = {
             "mode": self.mode,
             "frames_processed": self._frame_count,
             "avg_detect_time_ms": (self._total_detect_time / frames) * 1000,
             "avg_encode_time_ms": (self._total_encode_time / frames) * 1000,
-            "avg_total_time_ms": ((self._total_detect_time + self._total_encode_time) / frames) * 1000,
+            "avg_capture_time_ms": (self._total_capture_time / frames) * 1000,
+            "avg_total_time_ms": (total_time / frames) * 1000,
             "detection_counts": self._detection_counts.copy(),
-            "within_budget": ((self._total_detect_time + self._total_encode_time) / frames) * 1000 < self.config.max_encode_time_ms,
+            "within_budget": (total_time / frames) * 1000 < self.config.max_encode_time_ms,
         }
+
+        # Add viewport camera stats if available
+        if self._viewport_camera is not None:
+            stats["viewport_camera"] = self._viewport_camera.get_stats()
+
+        # Add detection logger stats if available
+        if self._detection_logger is not None:
+            stats["detection_logger"] = self._detection_logger.get_stats()
+
+        return stats
 
     def reset(self):
         """Reset perception state for new episode."""
@@ -379,6 +539,7 @@ class DualModePerception:
         self._last_detections = []
         self._total_detect_time = 0.0
         self._total_encode_time = 0.0
+        self._total_capture_time = 0.0
         self._detection_counts = {"person": 0, "vehicle": 0, "building": 0, "other": 0}
 
         # Reset encoder tracker
@@ -387,6 +548,16 @@ class DualModePerception:
         # Reset GT detector if present
         if self._gt_detector is not None:
             self._gt_detector.clear_world_objects()
+
+    def close(self):
+        """Cleanup resources."""
+        if self._viewport_camera is not None:
+            self._viewport_camera.close()
+            self._viewport_camera = None
+
+        if self._detection_logger is not None:
+            self._detection_logger.close()
+            self._detection_logger = None
 
 
 def create_dual_mode_perception(

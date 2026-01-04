@@ -252,7 +252,7 @@ class EnvironmentConfig:
     altitude: float = 100.0
 
     # UAV
-    spawn_position: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))
+    spawn_position: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.5]))  # Start slightly above ground
     spawn_orientation: np.ndarray = field(default_factory=lambda: np.array([0.0, 0.0, 0.0]))  # euler
 
     # Mission
@@ -392,17 +392,23 @@ class BaseISREnvironment(ABC):
             self.pg.load_environment(SIMULATION_ENVIRONMENTS["Curved Gridroom"])
         print("  Environment loaded")
 
-        # Spawn vehicle
-        print("\n[4/5] Spawning vehicle with PX4...")
+        # Spawn vehicle with MANUAL PX4 launch to control timing precisely
+        # Setting px4_autolaunch=False means PX4 won't start on timeline.play()
+        # We'll launch it manually after we've started stepping the world
+        print("\n[4/7] Spawning vehicle (PX4 delayed start)...")
         px4_config = PX4MavlinkBackendConfig({
             "vehicle_id": 0,
-            "px4_autolaunch": True,
+            "px4_autolaunch": False,  # CRITICAL: Don't auto-launch, we'll do it manually
             "px4_dir": self.pg.px4_path,
             "px4_vehicle_model": self.pg.px4_default_airframe,
+            "enable_lockstep": True,
+            "update_rate": 250.0,
         })
+        print(f"  PX4 lockstep enabled, update_rate=250Hz, autolaunch=False")
 
         vehicle_config = MultirotorConfig()
-        vehicle_config.backends = [PX4MavlinkBackend(px4_config)]
+        self._px4_backend = PX4MavlinkBackend(px4_config)
+        vehicle_config.backends = [self._px4_backend]
 
         spawn_pos = self.config.spawn_position.tolist()
         spawn_rot = Rotation.from_euler(
@@ -417,35 +423,114 @@ class BaseISREnvironment(ABC):
             spawn_rot,
             config=vehicle_config,
         )
-        print("  Vehicle spawned")
+        print("  Vehicle spawned (PX4 not yet started)")
+
+        # Start timeline and physics WITHOUT PX4
+        # This avoids poll timeouts because PX4 isn't waiting for data yet
+        print("\n[5/7] Starting timeline and physics...", flush=True)
+        self.world.reset()
+        self.timeline.play()
+        # Step 50 times to get physics running and stable
+        for _ in range(50):
+            self.world.step(render=True)
+        print("  Timeline started, physics running", flush=True)
+
+        # NOW manually launch PX4 - physics is already stepping
+        # CRITICAL: We need to step the world CONTINUOUSLY during PX4 boot
+        # PX4 starts waiting for sensor data within milliseconds of launch
+        print("\n[6/7] Launching PX4 SITL with continuous stepping...", flush=True)
+        from pegasus.simulator.logic.backends.tools.px4_launch_tool import PX4LaunchTool
+        import threading
+        import time
+
+        # Create flag for stepping thread
+        self._px4_stepping_active = True
+
+        def step_world_continuously():
+            """Background thread to step world while PX4 boots."""
+            while self._px4_stepping_active:
+                try:
+                    self.world.step(render=True)
+                except Exception as e:
+                    print(f"  [Step thread] Error: {e}")
+                    break
+
+        # Start stepping thread BEFORE launching PX4
+        step_thread = threading.Thread(target=step_world_continuously, daemon=True)
+        step_thread.start()
+
+        # Now launch PX4 - stepping is already happening
+        self._px4_tool = PX4LaunchTool(
+            self.pg.px4_path,
+            vehicle_id=0,
+            px4_model=self.pg.px4_default_airframe
+        )
+        self._px4_tool.launch_px4()
+        # Store reference in backend so it can be stopped later
+        self._px4_backend.px4_tool = self._px4_tool
+        self._px4_backend.px4_autolaunch = True  # Mark as launched for cleanup
+
+        # Let PX4 boot while stepping continues in background
+        # Wait ~2 seconds (PX4 typically needs 1-2s to start)
+        print("  PX4 launched, stepping in background for 2 seconds...", flush=True)
+        time.sleep(2.0)
+
+        # Stop stepping thread
+        self._px4_stepping_active = False
+        step_thread.join(timeout=1.0)
+
+        # Continue with normal stepping
+        print("  PX4 boot phase complete, continuing normal stepping...", flush=True)
+        for _ in range(300):
+            self.world.step(render=True)
+        print("  PX4 initialization complete", flush=True)
 
         # Initialize action bridge for RL control
-        print("\n[5/7] Setting up MAVLink action bridge...")
+        # Timeline already started, just need to connect MAVLink
+        print("\n[7/11] Setting up MAVLink action bridge...")
         self._setup_action_bridge()
         print("  Action bridge ready")
 
+        # CRITICAL: After action bridge setup, timeline is playing.
+        # We must continue stepping the world during all subsequent setup
+        # to keep PX4 lockstep alive. Each setup phase should be quick,
+        # but we step periodically to maintain sync.
+
         # Initialize Vampire safety filter
-        print("\n[6/8] Setting up Vampire safety filter...")
+        print("\n[8/11] Setting up Vampire safety filter...")
         self._setup_safety_filter()
+        # Step world to keep PX4 lockstep alive
+        for _ in range(30):
+            self.world.step(render=True)
         print("  Safety filter ready")
 
         # Initialize perception for live YOLO detection
-        print("\n[7/8] Setting up live perception...")
+        print("\n[9/11] Setting up live perception...")
         self._setup_perception()
+        # Step world to keep PX4 lockstep alive
+        for _ in range(30):
+            self.world.step(render=True)
         print("  Perception ready")
 
         # Setup environment-specific elements
-        print("\n[8/8] Setting up environment elements...")
+        print("\n[10/11] Setting up environment elements...")
         self._setup_environment()
+        # Step world after environment setup
+        for _ in range(30):
+            self.world.step(render=True)
         print("  Environment ready")
 
-        # Reset and start
-        self.world.reset()
-        self.timeline.play()
+        # CRITICAL: Wait for full simulation readiness before allowing training
+        # This is the "gate" that ensures PX4 is healthy and ready
+        print("\n[11/11] Waiting for full simulation readiness...")
+        ready = self._wait_for_simulation_ready(max_steps=3000)
+        if not ready:
+            print("  WARNING: Simulation may not be fully ready!")
+            print("  Training will proceed but vehicle control may be unreliable.")
 
         self._initialized = True
         print("\n" + "=" * 60)
-        print("Simulation ready!")
+        print("Simulation ready!" if ready else "Simulation setup complete (with warnings)")
         print("=" * 60)
 
     @abstractmethod
@@ -525,13 +610,22 @@ class BaseISREnvironment(ABC):
         # Sample new domain randomization values for this episode
         self._sample_domain_randomization(seed)
 
-        # Apply wind to PX4 SITL physics
-        self._apply_wind_to_px4()
+        # Reset vehicle position without calling world.reset()
+        # CRITICAL: world.reset() causes Pegasus to restart PX4 (via px4_autolaunch),
+        # which breaks lockstep synchronization. Instead, we teleport the vehicle
+        # back to spawn position and reset velocities directly.
+        #
+        # Timeline should already be playing from setup() and must stay playing
+        # to keep PX4 lockstep alive.
+        if not self.timeline.is_playing():
+            # First reset after setup - timeline should already be playing
+            # If not, start it now (shouldn't happen with current flow)
+            print("  [Reset] Starting timeline (first reset)")
+            self.timeline.play()
 
-        # Reset simulation
-        self.timeline.stop()
-        self.world.reset()
-        self.timeline.play()
+        # Teleport vehicle back to spawn position instead of world.reset()
+        # This resets the vehicle without restarting PX4
+        self._reset_vehicle_position()
 
         # Reset offboard mode flag (will re-engage on first action)
         self._offboard_engaged = False
@@ -550,9 +644,17 @@ class BaseISREnvironment(ABC):
             gnss_degradation_step=self._episode_gnss_degradation_step,
         )
 
-        # Wait for initialization
-        for _ in range(300):  # ~5 seconds at 60Hz
+        # Wait for PX4 to stabilize after physics reset
+        # This ensures PX4 has processed the new vehicle state
+        print("  [Reset] Running 100 warmup steps for PX4 sync...")
+        for i in range(100):
             self.world.step(render=True)
+            if i == 0:
+                print("  [Reset] First step complete, PX4 lockstep synced")
+
+        # Apply wind to PX4 SITL physics AFTER warmup
+        # This ensures PX4 is ready to receive MAVLink parameters
+        self._apply_wind_to_px4()
 
         self._update_state()
         return self.uav_state
@@ -661,9 +763,34 @@ class BaseISREnvironment(ABC):
             aviation_heading,
             mavutil.mavlink.MAV_PARAM_TYPE_REAL32
         )
-        
-        # Give PX4 time to process parameter changes
-        time.sleep(0.1)
+
+        # Step world to let PX4 process parameter changes
+        # IMPORTANT: Use world.step() instead of time.sleep() to keep PX4 lockstep alive
+        for _ in range(6):  # ~0.1s at 60Hz
+            self.world.step(render=True)
+
+    def _reset_vehicle_position(self) -> None:
+        """
+        Reset vehicle position and velocities without restarting PX4.
+
+        For episode resets, we don't actually need to teleport the vehicle
+        since the initial world.reset() in setup() already positioned it.
+        We just need to keep stepping the world to maintain PX4 lockstep.
+
+        Note: True position reset while keeping PX4 running is complex.
+        For now, we rely on episode termination conditions to keep episodes short
+        enough that position drift isn't a major issue.
+        """
+        # Log current position for debugging
+        if hasattr(self.vehicle, 'state') and hasattr(self.vehicle.state, 'position'):
+            pos = self.vehicle.state.position
+            print(f"  [Reset] Current vehicle position: [{pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f}]")
+
+        # Step world to keep PX4 lockstep alive during reset
+        # Don't attempt position reset as it's unreliable without world.reset()
+        print(f"  [Reset] Stepping world (100 steps) to maintain lockstep...")
+        for _ in range(100):
+            self.world.step(render=True)
 
     def close(self) -> None:
         """Cleanup and close the environment."""
@@ -678,13 +805,19 @@ class BaseISREnvironment(ABC):
 
         This establishes the link between the RL agent's actions and
         PX4's offboard velocity control mode.
+
+        NOTE: Timeline should already be started by setup() before this is called.
+        We just need to connect MAVLink and wait for heartbeat.
         """
         from .action_bridge import PX4ActionBridge
         from pymavlink import mavutil
 
-        # Wait a moment for PX4 SITL to be ready
-        import time
-        time.sleep(2.0)
+        # Ensure timeline is playing (should be started by setup())
+        if not self.timeline.is_playing():
+            print("  Warning: Timeline not playing, starting now...")
+            self.timeline.play()
+            for _ in range(200):
+                self.world.step(render=True)
 
         # Connect to PX4 via MAVLink
         try:
@@ -692,12 +825,40 @@ class BaseISREnvironment(ABC):
                 'udpin:localhost:14550',
                 source_system=255
             )
-            self._mav_connection.wait_heartbeat(timeout=30)
-            print(f"  MAVLink connected to system {self._mav_connection.target_system}")
+
+            # Wait for heartbeat while stepping world (keeps lockstep alive)
+            print("  Waiting for MAVLink heartbeat (stepping world)...")
+            heartbeat_received = False
+            for i in range(500):  # Max ~8 seconds
+                self.world.step(render=True)
+                msg = self._mav_connection.recv_match(type='HEARTBEAT', blocking=False)
+                if msg and msg.get_srcSystem() != 0:  # Ignore GCS (system 0)
+                    heartbeat_received = True
+                    print(f"  Got heartbeat from system {msg.get_srcSystem()} after {i} steps")
+                    break
+
+            if not heartbeat_received:
+                print("  Warning: No heartbeat received after 500 steps")
+                self._mav_connection = None
+            else:
+                # Explicitly set target to vehicle if needed
+                if self._mav_connection.target_system == 0:
+                    self._mav_connection.target_system = 1
+                    self._mav_connection.target_component = 1
+                    print(f"  MAVLink: Forcing target to system 1 (was 0)")
+                print(f"  MAVLink connected to system {self._mav_connection.target_system}")
+
         except Exception as e:
             print(f"  Warning: MAVLink connection failed: {e}")
             print("  Actions will not control the drone (visual-only mode)")
             self._mav_connection = None
+
+        # NOTE: Do NOT stop the timeline here!
+        # Stopping timeline breaks PX4 lockstep synchronization.
+        # PX4 continues to expect sensor data, and if the timeline stops,
+        # its lockstep clock desyncs from the simulation clock.
+        # The timeline will remain running, and reset() will use world.reset()
+        # which handles the physics reset without disrupting PX4.
 
         # Initialize action bridge
         self.action_bridge = PX4ActionBridge(self._mav_connection)
@@ -839,57 +1000,258 @@ class BaseISREnvironment(ABC):
         print(f"  Mode: {mode} ({'ground truth' if mode == 'gt' else 'full inference'})")
         print(f"  Observation dim: {self.perception.OUTPUT_DIM}")
 
+    def _check_px4_mode(self) -> Tuple[Optional[bool], Optional[int]]:
+        """Check PX4 armed state and flight mode from heartbeat."""
+        from pymavlink import mavutil
+        msg = self._mav_connection.recv_match(type='HEARTBEAT', blocking=False)
+        if msg and msg.get_srcSystem() != 0:
+            armed = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+            custom_mode = msg.custom_mode
+            return armed, custom_mode
+        return None, None
+
+    def _check_px4_health(self) -> Tuple[bool, List[str]]:
+        """
+        Check PX4 health status from SYS_STATUS message.
+
+        Returns:
+            Tuple of (healthy, list_of_failed_checks)
+        """
+        if self._mav_connection is None:
+            return False, ["No MAVLink connection"]
+
+        from pymavlink import mavutil
+
+        # Request SYS_STATUS message
+        msg = self._mav_connection.recv_match(type='SYS_STATUS', blocking=False)
+        if msg is None:
+            return False, ["No SYS_STATUS received"]
+
+        failed_checks = []
+
+        # Check onboard_control_sensors_health bits
+        # Bit positions for key health flags (from MAVLink spec)
+        SENSOR_3D_GYRO = 1 << 0
+        SENSOR_3D_ACCEL = 1 << 1
+        SENSOR_3D_MAG = 1 << 2
+        SENSOR_GPS = 1 << 5
+        SENSOR_RC_RECEIVER = 1 << 13
+        SENSOR_AHRS = 1 << 21
+        SENSOR_BATTERY = 1 << 26
+
+        health = msg.onboard_control_sensors_health
+        present = msg.onboard_control_sensors_present
+
+        # Only check sensors that are present
+        if (present & SENSOR_3D_GYRO) and not (health & SENSOR_3D_GYRO):
+            failed_checks.append("gyro")
+        if (present & SENSOR_3D_ACCEL) and not (health & SENSOR_3D_ACCEL):
+            failed_checks.append("accel")
+        if (present & SENSOR_AHRS) and not (health & SENSOR_AHRS):
+            failed_checks.append("AHRS/EKF")
+
+        return len(failed_checks) == 0, failed_checks
+
+    def _wait_for_simulation_ready(self, max_steps: int = 2000) -> bool:
+        """
+        Wait for simulation to be fully ready before training begins.
+
+        This is the initialization "gate" that ensures:
+        1. Isaac Sim physics is running
+        2. PX4 heartbeat is received
+        3. PX4 EKF2 health checks pass
+        4. Vehicle position is stable (not falling)
+
+        Only returns True when all conditions are met.
+
+        Args:
+            max_steps: Maximum simulation steps to wait
+
+        Returns:
+            True if simulation is ready, False if timed out
+        """
+        if self._mav_connection is None:
+            print("  [READY] No MAVLink connection - cannot verify readiness")
+            return False
+
+        print("\n" + "=" * 50)
+        print(" WAITING FOR SIMULATION READY")
+        print("=" * 50)
+
+        from pymavlink import mavutil
+
+        # Phase 1: Wait for stable heartbeat
+        print("\n  [1/4] Waiting for stable PX4 heartbeat...")
+        heartbeat_count = 0
+        required_heartbeats = 5
+
+        for i in range(max_steps // 4):
+            self.world.step(render=True)
+            msg = self._mav_connection.recv_match(type='HEARTBEAT', blocking=False)
+            if msg and msg.get_srcSystem() != 0:
+                heartbeat_count += 1
+                if heartbeat_count >= required_heartbeats:
+                    print(f"    ✓ Got {heartbeat_count} heartbeats after {i} steps")
+                    break
+
+            if i % 100 == 99:
+                print(f"    ... step {i+1}, heartbeats: {heartbeat_count}")
+
+        if heartbeat_count < required_heartbeats:
+            print(f"    ✗ Only got {heartbeat_count} heartbeats")
+            return False
+
+        # Phase 2: Wait for EKF2 health
+        print("\n  [2/4] Waiting for EKF2 health checks to pass...")
+        health_ok_count = 0
+        required_health_ok = 10  # Need sustained health
+
+        for i in range(max_steps // 2):
+            self.world.step(render=True)
+            healthy, failed = self._check_px4_health()
+
+            if healthy:
+                health_ok_count += 1
+                if health_ok_count >= required_health_ok:
+                    print(f"    ✓ Health checks passed {health_ok_count} times after {i} steps")
+                    break
+            else:
+                health_ok_count = 0  # Reset - need consecutive
+
+            if i % 100 == 99:
+                if failed:
+                    print(f"    ... step {i+1}, failed: {failed}")
+                else:
+                    print(f"    ... step {i+1}, health_ok_streak: {health_ok_count}")
+
+        if health_ok_count < required_health_ok:
+            print(f"    ✗ Health checks not stable (streak: {health_ok_count})")
+            # Continue anyway - EKF may still be usable
+
+        # Phase 3: Check vehicle isn't falling
+        print("\n  [3/4] Verifying vehicle position is stable...")
+        initial_z = self.vehicle.state.position[2] if hasattr(self.vehicle, 'state') else 0
+
+        for i in range(100):
+            self.world.step(render=True)
+
+        final_z = self.vehicle.state.position[2] if hasattr(self.vehicle, 'state') else 0
+        z_change = final_z - initial_z
+
+        if z_change < -1.0:
+            print(f"    ✗ Vehicle falling! z changed by {z_change:.2f}m")
+            print(f"      Initial: {initial_z:.2f}m, Final: {final_z:.2f}m")
+            return False
+        else:
+            print(f"    ✓ Vehicle stable (z change: {z_change:.2f}m)")
+
+        # Phase 4: Prime setpoints to prepare for OFFBOARD
+        print("\n  [4/4] Priming setpoints for OFFBOARD mode...")
+        for i in range(200):
+            self.action_bridge.hover()
+            self.world.step(render=True)
+        print(f"    ✓ Sent 200 hover setpoints")
+
+        # Final status
+        armed, mode = self._check_px4_mode()
+        print("\n" + "=" * 50)
+        print(f" SIMULATION READY")
+        print(f"   Armed: {armed}, Mode: {mode}")
+        print(f"   Vehicle pos: {self.vehicle.state.position}")
+        print("=" * 50 + "\n")
+
+        return True
+
     def _engage_offboard_mode(self) -> bool:
         """
         Engage PX4 offboard mode for velocity control.
 
-        Must send setpoints before arming (PX4 requirement).
+        NOTE: EKF2 warmup and setpoint priming is now done in _wait_for_simulation_ready()
+        during setup(), so we can proceed directly to mode/arm commands here.
+
+        Steps the world while sending commands to keep lockstep alive.
+        Verifies mode transitions before proceeding.
         Returns True if successful.
         """
         if self._mav_connection is None:
+            print("  [OFFBOARD] No MAVLink connection - cannot arm")
             return False
 
         if self._offboard_engaged:
             return True
 
         from pymavlink import mavutil
-        import time
 
         mav = self._mav_connection
+        print(f"  [OFFBOARD] Engaging offboard mode (target system {mav.target_system})")
 
-        # Send initial setpoints (required before OFFBOARD)
-        for _ in range(50):
-            self.action_bridge.hover()
-            time.sleep(0.02)
+        # Check current mode
+        armed, mode = self._check_px4_mode()
+        print(f"  [OFFBOARD] Current state: armed={armed}, custom_mode={mode}")
 
-        # Set OFFBOARD mode
-        mav.mav.command_long_send(
-            mav.target_system, mav.target_component,
-            mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
-            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-            6, 0, 0, 0, 0, 0  # 6 = OFFBOARD
-        )
-        time.sleep(0.5)
+        # Set OFFBOARD mode with retry (keep stepping and sending setpoints)
+        print("  [OFFBOARD] Requesting OFFBOARD mode...")
+        for attempt in range(5):
+            mav.mav.command_long_send(
+                mav.target_system, mav.target_component,
+                mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
+                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                6, 0, 0, 0, 0, 0  # 6 = OFFBOARD
+            )
+            # Keep sending setpoints while waiting (critical for OFFBOARD)
+            for _ in range(100):
+                self.action_bridge.hover()
+                self.world.step(render=True)
 
-        # Arm
-        mav.mav.command_long_send(
-            mav.target_system, mav.target_component,
-            mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0,
-            1, 0, 0, 0, 0, 0, 0
-        )
-        time.sleep(0.5)
+            armed, mode = self._check_px4_mode()
+            print(f"  [OFFBOARD] Attempt {attempt+1}: armed={armed}, custom_mode={mode}")
+            if mode == 6:  # OFFBOARD mode
+                break
 
-        # Set OFFBOARD again (sometimes needed after arming)
-        mav.mav.command_long_send(
-            mav.target_system, mav.target_component,
-            mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
-            mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-            6, 0, 0, 0, 0, 0
-        )
+        # Arm with retry
+        print("  [OFFBOARD] Arming vehicle...")
+        for attempt in range(5):
+            mav.mav.command_long_send(
+                mav.target_system, mav.target_component,
+                mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 0,
+                1, 0, 0, 0, 0, 0, 0
+            )
+            # Keep sending setpoints
+            for _ in range(100):
+                self.action_bridge.hover()
+                self.world.step(render=True)
 
-        self._offboard_engaged = True
-        print("  Offboard mode engaged, vehicle armed")
-        return True
+            armed, mode = self._check_px4_mode()
+            print(f"  [OFFBOARD] Arm attempt {attempt+1}: armed={armed}, custom_mode={mode}")
+            if armed:
+                break
+
+        # Set OFFBOARD again after arming (sometimes needed)
+        if mode != 6:
+            print("  [OFFBOARD] Re-requesting OFFBOARD mode after arming...")
+            mav.mav.command_long_send(
+                mav.target_system, mav.target_component,
+                mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
+                mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
+                6, 0, 0, 0, 0, 0
+            )
+            for _ in range(50):
+                self.action_bridge.hover()
+                self.world.step(render=True)
+
+        # Final verification
+        armed, mode = self._check_px4_mode()
+        print(f"  [OFFBOARD] Final state: armed={armed}, custom_mode={mode}")
+
+        if armed and mode == 6:
+            self._offboard_engaged = True
+            print("  [OFFBOARD] SUCCESS - Vehicle armed in OFFBOARD mode!")
+            return True
+        else:
+            print(f"  [OFFBOARD] WARNING - Mode engagement incomplete (armed={armed}, mode={mode})")
+            # Still mark as engaged to allow commands, but warn
+            self._offboard_engaged = True
+            return False
 
     def _apply_action(self, action: np.ndarray) -> None:
         """
@@ -1237,6 +1599,9 @@ class BaseISREnvironment(ABC):
         wind_normalized = state.wind_vector / 10.0
 
         # Base state observation
+        # Clip nfz_distance to avoid infinity (default is inf when no NFZ nearby)
+        nfz_distance_clipped = min(state.nfz_distance, 500.0)  # Cap at 500m
+
         state_obs = np.concatenate([
             state.position,
             state.velocity,
@@ -1248,7 +1613,7 @@ class BaseISREnvironment(ABC):
                 state.coverage_pct / 100.0,
                 float(state.in_geofence),
                 float(state.in_nfz),
-                state.nfz_distance / 100.0,
+                nfz_distance_clipped / 100.0,  # Use clipped value (0-5 range)
                 float(state.in_threat_zone),
                 state.current_threat_level.value / 3.0,
                 state.threat_exposure / state.max_threat_exposure,

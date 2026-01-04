@@ -56,6 +56,10 @@ class CommsDeniedConfig(EnvironmentConfig):
     poi_positions: List[np.ndarray] = field(default_factory=list)
     num_random_pois: int = 15  # If poi_positions empty
 
+    # Mission tasking (operator-provided, or auto-generated)
+    # If None, a default tasking is generated based on surveillance_area_size
+    mission_tasking: Optional[Any] = None  # MissionTasking object
+
 
 @dataclass
 class POI:
@@ -111,6 +115,36 @@ class CommsDeniedSurveillanceEnv(BaseISREnvironment):
         import random as py_random
         import sys
 
+        # Import mission tasking system
+        from .mission_tasking import (
+            MissionTasking, create_comms_denied_tasking,
+            generate_poi_distribution_from_tasking, TargetType
+        )
+
+        # Create or use provided mission tasking
+        if self.config.mission_tasking is not None:
+            self.mission_tasking = self.config.mission_tasking
+        else:
+            # Generate default tasking based on surveillance area
+            # Create two NAIs within the surveillance area
+            half_size = self.config.surveillance_area_size / 2
+            primary_center = (half_size * 0.4, half_size * 0.3)  # Offset from center
+            secondary_center = (-half_size * 0.3, half_size * 0.4)
+
+            self.mission_tasking = create_comms_denied_tasking(
+                surveillance_center=primary_center,
+                surveillance_radius=half_size * 0.4,
+                secondary_area=secondary_center,
+                expected_comms_loss_time=self.config.comms_denial_time,
+            )
+
+        # Log the mission tasking
+        print("\n" + "=" * 60)
+        print("MISSION TASKING RECEIVED")
+        print("=" * 60)
+        print(self.mission_tasking.to_natural_language())
+        print("=" * 60 + "\n")
+
         # Initialize coverage grid
         grid_size = int(self.config.surveillance_area_size / self.grid_resolution)
         self.coverage_grid = np.zeros((grid_size, grid_size), dtype=bool)
@@ -147,29 +181,89 @@ class CommsDeniedSurveillanceEnv(BaseISREnvironment):
                 self.world_gen.generate_terrain()
                 self.world_gen.setup_lighting()
 
+                # Register drone spawn position as exclusion zone BEFORE generating trees
+                # This prevents trees from spawning on top of the drone
+                from flyby.world_generator.spawners.base_spawner import BaseSpawner
+                spawn_pos = self.config.spawn_position
+                drone_exclusion_radius = 10.0  # 10m clearance around spawn point
+                BaseSpawner.clear_position_registry()  # Clear any stale positions
+                # Register at spawn (x, y) with large radius to prevent trees there
+                # Note: We use a static method via the class directly
+                from flyby.world_generator.spawners import base_spawner
+                base_spawner._global_positions.append((spawn_pos[0], spawn_pos[1], drone_exclusion_radius))
+                print(f"  [WorldGen] Registered drone exclusion zone at ({spawn_pos[0]:.1f}, {spawn_pos[1]:.1f}) radius {drone_exclusion_radius}m")
+
                 # Generate forest/vegetation for realistic ISR environment
+                # Density = trees per 100m². For 500m x 500m area:
+                # density=0.3 gives 750 trees (sparse forest for testing)
+                # Note: Tree type keys must be capitalized to match DEFAULT_TREES
                 self.world_gen.generate_forest(
-                    density=0.6,  # Higher tree density for realistic forest
-                    proportions={"pine": 0.4, "birch": 0.3, "spruce": 0.3},
+                    density=0.3,  # Sparse forest: 0.3 trees per 100m² = 750 trees total
+                    proportions={"Pine": 40, "Birch": 30, "Spruce": 30},
                 )
 
-                # Generate POI clusters (realistic groupings of vehicles/people)
-                num_clusters = py_random.randint(3, 6)
-                clusters = self.world_gen.spawn_poi_clusters(
-                    num_clusters=num_clusters,
-                    targets_per_cluster=(3, 8),
-                    cluster_radius=30.0,
+                # Generate POI distribution based on mission tasking
+                # POIs are clustered near NAIs with spread based on intel confidence
+                poi_distribution = generate_poi_distribution_from_tasking(
+                    self.mission_tasking,
+                    seed=py_random.randint(0, 999999),
                 )
 
-                # Convert clusters to POI objects for reward tracking
+                print(f"  [WorldGen] Spawning {len(poi_distribution)} targets based on mission tasking")
+
+                # Group POIs by NAI for cluster spawning
+                nai_targets = {}
+                unknown_targets = []
+                for poi_data in poi_distribution:
+                    nai_id = poi_data.get("nai_id", "UNKNOWN")
+                    if nai_id == "UNKNOWN":
+                        unknown_targets.append(poi_data)
+                    else:
+                        if nai_id not in nai_targets:
+                            nai_targets[nai_id] = []
+                        nai_targets[nai_id].append(poi_data)
+
+                # Spawn targets for each NAI cluster
                 self.pois = []
-                for cluster in clusters:
-                    for target in cluster['targets']:
-                        # Position is stored in cluster center + offset
-                        # We need to get actual prim position
-                        prim_path = target['path']
+                import omni.isaac.core.utils.prims as prim_utils
+
+                for nai_id, targets in nai_targets.items():
+                    # Find the NAI center
+                    nai = next((n for n in self.mission_tasking.nais if n.id == nai_id), None)
+                    if nai is None:
+                        continue
+
+                    print(f"    NAI {nai_id}: {len(targets)} targets near ({nai.center[0]:.0f}, {nai.center[1]:.0f})")
+
+                    # Spawn each target
+                    for i, target_data in enumerate(targets):
+                        pos = target_data["position"]
+                        target_type = target_data["type"]
+
+                        # Decide whether to spawn vehicle or person based on type
+                        if target_type in ["MILITARY_VEHICLE", "VEHICLE", "CIVILIAN_VEHICLE"]:
+                            # Spawn vehicle
+                            vehicle_types = ["tank", "tank2", "sedan", "suv"] if target_type == "MILITARY_VEHICLE" else ["sedan", "suv", "taxi"]
+                            vtype = py_random.choice(vehicle_types)
+                            try:
+                                prim_path = self.world_gen.vehicles.spawn_vehicle(
+                                    vtype, position=(pos[0], pos[1])
+                                )
+                            except Exception as e:
+                                print(f"      Failed to spawn vehicle: {e}")
+                                continue
+                        else:
+                            # Spawn person
+                            try:
+                                prim_path = self.world_gen.people.spawn_person(
+                                    position=(pos[0], pos[1])
+                                )
+                            except Exception as e:
+                                print(f"      Failed to spawn person: {e}")
+                                continue
+
+                        # Get actual position from prim
                         try:
-                            import omni.isaac.core.utils.prims as prim_utils
                             translate = prim_utils.get_prim_property(prim_path, "xformOp:translate")
                             if translate:
                                 self.pois.append(POI(
@@ -177,14 +271,35 @@ class CommsDeniedSurveillanceEnv(BaseISREnvironment):
                                     position=np.array([translate[0], translate[1], 0.0]),
                                 ))
                         except Exception:
-                            # Fallback: use cluster center
                             self.pois.append(POI(
                                 id=prim_path,
-                                position=np.array([cluster['center'][0],
-                                                  cluster['center'][1], 0.0]),
+                                position=np.array([pos[0], pos[1], 0.0]),
                             ))
 
-                print(f"  World generator: {num_clusters} clusters, {len(self.pois)} POIs")
+                # Spawn "surprise" targets outside NAIs
+                if unknown_targets:
+                    print(f"    Surprise targets: {len(unknown_targets)} in unexpected locations")
+                    for target_data in unknown_targets:
+                        pos = target_data["position"]
+                        try:
+                            # Randomly vehicle or person
+                            if py_random.random() > 0.5:
+                                prim_path = self.world_gen.vehicles.spawn_vehicle(
+                                    py_random.choice(["sedan", "suv"]),
+                                    position=(pos[0], pos[1])
+                                )
+                            else:
+                                prim_path = self.world_gen.people.spawn_person(
+                                    position=(pos[0], pos[1])
+                                )
+                            self.pois.append(POI(
+                                id=prim_path,
+                                position=np.array([pos[0], pos[1], 0.0]),
+                            ))
+                        except Exception:
+                            pass
+
+                print(f"  [WorldGen] Spawned {len(self.pois)} total POIs from mission tasking")
 
             except ImportError:
                 print("  World generator not available, using random POIs")

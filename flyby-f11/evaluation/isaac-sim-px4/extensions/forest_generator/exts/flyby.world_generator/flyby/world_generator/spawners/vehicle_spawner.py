@@ -52,7 +52,7 @@ DEFAULT_VEHICLES = {
         usd_path="vehicles/glb/NormalCar1.glb",
         category="civilian",
         base_scale=2.25,
-        # No rotation offset needed - model imports correctly
+        rotation_offset=(90, 0, 0),  # Verified: +90 X to bring wheels down
     ),
     "sedan2": VehicleConfig(
         usd_path="vehicles/glb/NormalCar2.glb",
@@ -91,29 +91,30 @@ DEFAULT_VEHICLES = {
         # No rotation offset needed - model imports correctly
     ),
     # Military vehicles - scale ~1.0 (0.85 * 1.15 ≈ 0.98)
-    # Tank.glb imports correctly, but Tank2/3/4 need 90 degree X rotation
+    # All tanks face +X instead of +Y, need +90 Z rotation to face forward
     "tank": VehicleConfig(
         usd_path="tanks/glb/Tank.glb",
         category="military",
         base_scale=1.0,
+        rotation_offset=(0, 0, 90),  # Faces +X, rotate +90 Z to face +Y (forward)
     ),
     "tank2": VehicleConfig(
         usd_path="tanks/glb/Tank2.glb",
         category="military",
         base_scale=1.0,
-        rotation_offset=(90, 0, 0),  # This model needs X rotation to stand upright
+        rotation_offset=(0, 0, 90),  # Faces +X, rotate +90 Z to face +Y (forward)
     ),
     "tank3": VehicleConfig(
         usd_path="tanks/glb/Tank3.glb",
         category="military",
         base_scale=1.0,
-        rotation_offset=(90, 0, 0),  # This model needs X rotation to stand upright
+        rotation_offset=(0, 0, 90),  # Faces +X, rotate +90 Z to face +Y (forward)
     ),
     "tank4": VehicleConfig(
         usd_path="tanks/glb/Tank4.glb",
         category="military",
         base_scale=1.0,
-        rotation_offset=(90, 0, 0),  # This model needs X rotation to stand upright
+        rotation_offset=(0, 0, 90),  # Faces +X, rotate +90 Z to face +Y (forward)
     ),
 }
 

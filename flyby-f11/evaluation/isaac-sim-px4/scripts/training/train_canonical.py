@@ -418,13 +418,18 @@ class TrainingRunner:
         total_timesteps = total_episodes * max_steps
 
         print(f"\nStarting training for {total_timesteps} timesteps...")
+        import sys
+        sys.stdout.flush()  # Force flush to see prints immediately
 
         # Train
+        print("[DEBUG] About to call model.learn()...")
+        sys.stdout.flush()
         self.agent.learn(
             total_timesteps=total_timesteps,
             callback=callbacks,
-            progress_bar=True
+            progress_bar=False  # Disable progress bar for cleaner log output
         )
+        print("[DEBUG] model.learn() returned")
 
         # Save final model
         final_path = self.checkpoint_dir / f"{self.problem}_{self.agent_type}_final"

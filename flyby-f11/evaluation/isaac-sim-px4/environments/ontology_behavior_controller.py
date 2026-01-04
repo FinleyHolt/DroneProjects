@@ -217,6 +217,172 @@ class OntologyBehaviorController:
             'vampire_confirmations': 0,
         }
 
+        # Mission tasking state
+        self._mission_tasking = None  # MissionTasking object
+        self._flight_plan: List[Dict[str, Any]] = []  # Generated waypoints
+        self._current_waypoint_idx: int = 0
+        self._nai_coverage: Dict[str, float] = {}  # Coverage per NAI
+
+    def receive_mission_tasking(self, tasking: Any) -> None:
+        """
+        Receive mission tasking from operator and generate flight plan.
+
+        This is where the ontology "reasons" about the mission and creates
+        a plan that the RL agent will execute (with continuous adjustments).
+
+        The flight plan consists of:
+        1. Takeoff to mission altitude
+        2. Transit to first NAI (highest priority)
+        3. Search pattern over each NAI (priority order)
+        4. RTL when coverage complete or battery critical
+
+        Args:
+            tasking: MissionTasking object from operator
+        """
+        from .mission_tasking import MissionTasking, NAIPriority
+
+        self._mission_tasking = tasking
+
+        # Initialize NAI coverage tracking
+        self._nai_coverage = {nai.id: 0.0 for nai in tasking.nais}
+
+        # Generate flight plan
+        self._flight_plan = []
+
+        # Step 1: Takeoff waypoint (handled by takeoff behavior)
+        self._flight_plan.append({
+            'type': 'TAKEOFF',
+            'target': np.array([0.0, 0.0, self.config.takeoff_altitude]),
+            'description': 'Takeoff to mission altitude',
+        })
+
+        # Step 2: Generate waypoints for each NAI in priority order
+        sorted_nais = sorted(tasking.nais, key=lambda n: n.priority.value)
+
+        for nai in sorted_nais:
+            # Transit waypoint to NAI center
+            transit_alt = nai.altitude_agl if nai.altitude_agl > 0 else self.config.takeoff_altitude
+            self._flight_plan.append({
+                'type': 'TRANSIT',
+                'target': np.array([nai.center[0], nai.center[1], transit_alt]),
+                'nai_id': nai.id,
+                'description': f'Transit to {nai.name}',
+            })
+
+            # Search pattern waypoints (simple grid for now, RL will optimize)
+            # Generate a basic search pattern the RL can use as guidance
+            search_waypoints = self._generate_search_pattern(nai)
+            for i, wp in enumerate(search_waypoints):
+                self._flight_plan.append({
+                    'type': 'SEARCH',
+                    'target': wp,
+                    'nai_id': nai.id,
+                    'description': f'Search {nai.name} ({i+1}/{len(search_waypoints)})',
+                    'required_coverage': nai.required_coverage,
+                })
+
+        # Step 3: RTL waypoint
+        self._flight_plan.append({
+            'type': 'RTL',
+            'target': tasking.launch_position.copy(),
+            'description': 'Return to launch',
+        })
+
+        self._current_waypoint_idx = 0
+
+        logger.info(f"Generated flight plan with {len(self._flight_plan)} waypoints:")
+        for i, wp in enumerate(self._flight_plan):
+            logger.info(f"  {i+1}. {wp['type']}: {wp['description']}")
+
+    def _generate_search_pattern(self, nai: Any) -> List[np.ndarray]:
+        """
+        Generate search pattern waypoints for an NAI.
+
+        Currently uses a simple expanding square pattern. The RL agent
+        will learn to deviate from this based on detections.
+
+        Args:
+            nai: NamedAreaOfInterest to search
+
+        Returns:
+            List of waypoint positions [x, y, z]
+        """
+        waypoints = []
+        center = nai.center
+        radius = nai.radius
+        altitude = nai.altitude_agl if nai.altitude_agl > 0 else self.config.takeoff_altitude
+
+        # Simple expanding square pattern
+        # RL will learn to optimize this based on detections
+        spacing = radius / 3  # 3 passes across the area
+
+        # Start at center
+        waypoints.append(np.array([center[0], center[1], altitude]))
+
+        # Expanding square
+        for ring in range(1, 4):
+            offset = spacing * ring
+            # Four corners of the square
+            corners = [
+                (center[0] - offset, center[1] - offset),
+                (center[0] + offset, center[1] - offset),
+                (center[0] + offset, center[1] + offset),
+                (center[0] - offset, center[1] + offset),
+            ]
+            for cx, cy in corners:
+                # Clamp to NAI radius
+                dx, dy = cx - center[0], cy - center[1]
+                dist = np.sqrt(dx**2 + dy**2)
+                if dist > radius:
+                    scale = radius / dist
+                    cx = center[0] + dx * scale
+                    cy = center[1] + dy * scale
+                waypoints.append(np.array([cx, cy, altitude]))
+
+        return waypoints
+
+    def get_current_waypoint(self) -> Optional[Dict[str, Any]]:
+        """Get the current target waypoint from the flight plan."""
+        if not self._flight_plan or self._current_waypoint_idx >= len(self._flight_plan):
+            return None
+        return self._flight_plan[self._current_waypoint_idx]
+
+    def advance_waypoint(self) -> bool:
+        """
+        Advance to the next waypoint in the flight plan.
+
+        Returns:
+            True if advanced, False if plan complete
+        """
+        if self._current_waypoint_idx < len(self._flight_plan) - 1:
+            self._current_waypoint_idx += 1
+            return True
+        return False
+
+    def update_nai_coverage(self, nai_id: str, coverage: float) -> None:
+        """Update coverage for a specific NAI."""
+        if nai_id in self._nai_coverage:
+            self._nai_coverage[nai_id] = max(self._nai_coverage[nai_id], coverage)
+
+    def get_mission_progress(self) -> Dict[str, Any]:
+        """Get current mission progress metrics."""
+        if not self._mission_tasking:
+            return {'status': 'NO_TASKING'}
+
+        total_coverage = 0.0
+        nai_count = len(self._mission_tasking.nais)
+        if nai_count > 0:
+            total_coverage = sum(self._nai_coverage.values()) / nai_count
+
+        return {
+            'status': 'IN_PROGRESS',
+            'waypoint_idx': self._current_waypoint_idx,
+            'total_waypoints': len(self._flight_plan),
+            'nai_coverage': self._nai_coverage.copy(),
+            'total_coverage': total_coverage,
+            'target_coverage': self._mission_tasking.overall_coverage_target,
+        }
+
     def _check_vampire_available(self) -> bool:
         """Check if Vampire theorem prover is available."""
         import shutil

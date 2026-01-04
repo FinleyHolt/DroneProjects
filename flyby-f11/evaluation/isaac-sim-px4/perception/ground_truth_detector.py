@@ -83,7 +83,14 @@ class GroundTruthConfig:
 
     def __post_init__(self):
         if self.camera_params is None:
-            self.camera_params = CameraParams()
+            # Use Isaac Sim defaults for GT to match viewport camera
+            # Focal length 4.5mm, default aperture gives ~133° FOV
+            self.camera_params = CameraParams.from_isaac_sim(
+                focal_length=4.5,
+                horizontal_aperture=20.955,
+                near_clip=0.1,
+                far_clip=500.0,
+            )
 
         if self.class_config is None:
             self.class_config = {

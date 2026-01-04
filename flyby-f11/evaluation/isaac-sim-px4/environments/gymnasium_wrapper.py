@@ -211,8 +211,11 @@ class IsaacSimGymWrapper(gym.Env):
         super().reset(seed=seed)
         self._step_count = 0
 
+        print("[Gymnasium] reset() called, calling isaac_env.reset()...")
         state = self.isaac_env.reset(seed=seed)
+        print(f"[Gymnasium] isaac_env.reset() done, state.position = {state.position}")
         obs = self._state_to_obs(state)
+        print(f"[Gymnasium] obs shape = {obs.shape}, has NaN = {np.any(np.isnan(obs))}, has Inf = {np.any(np.isinf(obs))}")
 
         # Reset ontology controller for new episode
         self.ontology_controller.reset()
@@ -220,12 +223,20 @@ class IsaacSimGymWrapper(gym.Env):
         self._ontology_preempting = False
         self._active_behavior = None
 
+        # Pass mission tasking to ontology controller if available
+        # This enables the ontology to generate a flight plan
+        if hasattr(self.isaac_env, 'mission_tasking') and self.isaac_env.mission_tasking is not None:
+            self.ontology_controller.receive_mission_tasking(self.isaac_env.mission_tasking)
+            print("[Gymnasium] Mission tasking passed to ontology controller")
+
         info = {
             "raw_state": state,
             "step": 0,
             "ontology_preempting": False,
             "ontology_behavior": None,
+            "mission_progress": self.ontology_controller.get_mission_progress(),
         }
+        print("[Gymnasium] reset() complete, returning observation")
         return obs, info
 
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict]:
@@ -241,13 +252,23 @@ class IsaacSimGymWrapper(gym.Env):
         2. RL only controls when all safety axioms are satisfied
         3. Smooth handoff between RL and ontology behaviors
         """
+        import sys
         self._step_count += 1
+        if self._step_count <= 5 or self._step_count % 100 == 0:
+            print(f"[Gymnasium] step {self._step_count}, action = {action}")
+            sys.stdout.flush()
 
         # Get current state for ontology check
         current_state = self.isaac_env.uav_state
 
         # === ONTOLOGY CHECK: Does ontology need to preempt RL? ===
         behavior_command = self.ontology_controller.update(current_state)
+
+        # Debug: Log ontology check results for first few steps
+        if self._step_count <= 10 or self._step_count % 500 == 0:
+            alt = current_state.position[2]
+            print(f"  [Ontology] step={self._step_count}, alt={alt:.2f}m, command={behavior_command.behavior.name if behavior_command else 'None'}")
+            sys.stdout.flush()
 
         if behavior_command is not None and behavior_command.preempts_rl:
             # Ontology is preempting RL
@@ -258,6 +279,11 @@ class IsaacSimGymWrapper(gym.Env):
             # Execute ontology-commanded behavior instead of RL action
             ontology_action = self.behavior_executor.execute(behavior_command, current_state)
             effective_action = ontology_action
+
+            # Debug: Show ontology override
+            if self._step_count <= 10:
+                print(f"  [Ontology OVERRIDE] Using ontology action: {ontology_action}")
+                sys.stdout.flush()
         else:
             # RL has control (within safety constraints)
             self._ontology_preempting = False

@@ -1,14 +1,100 @@
-# Isaac Sim 5.1.0 + PX4 + Pegasus Simulator
+# Flyby F-11 Autonomous ISR Evaluation Environment
 
-Photorealistic drone simulation using NVIDIA Isaac Sim 5.1.0, PX4 Autopilot v1.14.3, and Pegasus Simulator v5.1.0.
+Photorealistic drone simulation for autonomous ISR mission training and evaluation using NVIDIA Isaac Sim 5.1.0, PX4 Autopilot v1.14.3, and Pegasus Simulator v5.1.0.
 
 ## Overview
 
-This setup provides:
+This environment provides a complete pipeline for training and validating autonomous ISR agents:
+
 - **Isaac Sim 5.1.0**: Photorealistic simulation with PhysX 5, ray-traced rendering
 - **Pegasus 5.1.0**: Drone-specific extensions for Isaac Sim
 - **PX4 v1.14.3**: Production-grade autopilot (Pegasus recommended version)
-- **Podman**: Rootless containers with GPU passthrough
+- **Dual-Mode Perception**: Ground truth (fast training) + YOLO (E2E validation)
+- **Ontology Safety Shielding**: Formal axiom-based action filtering
+- **Reinforcement Learning**: SAC/PPO/TD3 via Stable Baselines3
+
+## System Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    AUTONOMOUS ISR TRAINING PIPELINE                       │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  ┌─────────────┐     ┌──────────────────┐     ┌───────────────┐         │
+│  │  Mission    │────►│ Ontology Behavior│────►│ Preempts RL   │         │
+│  │  Tasking    │     │ Controller       │     │ when safety   │         │
+│  │  (NAIs)     │     │ (Axiom-driven)   │     │ violated      │         │
+│  └─────────────┘     └────────┬─────────┘     └───────┬───────┘         │
+│                               │                        │                 │
+│                               ▼                        │                 │
+│  ┌─────────────┐     ┌────────────────┐               │                 │
+│  │ Procedural  │◄───►│   RL Agent     │◄──────────────┘                 │
+│  │ World Gen   │     │   (SAC Policy) │                                  │
+│  │ (Forests,   │     └────────┬───────┘                                  │
+│  │  Targets)   │              │                                          │
+│  └──────┬──────┘              │                                          │
+│         │                     ▼                                          │
+│         │      ┌──────────────────────────────────┐                     │
+│         │      │     DUAL-MODE PERCEPTION          │                     │
+│         │      ├─────────────┬────────────────────┤                     │
+│         │      │  GT Mode    │    Full Mode       │                     │
+│         │      │ (Training)  │ (E2E Validation)   │                     │
+│         │      │ Frustum     │ YOLO + ByteTrack   │                     │
+│         │      │ 1000+ Hz    │ ~20 Hz             │                     │
+│         │      └──────┬──────┴─────────┬──────────┘                     │
+│         │             │                │                                 │
+│         │             └────────┬───────┘                                 │
+│         │                      ▼                                         │
+│         │             ┌────────────────┐                                 │
+│         │             │ Safety Filter  │                                 │
+│         │             │ (Vampire ATP)  │                                 │
+│         │             └────────┬───────┘                                 │
+│         │                      │                                         │
+│         │                      ▼                                         │
+│         │             ┌────────────────┐                                 │
+│         │             │ Action Bridge  │                                 │
+│         │             │ (Z-up → NED)   │                                 │
+│         │             └────────┬───────┘                                 │
+│         │                      │                                         │
+│         │                      ▼                                         │
+│         │             ┌────────────────┐                                 │
+│         └────────────►│ PX4 Offboard   │                                 │
+│                       │ Control        │                                 │
+│                       └────────────────┘                                 │
+│                                                                          │
+│         ISAAC SIM 5.1.0 + PEGASUS 5.1.0 + PX4 v1.14.3                   │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+## Development Phases Summary
+
+| Phase | Feature | Status | Description |
+|-------|---------|--------|-------------|
+| 2 | Procedural World Gen | ✅ Complete | Terrain, forest, vehicles in proc-gen environments |
+| 3 | Ground Truth Perception | ✅ Complete | Frustum-based detection without rendering |
+| 4 | Gymnasium Wrapper | ✅ Complete | OpenAI Gym API for RL training |
+| 5 | Reward System | ✅ Complete | Coverage, POI detection, safety penalties |
+| 6 | SAC Training | ✅ Complete | Stable Baselines3 SAC agent training |
+| 7 | Safety Filter | ✅ Complete | Ontology-based action validation |
+| 8 | YOLO Integration | ✅ Complete | YOLO11 + ByteTrack perception pipeline |
+| 9 | Comms-Denied E2E | 🚧 In Progress | Full autonomous mission validation |
+
+## Canonical ISR Problems
+
+### 1. Comms-Denied Area Surveillance
+- **Mission**: Surveillance of 500m×500m area for 15 minutes without comms
+- **Environment**: `environments/comms_denied_env.py`
+- **Success Criteria**: Coverage ≥85%, POI ≥10, Safe RTL, Battery ≥15%
+
+### 2. Dynamic NFZ Avoidance
+- **Mission**: 3km point-to-point transit with NFZ activation at T+3min
+- **Environment**: `environments/dynamic_nfz_env.py`
+- **Status**: Defined, not tested
+
+### 3. Multi-Objective ISR
+- **Mission**: 8 targets with varying priorities, threat zone avoidance
+- **Environment**: `environments/multi_objective_env.py`
+- **Status**: Defined, not tested
 
 ## Prerequisites
 
@@ -50,96 +136,135 @@ podman pull nvcr.io/nvidia/isaac-sim:5.1.0
 
 ```bash
 cd flyby-f11/evaluation/isaac-sim-px4
-podman build -t isaac-sim-px4:5.1.0 .
+
+# Build with canonical image tag
+podman build -t localhost/isaac-sim-px4:5.1.0-px4-1.14.3 .
 ```
 
-Build takes ~30 minutes (PX4 compilation).
+Build takes ~30 minutes (PX4 compilation + shader warmup).
 
-### 3. Run the Simulation
+### 3. Run Phase Tests
 
 ```bash
-# Allow X11 access (required for GUI)
+# Allow X11 access (for GUI mode)
 xhost +local:
 
-# Start container with GPU passthrough
-podman run -d --name px4-sim \
-  --device nvidia.com/gpu=all \
-  -e DISPLAY=$DISPLAY \
-  -e ACCEPT_EULA=Y \
-  -e PRIVACY_CONSENT=Y \
-  -e OMNI_KIT_ACCEPT_EULA=YES \
-  -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-  --network host \
-  --ipc host \
-  --security-opt label=disable \
-  isaac-sim-px4:5.1.0
+# Run Phase 2: Procedural world generation test
+./scripts/run_phase_test.sh 2
 
-# Run the flight mission script
-podman exec px4-sim bash -c \
-  'export PYTHONPATH=/pegasus/extensions/pegasus.simulator:$PYTHONPATH && \
-   /isaac-sim/python.sh /workspace/scripts/fly_mission.py'
+# Run Phase 8: YOLO perception test
+./scripts/run_phase_test.sh 8
+
+# Run headless
+./scripts/run_phase_test.sh 6 --headless
 ```
 
-### 4. Expected Output
-
-```
-============================================================
-Isaac Sim + PX4 Autonomous Flight Demo
-============================================================
-
-[1/5] Initializing Isaac Sim...
-  Isaac Sim ready
-
-[2/5] Loading Pegasus extension...
-  Pegasus loaded
-
-[3/5] Setting up world...
-  Environment loaded
-
-[4/5] Spawning Iris with PX4...
-  PX4 path: /isaac-sim/PX4-Autopilot
-  PX4 airframe: gazebo-classic_iris
-  Iris spawned
-
-[5/5] Starting simulation loop...
-============================================================
-Simulation running! Watch the drone:
-  1. Wait for PX4 ready
-  2. Arm
-  3. Takeoff to 2.5m
-  4. Hover for 10 seconds
-  5. Land
-Press Ctrl+C to stop.
-============================================================
-
-step=  120 | State: INIT       | Pos: [ 0.00, 0.00, 0.05]
-step=  240 | State: INIT       | Pos: [ 0.00, 0.00, 0.05]
-
->>> Waiting for PX4 ready...
->>> Sending arm command...
->>> Sending takeoff command...
-step=  720 | State: TAKEOFF    | Pos: [ 0.00, 0.00, 0.05]
-step=  960 | State: HOVER      | Pos: [ 0.11, 0.09, 0.95]
-step= 1200 | State: HOVER      | Pos: [-0.10,-0.01, 2.34]
-step= 1440 | State: HOVER      | Pos: [-0.03, 0.04, 2.52]
->>> Sending land command...
-step= 1680 | State: LAND       | Pos: [ 0.00, 0.02, 1.51]
-step= 1920 | State: LAND       | Pos: [-0.02, 0.02, 0.05]
->>> Flight complete!
->>> Simulation will continue. Press Ctrl+C to exit.
-```
-
-## Complete Workflow Commands
-
-### Container Management
+### 4. Train SAC Agent
 
 ```bash
-# Build container
-podman build -t isaac-sim-px4:5.1.0 .
+./run_training.sh
+```
 
+## Container Configuration
+
+**Canonical Image Tag**: `localhost/isaac-sim-px4:5.1.0-px4-1.14.3`
+
+All scripts in this project use this single image tag. Do not use other tags.
+
+### Container Contents
+
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| Isaac Sim | 5.1.0 | Photorealistic simulation |
+| Pegasus Simulator | v5.1.0 | Drone extensions |
+| PX4 Autopilot | v1.14.3 | Flight controller |
+| YOLO11 | ultralytics | Object detection |
+| Stable Baselines3 | latest | RL algorithms |
+| Gymnasium | latest | RL environment API |
+| GCC | 12 | PX4 compilation |
+
+### Environment Variables
+
+| Variable | Value | Purpose |
+|----------|-------|---------|
+| `ISAACSIM_PATH` | `/isaac-sim` | Isaac Sim installation |
+| `PEGASUS_PATH` | `/pegasus` | Pegasus Simulator |
+| `PX4_HOME` | `/px4` | PX4 Autopilot |
+| `YOLO_MODEL_PATH` | `/workspace/models/yolo11x.pt` | YOLO weights |
+
+### Exposed Ports
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 14540 | UDP/MAVLink | PX4 SITL default |
+| 14550 | UDP/MAVLink | QGroundControl |
+| 18570 | TCP | Lockstep synchronization |
+
+## Directory Structure
+
+```
+isaac-sim-px4/
+├── Containerfile              # Container build definition
+├── README.md                  # This file
+├── run_training.sh            # SAC training launcher
+├── yolo11x.pt                 # YOLO model weights (114MB)
+├── config/
+│   └── canonical_missions.yaml # Mission configurations
+├── environments/
+│   ├── base_isr_env.py        # Base environment class
+│   ├── comms_denied_env.py    # Comms-denied scenario
+│   ├── dynamic_nfz_env.py     # Dynamic NFZ scenario
+│   ├── multi_objective_env.py # Multi-objective scenario
+│   ├── gymnasium_wrapper.py   # Gym API wrapper
+│   ├── action_bridge.py       # Z-up → NED conversion
+│   ├── safety_filter.py       # Vampire ATP integration
+│   ├── ontology_behavior_controller.py # Axiom-driven behaviors
+│   └── mission_tasking.py     # Operator tasking system
+├── perception/
+│   ├── detector.py            # YOLO detector wrapper
+│   ├── ground_truth_detector.py # Frustum-based detector
+│   ├── dual_mode_perception.py # GT/Full mode switching
+│   └── frustum.py             # Camera frustum math
+├── scripts/
+│   ├── phase2_procgen_test.py # Procedural world test
+│   ├── phase3_camera_gt_test.py # Ground truth perception
+│   ├── phase4_gymnasium_test.py # Gym wrapper test
+│   ├── phase5_reward_test.py  # Reward function test
+│   ├── phase6_sac_test.py     # SAC training test
+│   ├── phase7_safety_test.py  # Safety filter test
+│   ├── phase8_yolo_test.py    # YOLO perception test
+│   ├── run_phase_test.sh      # Unified test runner
+│   └── training/
+│       └── train_canonical.py # Full training script
+├── extensions/
+│   └── forest_generator/      # Procedural forest extension
+├── tests/
+│   └── test_integration.py    # Integration tests
+├── logs/                      # Training logs (gitignored)
+├── checkpoints/               # Model checkpoints (gitignored)
+└── output/                    # Test outputs (gitignored)
+```
+
+## Running Scripts
+
+### Using run_phase_test.sh (Recommended)
+
+```bash
+# Run any phase test with consistent container settings
+./scripts/run_phase_test.sh <phase_number> [options]
+
+# Examples:
+./scripts/run_phase_test.sh 2              # Phase 2 with GUI
+./scripts/run_phase_test.sh 6 --headless   # Phase 6 headless
+./scripts/run_phase_test.sh 8 --save-images # Phase 8 with image output
+```
+
+### Manual Container Management
+
+```bash
 # Start container (detached)
 xhost +local:
-podman run -d --name px4-sim \
+podman run -d --name flyby-f11 \
   --device nvidia.com/gpu=all \
   -e DISPLAY=$DISPLAY \
   -e ACCEPT_EULA=Y \
@@ -149,140 +274,38 @@ podman run -d --name px4-sim \
   --network host \
   --ipc host \
   --security-opt label=disable \
-  isaac-sim-px4:5.1.0
+  localhost/isaac-sim-px4:5.1.0-px4-1.14.3
 
-# Check container status
-podman ps
+# Run a script
+podman exec flyby-f11 bash -c \
+  'export PYTHONPATH=/pegasus/extensions/pegasus.simulator:$PYTHONPATH && \
+   /isaac-sim/python.sh /workspace/scripts/phase2_procgen_test.py'
 
-# View container logs
-podman logs px4-sim
-
-# Stop and remove container
-podman rm -f px4-sim
-
-# List images
-podman images | grep isaac
+# Stop container
+podman rm -f flyby-f11
 ```
 
-### Running Scripts
+### Development with Mounted Volumes
 
 ```bash
-# Run flight mission (with GUI)
-podman exec px4-sim bash -c \
-  'export PYTHONPATH=/pegasus/extensions/pegasus.simulator:$PYTHONPATH && \
-   /isaac-sim/python.sh /workspace/scripts/fly_mission.py'
-
-# Run headless (no GUI)
-podman exec px4-sim bash -c \
-  'export PYTHONPATH=/pegasus/extensions/pegasus.simulator:$PYTHONPATH && \
-   /isaac-sim/python.sh /workspace/scripts/fly_mission.py --headless'
-
-# Run official Pegasus example
-podman exec px4-sim bash -c \
-  'export PYTHONPATH=/pegasus/extensions/pegasus.simulator:$PYTHONPATH && \
-   /isaac-sim/python.sh /pegasus/examples/1_px4_single_vehicle.py'
-
-# Interactive shell inside container
-podman exec -it px4-sim bash
-```
-
-### Manual PX4 Control (while simulation is running)
-
-```bash
-# Check PX4 status
-podman exec px4-sim bash -c 'cd /px4 && build/px4_sitl_default/bin/px4-commander status'
-
-# Arm vehicle
-podman exec px4-sim bash -c 'cd /px4 && build/px4_sitl_default/bin/px4-commander arm'
-
-# Takeoff
-podman exec px4-sim bash -c 'cd /px4 && build/px4_sitl_default/bin/px4-commander takeoff'
-
-# Land
-podman exec px4-sim bash -c 'cd /px4 && build/px4_sitl_default/bin/px4-commander land'
-
-# Check vehicle position
-podman exec px4-sim bash -c 'cd /px4 && build/px4_sitl_default/bin/px4-listener vehicle_local_position'
-```
-
-### Development with Mounted Scripts
-
-```bash
-# Mount local scripts directory for live editing
-podman run -d --name px4-dev \
+# Mount local directories for live editing
+podman run -d --name flyby-f11-dev \
   --device nvidia.com/gpu=all \
   -e DISPLAY=$DISPLAY \
   -e ACCEPT_EULA=Y \
-  -e PRIVACY_CONSENT=Y \
-  -e OMNI_KIT_ACCEPT_EULA=YES \
   -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
   -v $(pwd)/scripts:/workspace/scripts:z \
+  -v $(pwd)/environments:/workspace/environments:z \
+  -v $(pwd)/perception:/workspace/perception:z \
   --network host \
-  --ipc host \
-  --security-opt label=disable \
-  isaac-sim-px4:5.1.0
-
-# Edit scripts locally, then run:
-podman exec px4-dev bash -c \
-  'export PYTHONPATH=/pegasus/extensions/pegasus.simulator:$PYTHONPATH && \
-   /isaac-sim/python.sh /workspace/scripts/fly_mission.py'
+  localhost/isaac-sim-px4:5.1.0-px4-1.14.3
 ```
 
-## Architecture
+## Key Technical Details
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Isaac Sim Container                       │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────────┐ │
-│  │ Isaac Sim   │    │  Pegasus    │    │   PX4 SITL      │ │
-│  │ 5.1.0       │◄──►│  Simulator  │◄──►│   v1.14.3       │ │
-│  │ (Rendering) │    │  v5.1.0     │    │   (Autopilot)   │ │
-│  └─────────────┘    └─────────────┘    └─────────────────┘ │
-│         │                  │                    │           │
-│         │          TCP 4560 (lockstep)         │           │
-│         │          HIL_SENSOR ──────►          │           │
-│         │          ◄────── HIL_ACTUATOR        │           │
-│         │                                       │           │
-│         │                           UDP 14550   │           │
-│         │                           (MAVLink)   │           │
-└─────────────────────────────────────────────────────────────┘
-```
+### PX4 Simulation Loop
 
-### Communication Channels
-
-| Channel | Port | Protocol | Purpose |
-|---------|------|----------|---------|
-| Lockstep | TCP 4560 | HIL MAVLink | Sensor data & actuator commands |
-| GCS | UDP 14550 | MAVLink | QGroundControl connection |
-| SITL | UDP 14540 | MAVLink | PX4 default SITL port |
-| Offboard | UDP 18570 | MAVLink | Additional MAVLink |
-
-## Key Technical Findings
-
-### 1. Ubuntu Version Compatibility
-
-**Isaac Sim 5.1.0 supports both Ubuntu 22.04 and 24.04** according to [NVIDIA documentation](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/requirements.html). The official container image is based on Ubuntu 24.04.
-
-**Pegasus Simulator was tested on Ubuntu 22.04** per [Pegasus docs](https://pegasussimulator.github.io/PegasusSimulator/source/setup/installation.html), but works correctly on Ubuntu 24.04 with proper configuration.
-
-### 2. PX4 Version and Compiler Requirements
-
-**PX4 v1.14.3 is required** - This is the version recommended by Pegasus Simulator. Newer versions (v1.15+, v1.16) have protocol changes that break compatibility.
-
-**GCC 12 is required on Ubuntu 24.04** - PX4 v1.14.3 fails to compile with GCC 13/14 (Ubuntu 24.04 defaults) due to:
-- Missing `#include <cstdint>` in some files
-- Stricter array bounds warnings treated as errors
-
-The Containerfile sets:
-```dockerfile
-ENV CC=/usr/bin/gcc-12
-ENV CXX=/usr/bin/g++-12
-```
-
-### 3. Simulation Loop Requirements
-
-**Critical: The simulation must step continuously without blocking calls.**
+**Critical**: The simulation must step continuously without blocking calls.
 
 ```python
 # WRONG - causes poll timeouts, PX4 starved of sensor data
@@ -295,98 +318,33 @@ while step_count < STEPS_TO_WAIT:
     step_count += 1
 ```
 
-Blocking calls cause:
-```
-ERROR [simulator_mavlink] poll timeout 0, 25
-```
+### Coordinate Frame Conversion
 
-### 4. Command Interfaces
+| Frame | Convention | +X | +Y | +Z |
+|-------|-----------|----|----|-----|
+| Isaac Sim | Z-up (ENU-like) | East | North | Up |
+| PX4 MAVLink | NED | North | East | Down |
 
-There are **two different ways** to control PX4:
+The `ActionBridge` handles conversion automatically.
 
-| Interface | Method | Use Case | Works in Script? |
-|-----------|--------|----------|------------------|
-| PX4 Commander CLI | Internal IPC | Arm/takeoff/land | Yes (threaded) |
-| MAVLink UDP | External GCS | QGroundControl | Limited from script |
-| Lockstep TCP | HIL protocol | Sensor/actuator | Handled by Pegasus |
+### Ontology Safety Behaviors
 
-**PX4 Commander CLI is the reliable method for script control:**
-```python
-import subprocess
-import threading
+| Axiom | Priority | Trigger | Behavior |
+|-------|----------|---------|----------|
+| `batteryReserveReturn` | HIGH | battery < reserve | RTL |
+| `criticalBattery` | CRITICAL | battery < 15% | EMERGENCY_LAND |
+| `geofenceViolation` | HIGH | outside bounds | GEOFENCE_RECOVERY |
+| `noFlyZoneViolation` | CRITICAL | inside NFZ | HOVER |
+| `minPersonDistance` | CRITICAL | person < 10m | HOVER |
 
-def px4_cmd_async(cmd_args):
-    """Execute PX4 commander in background thread."""
-    def run():
-        subprocess.run(
-            ["/px4/build/px4_sitl_default/bin/px4-commander"] + cmd_args.split(),
-            cwd="/px4",
-            timeout=10
-        )
-    threading.Thread(target=run, daemon=True).start()
+### Dual-Mode Perception
 
-# Usage
-px4_cmd_async("arm")
-px4_cmd_async("takeoff")
-px4_cmd_async("land")
-```
+| Mode | Detector | Input | Performance | Use Case |
+|------|----------|-------|-------------|----------|
+| GT | GroundTruthDetector | Frustum math | 1000+ Hz | Fast RL training |
+| Full | YOLODetector | Camera images | ~20 Hz | E2E validation |
 
-**Important:** Subprocess calls must run in background threads to avoid blocking the simulation loop and causing glibc pthread assertion errors.
-
-### 5. Pegasus Configuration
-
-Pegasus reads configuration from `/pegasus/extensions/pegasus.simulator/config/configs.yaml`:
-```yaml
-px4_dir: ~/PX4-Autopilot
-px4_default_airframe: gazebo-classic_iris
-```
-
-The `~` expands to `/isaac-sim` (isaac-sim user's home). The Containerfile creates a symlink:
-```dockerfile
-RUN ln -sfn ${PX4_HOME} /isaac-sim/PX4-Autopilot
-```
-
-Use `PegasusInterface()` to access these paths:
-```python
-from pegasus.simulator.logic.interface.pegasus_interface import PegasusInterface
-pg = PegasusInterface()
-print(pg.px4_path)            # /isaac-sim/PX4-Autopilot
-print(pg.px4_default_airframe)  # gazebo-classic_iris
-```
-
-### 6. PYTHONPATH for Pegasus
-
-Pegasus is not in Isaac Sim's Python path by default:
-```bash
-export PYTHONPATH=/pegasus/extensions/pegasus.simulator:$PYTHONPATH
-/isaac-sim/python.sh your_script.py
-```
-
-Or in Python:
-```python
-import sys
-sys.path.insert(0, "/pegasus/extensions/pegasus.simulator")
-```
-
-## File Structure
-
-```
-isaac-sim-px4/
-├── Containerfile           # Container build definition
-├── README.md              # This file
-└── scripts/
-    └── fly_mission.py     # Working flight demo script
-```
-
-## Container Details
-
-| Component | Version | Notes |
-|-----------|---------|-------|
-| Base Image | nvcr.io/nvidia/isaac-sim:5.1.0 | Ubuntu 24.04 |
-| PX4 Autopilot | v1.14.3 | Pegasus recommended |
-| Pegasus Simulator | v5.1.0 | Matches Isaac Sim version |
-| GCC | 12 | Required for PX4 build on Ubuntu 24.04 |
-| Python | 3.11 | Isaac Sim's embedded Python |
+Both modes produce identical 516-dimensional observations.
 
 ## Troubleshooting
 
@@ -394,79 +352,53 @@ isaac-sim-px4/
 ```
 ERROR [simulator_mavlink] poll timeout 0, 25
 ```
-**Cause:** Simulation loop is blocked, PX4 not receiving sensor data.
-**Fix:** Remove all `time.sleep()` calls, use step counting instead.
+**Cause**: Simulation loop blocked
+**Fix**: Remove `time.sleep()`, use step counting
 
 ### Arming Denied
 ```
 WARN [commander] Arming denied: Resolve system health failures first
 ```
-**Cause:** PX4 preflight checks not complete.
-**Fix:** Wait longer before arming (increase STEPS_INIT to 300+ steps).
-
-### glibc pthread Assertion Error
-```
-Fatal glibc error: tpp.c:86 (__pthread_tpp_change_priority): assertion failed
-```
-**Cause:** Blocking subprocess call in simulation thread.
-**Fix:** Run subprocess commands in background threads with `threading.Thread(daemon=True)`.
+**Cause**: PX4 preflight checks incomplete
+**Fix**: Wait longer before arming (300+ steps)
 
 ### Display Issues (GUI mode)
 ```bash
-# Allow X11 access (run on host)
+# Allow X11 access
 xhost +local:
 
-# Check DISPLAY variable
+# Check DISPLAY
 echo $DISPLAY
-
-# For Wayland, ensure XWayland is running
 ```
 
-### Isaac Sim Crashes on Start
-```bash
-# Clear shader cache and retry
-rm -rf ~/.cache/nvidia/ComputeCache
+### YOLO Model Not Found
 ```
-
-### PX4 Build Fails with GCC 13/14
+FileNotFoundError: yolo11x.pt not found
 ```
-error: 'uint8_t' was not declared in this scope
-error: array subscript 1 is above array bounds
-```
-**Cause:** PX4 v1.14.3 incompatible with newer GCC.
-**Fix:** Already handled in Containerfile (uses GCC 12).
+**Cause**: Model weights not in container
+**Fix**: Ensure `yolo11x.pt` exists before build, or mount at runtime
 
-## Flight Sequence States
+## Remaining Work
 
-The `fly_mission.py` script implements this state machine:
+### Critical
+- [ ] E2E validation with YOLO perception (GT→Full parity)
+- [ ] Test Dynamic NFZ and Multi-Objective environments
+- [ ] Demonstrate trained policy success
 
-| State | Duration | Description |
-|-------|----------|-------------|
-| INIT | 5s (300 steps) | Wait for Isaac Sim + PX4 initialization |
-| WAIT_READY | 3s (180 steps) | Wait for PX4 preflight checks |
-| ARM | 2s (120 steps) | Send arm command, wait for confirmation |
-| TAKEOFF | 6s (360 steps) | Send takeoff, climb to 2.5m |
-| HOVER | 10s (600 steps) | Hold position at altitude |
-| LAND | 10s (600 steps) | Send land command, descend |
-| DONE | Indefinite | Simulation continues running |
+### High Priority
+- [ ] Log safety filter interventions during training
+- [ ] Add unit tests for safety-critical components
+- [ ] Document E2E workflow
 
-## Next Steps
-
-Potential enhancements for future development:
-
-1. **Offboard Position Control** - Implement MAVLink SET_POSITION_TARGET for waypoint navigation
-2. **Camera Integration** - Add RGB/depth camera for perception testing
-3. **Custom F-11 USD Model** - Replace Iris with Flyby F-11 geometry
-4. **Domain Randomization** - Vary lighting, textures, obstacles for training
-5. **ROS 2 Bridge** - Connect to external ROS 2 nodes for autonomy stack testing
-6. **Multi-Vehicle** - Spawn multiple drones using Pegasus multi-vehicle examples
+### Medium Priority
+- [ ] Consolidate duplicate code across phase scripts
+- [ ] Create reusable test infrastructure module
+- [ ] Performance benchmarks
 
 ## References
 
 - [Isaac Sim 5.1.0 Documentation](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/)
-- [Isaac Sim Requirements](https://docs.isaacsim.omniverse.nvidia.com/5.1.0/installation/requirements.html)
 - [Pegasus Simulator](https://pegasussimulator.github.io/PegasusSimulator/)
-- [Pegasus Installation](https://pegasussimulator.github.io/PegasusSimulator/source/setup/installation.html)
 - [PX4 Autopilot v1.14](https://docs.px4.io/v1.14/)
-- [PX4 SITL Simulation](https://docs.px4.io/v1.14/en/simulation/)
-- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+- [Stable Baselines3](https://stable-baselines3.readthedocs.io/)
+- [Ultralytics YOLO](https://docs.ultralytics.com/)

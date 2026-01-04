@@ -206,17 +206,20 @@ class PX4ActionBridge:
             yaw_rate / self.max_yaw_rate
         ], dtype=np.float32).clip(-1.0, 1.0)
 
-    def execute_action(self, action: np.ndarray) -> bool:
+    def execute_action(self, action: np.ndarray, debug: bool = False) -> bool:
         """
         Execute normalized action through MAVLink.
 
         Args:
             action: [vx, vy, vz, yaw_rate] in [-1, 1] range
+            debug: If True, print velocity commands
 
         Returns:
             True if command sent successfully
         """
         vx, vy, vz, yaw_rate = self.action_to_velocity(action)
+        if debug:
+            print(f"  [ActionBridge] Sending vel: vx={vx:.2f}, vy={vy:.2f}, vz={vz:.2f}, yaw_rate={yaw_rate:.2f}")
         return self.send_velocity_command(vx, vy, vz, yaw_rate)
 
     def hover(self) -> bool:

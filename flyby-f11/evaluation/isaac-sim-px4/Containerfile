@@ -1,15 +1,48 @@
+# ==============================================================================
 # Isaac Sim 5.1.0 + PX4 SITL v1.14.3 + Pegasus Simulator v5.1.0
-# MVE for drone simulation with photorealistic rendering
+# Flyby F-11 Autonomous ISR Evaluation Environment
+# ==============================================================================
 #
-# Build: podman build -t isaac-sim-px4:5.1.0 .
-# Run:   podman run -d --name px4-sim --device nvidia.com/gpu=all \
-#          -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-#          --network host isaac-sim-px4:5.1.0 bash -c "sleep infinity"
+# CANONICAL IMAGE TAG: localhost/isaac-sim-px4:5.1.0-px4-1.14.3
+# This is the SINGLE image tag used across all scripts in this project.
 #
-# Exec:  podman exec px4-sim /isaac-sim/python.sh /workspace/scripts/fly_mission.py
+# Build:
+#   podman build -t localhost/isaac-sim-px4:5.1.0-px4-1.14.3 .
 #
-# Note: Isaac Sim 5.1.0 runs as rootless user (isaac-sim:1234) by default.
-# PX4 v1.14.3 is recommended by Pegasus Simulator for compatibility.
+# Run (GUI):
+#   xhost +local:
+#   podman run -d --name flyby-f11 --device nvidia.com/gpu=all \
+#     -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+#     --network host localhost/isaac-sim-px4:5.1.0-px4-1.14.3
+#
+# Run (Headless):
+#   podman run -d --name flyby-f11 --device nvidia.com/gpu=all \
+#     --network host localhost/isaac-sim-px4:5.1.0-px4-1.14.3
+#
+# Exec:
+#   podman exec flyby-f11 /isaac-sim/python.sh /workspace/scripts/phase2_procgen_test.py
+#
+# ==============================================================================
+# CONTAINER CONTENTS
+# ==============================================================================
+# - Isaac Sim 5.1.0 (NVIDIA Omniverse photorealistic simulation)
+# - Pegasus Simulator v5.1.0 (ROS 2 + Isaac Sim drone framework)
+# - PX4 Autopilot v1.14.3 SITL (software-in-the-loop flight controller)
+# - YOLO11 (ultralytics) for object detection
+# - Stable Baselines3 for reinforcement learning (SAC, PPO, TD3)
+# - ByteTrack for multi-object tracking
+# - Gymnasium environment wrapper
+#
+# ==============================================================================
+# AIR-GAP DEPLOYMENT NOTES
+# ==============================================================================
+# This container requires network access during BUILD for:
+# 1. apt-get package installation
+# 2. pip package installation
+# 3. Git clone operations (Pegasus, PX4)
+#
+# For air-gapped builds, see README.md for offline build instructions.
+# ==============================================================================
 
 FROM nvcr.io/nvidia/isaac-sim:5.1.0
 
@@ -77,6 +110,7 @@ RUN echo "isaac-sim ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 ENV ISAACSIM_PATH="/isaac-sim"
 ENV PEGASUS_PATH="/pegasus"
 ENV PX4_HOME="/px4"
+ENV YOLO_MODEL_PATH="/workspace/models/yolo11x.pt"
 
 # Clone Pegasus Simulator v5.1.0
 WORKDIR /
@@ -103,6 +137,20 @@ COPY --chown=isaac-sim:isaac-sim config/ /workspace/config/
 # Copy world generator extension
 COPY --chown=isaac-sim:isaac-sim extensions/ /workspace/extensions/
 
+# Copy perception module (YOLO detector, ByteTrack tracking, frustum culling)
+COPY --chown=isaac-sim:isaac-sim perception/ /workspace/perception/
+
+# Copy tests for in-container testing
+COPY --chown=isaac-sim:isaac-sim tests/ /workspace/tests/
+
+# Create output directories with correct ownership
+RUN mkdir -p /workspace/checkpoints /workspace/logs /workspace/output /workspace/models && \
+    chown -R isaac-sim:isaac-sim /workspace/checkpoints /workspace/logs /workspace/output /workspace/models
+
+# Copy YOLO model weights if present (114MB - required for perception pipeline)
+# If not present during build, mount at runtime: -v ./yolo11x.pt:/workspace/models/yolo11x.pt
+COPY --chown=isaac-sim:isaac-sim yolo11x.pt /workspace/models/yolo11x.pt
+
 # Switch to isaac-sim user for remaining operations
 USER isaac-sim
 
@@ -121,7 +169,10 @@ RUN /isaac-sim/python.sh -m pip install --no-cache-dir \
     gymnasium \
     "stable-baselines3[extra]" \
     tensorboard \
-    pyyaml
+    pyyaml \
+    ultralytics \
+    lap \
+    Pillow
 
 # ============================================================================
 # SHADER WARMUP - Pre-compile shaders to avoid runtime compilation overhead

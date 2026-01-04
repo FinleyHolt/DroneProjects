@@ -21,32 +21,82 @@ from scipy.spatial.transform import Rotation
 
 @dataclass
 class CameraParams:
-    """Camera intrinsic and extrinsic parameters."""
+    """Camera intrinsic and extrinsic parameters.
+
+    For Isaac Sim cameras:
+    - Focal length of 4.5mm with default horizontal aperture (20.955mm) gives ~133° FOV
+    - To match Isaac Sim, either set fov_horizontal directly or use from_isaac_sim()
+
+    For GT frustum to match viewport camera:
+    - Use the same fov_horizontal as Isaac Sim camera
+    - Pitch angle should match ViewportCameraConfig.pitch_down_degrees (default 45°)
+    """
     # Resolution
     width: int = 640
     height: int = 480
 
-    # Field of view (degrees)
-    fov_horizontal: float = 90.0
-    fov_vertical: float = 67.5  # Computed from horizontal FOV and aspect ratio
+    # Field of view (degrees) - should match Isaac Sim camera
+    # Isaac Sim default: 4.5mm focal with 20.955mm aperture ≈ 133°
+    # For ISR camera looking down at 45°, effective horizontal FOV matters
+    fov_horizontal: float = 90.0  # Conservative default; set explicitly for accuracy
+    fov_vertical: float = 0.0  # Computed from horizontal FOV and aspect ratio
 
     # Depth range (meters)
     near_clip: float = 0.5
     far_clip: float = 200.0
 
-    # Focal length (for projection)
+    # Focal length (for projection) - Isaac Sim default
     focal_length: float = 4.5  # mm
 
-    # Sensor size (for focal length based FOV)
-    sensor_width: float = 6.4  # mm (typical 1/2.3" sensor)
+    # Sensor/aperture size - Isaac Sim default horizontal aperture
+    horizontal_aperture: float = 20.955  # mm (Isaac Sim default)
 
     def __post_init__(self):
         """Compute derived parameters."""
         aspect = self.width / self.height
-        if self.fov_vertical == 67.5:  # Default, compute from horizontal
+
+        # If fov_vertical not set, compute from horizontal
+        if self.fov_vertical <= 0:
             self.fov_vertical = 2 * np.degrees(np.arctan(
                 np.tan(np.radians(self.fov_horizontal / 2)) / aspect
             ))
+
+    @classmethod
+    def from_isaac_sim(
+        cls,
+        focal_length: float = 4.5,
+        horizontal_aperture: float = 20.955,
+        width: int = 640,
+        height: int = 480,
+        near_clip: float = 0.1,
+        far_clip: float = 500.0
+    ) -> 'CameraParams':
+        """Create CameraParams matching Isaac Sim camera settings.
+
+        Args:
+            focal_length: Camera focal length in mm (default 4.5)
+            horizontal_aperture: Horizontal aperture in mm (Isaac Sim default 20.955)
+            width: Image width in pixels
+            height: Image height in pixels
+            near_clip: Near clipping plane in meters
+            far_clip: Far clipping plane in meters
+
+        Returns:
+            CameraParams with FOV computed from focal length and aperture
+        """
+        # Compute FOV from focal length and aperture
+        # FOV = 2 * atan(aperture / (2 * focal_length))
+        fov_h = 2 * np.degrees(np.arctan(horizontal_aperture / (2 * focal_length)))
+
+        return cls(
+            width=width,
+            height=height,
+            fov_horizontal=fov_h,
+            near_clip=near_clip,
+            far_clip=far_clip,
+            focal_length=focal_length,
+            horizontal_aperture=horizontal_aperture,
+        )
 
 
 @dataclass

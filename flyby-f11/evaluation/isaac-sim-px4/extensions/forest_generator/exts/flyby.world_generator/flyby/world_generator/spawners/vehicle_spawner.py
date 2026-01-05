@@ -349,14 +349,26 @@ class VehicleSpawner(BaseSpawner):
         vehicle_xform.ClearXformOpOrder()
         vehicle_xform.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(x, y, z))
 
-        # Apply rotation offset first (to fix model orientation), then heading
+        # Apply rotation offset to fix model orientation, with yaw-only heading
+        # IMPORTANT: We use a quaternion approach to ensure vehicles stay upright.
+        # The rotation_offset fixes the model's default orientation (e.g., +90 X to bring wheels down).
+        # The heading (yaw) rotates the vehicle around the WORLD Z-axis only.
+        # Order: First apply model orientation fix, then yaw around world Z.
         rx, ry, rz = cfg.rotation_offset
-        if rx != 0:
-            vehicle_xform.AddRotateXOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(rx)
-        if ry != 0:
-            vehicle_xform.AddRotateYOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(ry)
-        # Apply heading rotation (plus any Z offset from model)
-        vehicle_xform.AddRotateZOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(heading + rz)
+
+        # Compute quaternion for model orientation fix (rotation_offset)
+        qw_offset, qx_offset, qy_offset, qz_offset = self.euler_to_quaternion(rx, ry, rz)
+        q_offset = Gf.Quatd(qw_offset, qx_offset, qy_offset, qz_offset)
+
+        # Compute quaternion for yaw-only heading (rotation around world Z-axis)
+        qw_yaw, qx_yaw, qy_yaw, qz_yaw = self.euler_to_quaternion(0, 0, heading)
+        q_yaw = Gf.Quatd(qw_yaw, qx_yaw, qy_yaw, qz_yaw)
+
+        # Compose: first model offset, then yaw. In quaternion math, q_final = q_yaw * q_offset
+        # This applies offset first (in local frame), then yaw (in world frame)
+        q_final = q_yaw * q_offset
+
+        vehicle_xform.AddOrientOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(q_final)
 
         vehicle_xform.AddScaleOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(scale, scale, scale))
 

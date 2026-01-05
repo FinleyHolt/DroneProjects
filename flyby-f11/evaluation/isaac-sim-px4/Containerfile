@@ -6,7 +6,10 @@
 # CANONICAL IMAGE TAG: localhost/isaac-sim-px4:5.1.0-px4-1.14.3
 # This is the SINGLE image tag used across all scripts in this project.
 #
-# Build:
+# Build (with GPU for shader warmup - RECOMMENDED):
+#   podman build --device nvidia.com/gpu=all -t localhost/isaac-sim-px4:5.1.0-px4-1.14.3 .
+#
+# Build (without GPU - shaders will compile on first run):
 #   podman build -t localhost/isaac-sim-px4:5.1.0-px4-1.14.3 .
 #
 # Run (GUI):
@@ -28,6 +31,8 @@
 # - Isaac Sim 5.1.0 (NVIDIA Omniverse photorealistic simulation)
 # - Pegasus Simulator v5.1.0 (ROS 2 + Isaac Sim drone framework)
 # - PX4 Autopilot v1.14.3 SITL (software-in-the-loop flight controller)
+# - ROS 2 Jazzy (installed from ROS 2 packages.ros.org)
+# - Custom ROS 2 packages: flyby_msgs, flyby_perception, flyby_autonomy
 # - YOLO11 (ultralytics) for object detection
 # - Stable Baselines3 for reinforcement learning (SAC, PPO, TD3)
 # - ByteTrack for multi-object tracking
@@ -49,6 +54,33 @@ FROM nvcr.io/nvidia/isaac-sim:5.1.0
 # Switch to root for system installations
 USER root
 ENV DEBIAN_FRONTEND=noninteractive
+
+# ==============================================================================
+# INSTALL ROS 2 JAZZY
+# ==============================================================================
+# Isaac Sim 5.1.0 is based on Ubuntu 24.04 (Noble) which supports ROS 2 Jazzy
+
+# Add ROS 2 repository
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    gnupg \
+    && add-apt-repository universe \
+    && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install ROS 2 Jazzy base (not desktop - we don't need GUI tools)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-jazzy-ros-base \
+    ros-jazzy-cv-bridge \
+    ros-jazzy-image-transport \
+    ros-jazzy-sensor-msgs \
+    ros-jazzy-geometry-msgs \
+    ros-jazzy-nav-msgs \
+    ros-jazzy-std-srvs \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install system dependencies for PX4 build and simulation
 # Include GCC 12 for PX4 v1.14.3 compatibility (GCC 13/14 in Ubuntu 24.04 breaks build)
@@ -103,6 +135,15 @@ RUN pip3 install --break-system-packages \
     future \
     nunavut
 
+# Install perception stack for ROS 2 nodes (system Python)
+# ultralytics for YOLO, numpy 1.26.4 for Isaac Sim compatibility
+RUN pip3 install --break-system-packages \
+    "numpy==1.26.4" \
+    ultralytics \
+    lap \
+    Pillow \
+    opencv-python-headless
+
 # Give isaac-sim user sudo access (for debugging)
 RUN echo "isaac-sim ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
@@ -143,6 +184,28 @@ COPY --chown=isaac-sim:isaac-sim perception/ /workspace/perception/
 # Copy tests for in-container testing
 COPY --chown=isaac-sim:isaac-sim tests/ /workspace/tests/
 
+# ==============================================================================
+# ROS 2 WORKSPACE
+# ==============================================================================
+# Copy ROS 2 packages from the main workspace
+# These provide sim-to-deployment parity with real hardware
+#
+# NOTE: ROS 2 packages must be copied to ros2_packages/ before building:
+#   cp -r ../../ros2_ws/src/flyby_msgs ros2_packages/
+#   cp -r ../../ros2_ws/src/flyby_perception ros2_packages/
+#   cp -r ../../ros2_ws/src/flyby_autonomy ros2_packages/
+#
+# Or use the build script: ./scripts/build_container.sh
+
+# Create ROS 2 workspace
+RUN mkdir -p /workspace/ros2_ws/src && \
+    chown -R isaac-sim:isaac-sim /workspace/ros2_ws
+
+# Copy ROS 2 packages (from ros2_packages/ in build context)
+COPY --chown=isaac-sim:isaac-sim ros2_packages/flyby_msgs/ /workspace/ros2_ws/src/flyby_msgs/
+COPY --chown=isaac-sim:isaac-sim ros2_packages/flyby_perception/ /workspace/ros2_ws/src/flyby_perception/
+COPY --chown=isaac-sim:isaac-sim ros2_packages/flyby_autonomy/ /workspace/ros2_ws/src/flyby_autonomy/
+
 # Create output directories with correct ownership
 RUN mkdir -p /workspace/checkpoints /workspace/logs /workspace/output /workspace/models && \
     chown -R isaac-sim:isaac-sim /workspace/checkpoints /workspace/logs /workspace/output /workspace/models
@@ -163,7 +226,9 @@ RUN ln -sfn ${PX4_HOME} /isaac-sim/PX4-Autopilot
 
 # Install Python packages in Isaac Sim's Python environment
 # This is separate from system Python - Isaac Sim uses its own Python
+# CRITICAL: numpy 1.26.4 required - numpy 2.x causes dtype errors in Isaac Sim headless mode
 RUN /isaac-sim/python.sh -m pip install --no-cache-dir \
+    "numpy==1.26.4" \
     pymavlink \
     scipy \
     gymnasium \
@@ -174,96 +239,60 @@ RUN /isaac-sim/python.sh -m pip install --no-cache-dir \
     lap \
     Pillow
 
+# ==============================================================================
+# BUILD ROS 2 WORKSPACE
+# ==============================================================================
+# Build our custom ROS 2 packages for the perception and autonomy stack.
+# Note: ROS 2 Jazzy was installed above; we use colcon build from python3-colcon-common-extensions
+
+# Source ROS 2 Jazzy and build workspace
+WORKDIR /workspace/ros2_ws
+RUN /bin/bash -c "source /opt/ros/jazzy/setup.bash && \
+    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release"
+
+# Add ROS 2 workspace to environment
+# Note: ROS 2 Jazzy on Ubuntu 24.04 uses Python 3.12
+ENV ROS2_WS="/workspace/ros2_ws"
+ENV ROS_DISTRO="jazzy"
+ENV AMENT_PREFIX_PATH="/workspace/ros2_ws/install:${AMENT_PREFIX_PATH}"
+ENV CMAKE_PREFIX_PATH="/workspace/ros2_ws/install:${CMAKE_PREFIX_PATH}"
+# ROS 2 packages installed to python3.12 site-packages
+ENV PYTHONPATH="/workspace/ros2_ws/install/flyby_msgs/local/lib/python3.12/dist-packages:/workspace/ros2_ws/install/flyby_perception/local/lib/python3.12/dist-packages:/workspace/ros2_ws/install/flyby_autonomy/local/lib/python3.12/dist-packages:${PYTHONPATH}"
+
+# ==============================================================================
+# ISAAC SIM ROS 2 BRIDGE CONFIGURATION
+# ==============================================================================
+# Isaac Sim includes its own ROS 2 Jazzy libraries in the isaacsim.ros2.bridge
+# extension. These must be in LD_LIBRARY_PATH for the bridge to work.
+# Using FastDDS (default RMW implementation).
+ENV RMW_IMPLEMENTATION="rmw_fastrtps_cpp"
+ENV LD_LIBRARY_PATH="/isaac-sim/exts/isaacsim.ros2.bridge/jazzy/lib:${LD_LIBRARY_PATH}"
+
 # ============================================================================
 # SHADER WARMUP - Pre-compile shaders to avoid runtime compilation overhead
 # ============================================================================
-# Isaac Sim compiles Vulkan shaders on first run, which takes 2-3 minutes
-# and causes high CPU utilization. By running a warmup during build,
-# we bake the compiled shaders into the image.
+# Isaac Sim compiles Vulkan shaders on first run, which takes 2-3 minutes.
+# By running NVIDIA's official warmup script during build, we bake the
+# compiled shaders into the image for instant starts.
 #
-# The warmup script:
-# 1. Starts Isaac Sim in headless mode
-# 2. Loads a basic scene to trigger shader compilation
-# 3. Runs for ~60 seconds to let all shaders compile
-# 4. Exits cleanly
+# Uses NVIDIA's official /isaac-sim/warmup.sh which:
+# 1. Runs hello_world.py for Python app shader cache
+# 2. Runs Kit in warmup mode with --/app/warmupMode=1
+# 3. Compiles all shaders with proper flags
+#
+# BUILD REQUIREMENTS:
+#   podman build --device nvidia.com/gpu=all -t <tag> .
+#
+# If building without GPU access, the warmup will be skipped.
 #
 # Shader caches are stored in:
 # - /isaac-sim/kit/cache/shadercache (~11MB)
 # - /isaac-sim/kit/cache/nv_shadercache (~170MB)
-# - /isaac-sim/extscache/omni.hydra.rtx.shadercache.vulkan-*/cache/shadercache (~300MB)
+# - /isaac-sim/extscache/omni.hydra.rtx.shadercache.vulkan-*/cache/shadercache
 
-# Create shader warmup script
-RUN echo '#!/usr/bin/env python3\n\
-"""Shader warmup script - compiles Vulkan shaders during container build."""\n\
-import sys\n\
-import time\n\
-\n\
-print("Starting shader warmup...")\n\
-print("This will take 60-90 seconds to compile all shaders.")\n\
-\n\
-# Start Isaac Sim in headless mode\n\
-from isaacsim import SimulationApp\n\
-simulation_app = SimulationApp({\n\
-    "headless": True,\n\
-    "width": 1280,\n\
-    "height": 720,\n\
-    "anti_aliasing": 0,\n\
-    "renderer": "RayTracedLighting",  # Force RTX to compile RTX shaders\n\
-})\n\
-\n\
-print("Isaac Sim started, loading scene...")\n\
-\n\
-# Import after SimulationApp is created\n\
-import omni\n\
-from omni.isaac.core import World\n\
-from omni.isaac.core.objects import DynamicSphere, GroundPlane\n\
-from omni.isaac.core.prims import XFormPrim\n\
-import numpy as np\n\
-\n\
-# Create world with physics\n\
-world = World(stage_units_in_meters=1.0)\n\
-world.scene.add_default_ground_plane()\n\
-\n\
-# Add some objects to trigger material/shader compilation\n\
-for i in range(5):\n\
-    sphere = world.scene.add(\n\
-        DynamicSphere(\n\
-            prim_path=f"/World/Sphere_{i}",\n\
-            name=f"sphere_{i}",\n\
-            position=np.array([i * 2.0, 0, 1.0]),\n\
-            radius=0.5,\n\
-            color=np.array([1.0, 0.0, 0.0]),\n\
-        )\n\
-    )\n\
-\n\
-print("Scene loaded, warming up shaders...")\n\
-\n\
-# Reset world to start simulation\n\
-world.reset()\n\
-\n\
-# Run simulation for 60 seconds to compile all shaders\n\
-start_time = time.time()\n\
-warmup_duration = 60  # seconds\n\
-step_count = 0\n\
-\n\
-while time.time() - start_time < warmup_duration:\n\
-    world.step(render=True)\n\
-    step_count += 1\n\
-    if step_count % 100 == 0:\n\
-        elapsed = time.time() - start_time\n\
-        print(f"  Warmup progress: {elapsed:.0f}s / {warmup_duration}s")\n\
-\n\
-print(f"Shader warmup complete! ({step_count} steps)")\n\
-\n\
-# Clean shutdown\n\
-simulation_app.close()\n\
-print("Isaac Sim closed successfully.")\n\
-' > /tmp/shader_warmup.py
-
-# Run shader warmup (requires GPU during build)
-# Note: This step requires --device nvidia.com/gpu=all during podman build
-# If building without GPU, comment out this RUN command
-RUN /isaac-sim/python.sh /tmp/shader_warmup.py || echo "Shader warmup skipped (no GPU during build)"
+# Run NVIDIA's official shader warmup (requires GPU during build)
+# Note: Building with GPU: podman build --device nvidia.com/gpu=all -t <tag> .
+RUN /isaac-sim/warmup.sh || echo "Shader warmup skipped (no GPU during build - run warmup.sh manually on first container start)"
 
 # Set working directory
 WORKDIR /workspace

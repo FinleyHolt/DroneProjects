@@ -1,0 +1,34 @@
+# Flyby F-11 Autonomy Configuration
+# ===================================
+# Settings for ontology controller and state estimator
+
+ontology_controller_node:
+  ros__parameters:
+    # Takeoff parameters
+    takeoff_altitude: 25.0          # meters AGL
+    takeoff_ascent_rate: 2.0        # m/s
+
+    # Battery axioms (from ontology)
+    battery_per_km: 2.5             # % per km of flight
+    battery_headroom: 10.0          # % base safety margin
+    battery_emergency_threshold: 15.0  # % emergency landing trigger
+
+    # Person safety axiom
+    person_critical_distance: 10.0  # meters (hard stop)
+    person_warning_distance: 15.0   # meters (prepare to stop)
+
+    # Control rate
+    control_rate: 60.0              # Hz
+
+state_estimator_node:
+  ros__parameters:
+    # Publishing rate
+    publish_rate: 60.0              # Hz
+
+    # Simulation mode
+    use_simulation: true
+
+    # Home position (set on first valid GPS/position)
+    home_lat: 0.0
+    home_lon: 0.0
+    home_alt: 0.0

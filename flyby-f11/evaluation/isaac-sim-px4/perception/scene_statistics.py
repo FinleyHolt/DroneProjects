@@ -60,12 +60,17 @@ class SceneStatistics:
         stats = np.zeros(32, dtype=np.float32)
 
         # Categorize detections
+        # Internal class IDs:
+        #   1: person, 2: car, 3: building, 4: poi_target, 5: bus,
+        #   6: landing_zone, 7: truck, 8: bicycle, 9: motorcycle
         persons = [d for d in detections if d.class_id == 1]
-        vehicles = [d for d in detections if d.class_id == 2]
+        # All vehicle types: car(2), bus(5), truck(7), bicycle(8), motorcycle(9)
+        vehicles = [d for d in detections if d.class_id in [2, 5, 7, 8, 9]]
         buildings = [d for d in detections if d.class_id == 3]
         pois = [d for d in detections if d.class_id == 4]
-        landing_zones = [d for d in detections if d.class_id == 5]
-        obstacles = [d for d in detections if d.class_id in [2, 3, 6, 7]]
+        landing_zones = [d for d in detections if d.class_id == 6]
+        # Obstacles include vehicles and buildings (anything that needs avoidance)
+        obstacles = [d for d in detections if d.class_id in [2, 3, 5, 7, 8, 9]]
 
         # === Class Counts (8 dims) ===
         stats[0] = min(len(persons), self.config.max_detection_count) / self.config.max_detection_count

@@ -343,7 +343,8 @@ class PerceptionIntegration:
                         self._detection_counts["person"] += 1
                         if det.distance < 15:
                             self._danger_alerts += 1
-                    elif det.class_id == 2:
+                    # All vehicle types: car(2), bus(5), truck(7), bicycle(8), motorcycle(9)
+                    elif det.class_id in [2, 5, 7, 8, 9]:
                         self._detection_counts["vehicle"] += 1
                     elif det.class_id == 3:
                         self._detection_counts["building"] += 1

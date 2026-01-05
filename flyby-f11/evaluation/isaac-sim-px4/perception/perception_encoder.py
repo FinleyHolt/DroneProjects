@@ -27,12 +27,13 @@ try:
     from .detector import YOLODetector, Detection
     from .spatial_encoder import SpatialGridEncoder, SpatialGridConfig
     from .scene_statistics import SceneStatistics, SceneStatisticsConfig
-    from .temporal_tracker import TemporalTracker
 except ImportError:
     from detector import YOLODetector, Detection
     from spatial_encoder import SpatialGridEncoder, SpatialGridConfig
     from scene_statistics import SceneStatistics, SceneStatisticsConfig
-    from temporal_tracker import TemporalTracker
+
+# Note: TemporalTracker has been deprecated in favor of YOLODetector's
+# built-in ByteTrack tracking (via model.track(persist=True))
 
 
 # Formally specified output dimension
@@ -113,10 +114,8 @@ class PerceptionEncoder:
             )
         )
 
-        self.tracker = TemporalTracker(
-            iou_threshold=self.config.tracker_iou_threshold,
-            max_age=self.config.tracker_max_age,
-        )
+        # Note: External tracker removed - YOLODetector now handles tracking
+        # via built-in ByteTrack (model.track(persist=True))
 
         # Calculate output dimensions
         self.priority_dim = self.config.max_priority_detections * self.config.detection_feature_dim
@@ -161,22 +160,23 @@ class PerceptionEncoder:
         """
         start_time = time.perf_counter()
 
-        # 1. Track detections (adds track_id, velocity estimation)
-        tracked_detections = self.tracker.update(detections, dt=dt)
+        # Note: Tracking is now handled by YOLODetector's built-in ByteTrack
+        # Detections already have track_id set if tracking was enabled
 
-        # 2. Encode priority detections (top-10)
-        priority_obs = self._encode_priority_detections(tracked_detections, uav_position)
+        # 1. Encode priority detections (top-10)
+        priority_obs = self._encode_priority_detections(detections, uav_position)
 
-        # 3. Encode spatial grid
-        grid_obs = self.spatial_encoder.encode(tracked_detections)
+        # 2. Encode spatial grid
+        grid_obs = self.spatial_encoder.encode(detections)
 
-        # 4. Compute scene statistics
-        stats_obs = self.scene_stats.compute(tracked_detections)
+        # 3. Compute scene statistics
+        stats_obs = self.scene_stats.compute(detections)
 
-        # Update tracking stats in scene statistics
-        tracking_stats = self.tracker.get_tracking_stats()
-        stats_obs[25] = tracking_stats['lost_tracks'] / 10.0
-        stats_obs[29] = tracking_stats['avg_confidence']
+        # Tracking stats are now computed from detections directly
+        tracked_count = sum(1 for d in detections if d.track_id is not None)
+        avg_conf = np.mean([d.confidence for d in detections]) if detections else 0.0
+        stats_obs[25] = 0.0  # lost_tracks - not available without external tracker
+        stats_obs[29] = avg_conf
 
         # Track encoding time
         elapsed = (time.perf_counter() - start_time) * 1000

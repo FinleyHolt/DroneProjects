@@ -76,8 +76,10 @@ class SpatialGridEncoder:
             if det.class_id == 1:  # person
                 grid[cell_y, cell_x, 0] += 1
 
-            # Channel 1: Obstacle count (vehicles, buildings, trees, power lines)
-            if det.class_id in [2, 3, 6, 7]:
+            # Channel 1: Obstacle count (all vehicles + buildings)
+            # Vehicles: car(2), bus(5), truck(7), bicycle(8), motorcycle(9)
+            # Static: buildings(3)
+            if det.class_id in [2, 3, 5, 7, 8, 9]:
                 grid[cell_y, cell_x, 1] += 1
 
             # Track distance for this cell

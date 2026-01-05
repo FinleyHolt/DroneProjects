@@ -149,12 +149,6 @@ fi
 
 echo "[Setup] Using Xauthority: $XAUTH_FILE"
 echo "[Setup] Display: ${DISPLAY:-:0}"
-
-# Shader cache directory for persistent shader compilation (avoids recompile each run)
-SHADER_CACHE_DIR="$HOME/.cache/isaac-sim-shaders"
-mkdir -p "$SHADER_CACHE_DIR"
-echo "[Setup] Shader cache: $SHADER_CACHE_DIR"
-
 echo ""
 echo "[Run] Starting Phase $PHASE test..."
 echo "============================================================================="

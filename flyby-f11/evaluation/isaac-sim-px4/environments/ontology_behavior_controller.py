@@ -191,6 +191,7 @@ class OntologyBehaviorController:
 
         # RTL state
         self._rtl_triggered: bool = False
+        self._rtl_committed: bool = False  # Hysteresis: once RTL, stay committed
         self._rtl_reason: str = ""
         self._home_position: np.ndarray = np.zeros(3)
 
@@ -496,6 +497,21 @@ class OntologyBehaviorController:
         # Check for must-land conditions (critical failures)
         if self._check_must_land(state):
             return self._create_emergency_land_command(state)
+
+        # === Priority 1.5: RTL Hysteresis Check ===
+        # Once RTL is committed, stay committed until landing completes
+        # This prevents oscillation between RTL and MISSION_EXECUTION
+        if self._rtl_committed:
+            return self._create_rtl_command(
+                state,
+                AxiomViolation(
+                    axiom_name="rtlHysteresis",
+                    priority=AxiomPriority.HIGH,
+                    triggered_behavior=OntologyBehavior.RTL,
+                    description="RTL committed - continuing return to home",
+                    timestamp=current_time
+                )
+            )
 
         # === Priority 2: Battery reserve checks (HIGH priority) ===
 
@@ -934,9 +950,12 @@ class OntologyBehaviorController:
     ) -> BehaviorCommand:
         """Create RTL behavior command."""
         self._rtl_triggered = True
+        self._rtl_committed = True  # Hysteresis: once RTL, stay committed
         self._rtl_reason = violation.description
         self._active_violations.append(violation)
-        self._stats['rtl_triggers'] += 1
+        # Only increment counter on first trigger, not on hysteresis re-entries
+        if violation.axiom_name != "rtlHysteresis":
+            self._stats['rtl_triggers'] += 1
 
         return BehaviorCommand(
             behavior=OntologyBehavior.RTL,
@@ -1173,6 +1192,7 @@ fof(safety_check, conjecture,
         self._takeoff_complete = False
         self._takeoff_in_progress = False
         self._rtl_triggered = False
+        self._rtl_committed = False  # Hysteresis: once RTL, stay committed
         self._rtl_reason = ""
         self._emergency_triggered = False
         self._emergency_reason = ""
@@ -1188,20 +1208,19 @@ class OntologyBehaviorExecutor:
 
     Coordinate Frame Notes:
     - Isaac Sim uses Z-up (ENU-like): +X=East, +Y=North, +Z=Up
-    - Output actions are [vx, vy, vz, yaw_rate] normalized to [-1, 1]
+    - Output actions are [vx, vy, vz, yaw_rate] in ACTUAL VELOCITIES (m/s, rad/s)
     - vz: negative = descend, positive = ascend (Z-up convention)
-    - The action_bridge handles conversion to PX4 NED if needed
+    - Caller should send these directly to setpoint commands
     """
 
-    # Executor configuration constants
-    TAKEOFF_ASCENT_RATE_NORMALIZED: float = 0.4  # normalized ascent rate for takeoff
+    # Executor configuration constants - all in actual units (m/s)
+    TAKEOFF_ASCENT_RATE: float = 2.0  # m/s ascent rate for takeoff
     RTL_LANDING_DISTANCE: float = 3.0  # meters from home to begin landing
     RTL_MAX_SPEED: float = 4.0  # m/s max cruise speed
     RTL_APPROACH_GAIN: float = 0.5  # speed = distance * gain (clamped)
     GEOFENCE_RECOVERY_DISTANCE: float = 5.0  # meters to consider back in safe area
     GEOFENCE_RECOVERY_SPEED: float = 3.0  # m/s recovery speed
-    DESCENT_RATE_NORMALIZED: float = 0.4  # normalized descent rate
-    MAX_VELOCITY: float = 5.0  # m/s for normalization
+    DESCENT_RATE: float = 2.0  # m/s descent rate
     GROUND_ALTITUDE: float = 0.5  # meters to consider on ground
 
     def __init__(self, mav_connection=None, action_bridge=None, z_up: bool = True):
@@ -1229,7 +1248,7 @@ class OntologyBehaviorExecutor:
             state: Current UAV state
 
         Returns:
-            Action array [vx, vy, vz, yaw_rate] normalized to [-1, 1]
+            Action array [vx, vy, vz, yaw_rate] in ACTUAL VELOCITIES (m/s, rad/s)
         """
         self._current_behavior = command.behavior
         self._behavior_complete = False
@@ -1262,7 +1281,7 @@ class OntologyBehaviorExecutor:
             state: Current UAV state
 
         Returns:
-            Action array [vx, vy, vz, yaw_rate] normalized to [-1, 1]
+            Action array [vx, vy, vz, yaw_rate] in ACTUAL VELOCITIES (m/s, rad/s)
         """
         if command.target_position is None:
             # No target - hover
@@ -1277,15 +1296,15 @@ class OntologyBehaviorExecutor:
             self._behavior_complete = True
             return self._execute_hover(state)
 
-        # Ascend at constant rate
+        # Ascend at constant rate in actual m/s
         # In Z-up (Isaac Sim): positive vz = ascend
-        ascent_vz = self.TAKEOFF_ASCENT_RATE_NORMALIZED if self._z_up else -self.TAKEOFF_ASCENT_RATE_NORMALIZED
+        ascent_vz = self.TAKEOFF_ASCENT_RATE if self._z_up else -self.TAKEOFF_ASCENT_RATE
 
         # Hold horizontal position (zero vx, vy)
         return np.array([0.0, 0.0, ascent_vz, 0.0], dtype=np.float32)
 
     def _execute_rtl(self, command: BehaviorCommand, state: UAVState) -> np.ndarray:
-        """Execute return-to-launch behavior."""
+        """Execute return-to-launch behavior. Returns actual velocities in m/s."""
         if command.target_position is None:
             return self._execute_hover(state)
 
@@ -1296,37 +1315,33 @@ class OntologyBehaviorExecutor:
         if horizontal_distance < self.RTL_LANDING_DISTANCE:
             # Close enough to home horizontally - begin landing descent
             # In Z-up: negative vz = descend
-            descent_vz = -self.DESCENT_RATE_NORMALIZED if self._z_up else self.DESCENT_RATE_NORMALIZED
+            descent_vz = -self.DESCENT_RATE if self._z_up else self.DESCENT_RATE
             return np.array([0.0, 0.0, descent_vz, 0.0], dtype=np.float32)
 
         # Fly towards home horizontally
         direction_2d = to_home_2d / horizontal_distance if horizontal_distance > 0 else np.zeros(2)
 
-        # Cruise at moderate speed, slowing as approaching
+        # Cruise at moderate speed, slowing as approaching (actual m/s)
         speed = min(self.RTL_MAX_SPEED, horizontal_distance * self.RTL_APPROACH_GAIN)
         velocity_2d = direction_2d * speed
 
-        # Handle altitude: maintain altitude during cruise, or adjust if needed
-        # For simplicity, maintain current altitude during horizontal approach
+        # Handle altitude: maintain altitude during cruise
         vz = 0.0
 
-        # Normalize to [-1, 1]
-        vx_norm = velocity_2d[0] / self.MAX_VELOCITY
-        vy_norm = velocity_2d[1] / self.MAX_VELOCITY
-
-        return np.array([vx_norm, vy_norm, vz, 0.0], dtype=np.float32)
+        # Return actual velocities in m/s
+        return np.array([velocity_2d[0], velocity_2d[1], vz, 0.0], dtype=np.float32)
 
     def _execute_emergency_land(self, command: BehaviorCommand, state: UAVState) -> np.ndarray:
-        """Execute emergency landing (descend at current position)."""
+        """Execute emergency landing (descend at current position). Returns actual velocities."""
         if state.position[2] < self.GROUND_ALTITUDE:
             # On ground - stop descent
             self._behavior_complete = True
             return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
 
-        # Descend at safe rate
+        # Descend at safe rate (actual m/s)
         # In Z-up (Isaac Sim): negative vz = descend
         # In NED: positive vz = descend
-        descent_vz = -self.DESCENT_RATE_NORMALIZED if self._z_up else self.DESCENT_RATE_NORMALIZED
+        descent_vz = -self.DESCENT_RATE if self._z_up else self.DESCENT_RATE
         return np.array([0.0, 0.0, descent_vz, 0.0], dtype=np.float32)
 
     def _execute_hover(self, state: UAVState) -> np.ndarray:
@@ -1334,7 +1349,7 @@ class OntologyBehaviorExecutor:
         return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
 
     def _execute_geofence_recovery(self, command: BehaviorCommand, state: UAVState) -> np.ndarray:
-        """Execute geofence recovery (return to safe area)."""
+        """Execute geofence recovery (return to safe area). Returns actual velocities."""
         if command.target_position is None:
             return self._execute_hover(state)
 
@@ -1347,15 +1362,12 @@ class OntologyBehaviorExecutor:
             self._behavior_complete = True
             return self._execute_hover(state)
 
-        # Fly horizontally toward safe area
+        # Fly horizontally toward safe area (actual m/s)
         direction_2d = to_target_2d / horizontal_distance if horizontal_distance > 0 else np.zeros(2)
         velocity_2d = direction_2d * self.GEOFENCE_RECOVERY_SPEED
 
-        # Maintain current altitude during recovery
-        vx_norm = velocity_2d[0] / self.MAX_VELOCITY
-        vy_norm = velocity_2d[1] / self.MAX_VELOCITY
-
-        return np.array([vx_norm, vy_norm, 0.0, 0.0], dtype=np.float32)
+        # Return actual velocities
+        return np.array([velocity_2d[0], velocity_2d[1], 0.0, 0.0], dtype=np.float32)
 
     def _execute_nfz_avoidance(self, command: BehaviorCommand, state: UAVState) -> np.ndarray:
         """Execute NFZ avoidance (back away from NFZ)."""

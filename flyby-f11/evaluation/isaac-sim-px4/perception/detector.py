@@ -5,6 +5,7 @@ Supports:
 - Ground truth labels from Isaac Sim (training)
 - YOLOv11 inference with built-in ByteTrack tracking (deployment)
 - TensorRT acceleration (Jetson)
+- ISR-relevant class filtering (person, vehicles only)
 
 Uses Ultralytics model.track() for temporal tracking instead of
 custom tracker - this provides Kalman filtering, motion prediction,
@@ -12,9 +13,38 @@ and better occlusion handling.
 """
 import numpy as np
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Set
 from pathlib import Path
 import time
+
+
+# =============================================================================
+# ISR-Relevant COCO Class IDs
+# =============================================================================
+# These are the only classes relevant for ISR (Intelligence, Surveillance,
+# Reconnaissance) missions. All other COCO classes (umbrellas, backpacks, etc.)
+# are filtered out to reduce noise and focus tracking on mission targets.
+#
+# COCO Class Reference:
+#   0: person
+#   1: bicycle
+#   2: car
+#   3: motorcycle
+#   5: bus
+#   7: truck
+# =============================================================================
+
+ISR_RELEVANT_COCO_CLASSES: Set[int] = {
+    0,  # person - highest priority for safety
+    1,  # bicycle - optional, can be relevant for ground activity
+    2,  # car
+    3,  # motorcycle
+    5,  # bus
+    7,  # truck
+}
+
+# Subset excluding bicycle if you want stricter filtering
+ISR_CORE_CLASSES: Set[int] = {0, 2, 3, 5, 7}  # person + motorized vehicles only
 
 # Conditional import for yaml
 try:
@@ -150,12 +180,18 @@ class YOLODetector:
         config_path: Optional[str] = None,
         mode: str = "ground_truth",
         enable_tracking: bool = True,
+        isr_filter_enabled: bool = True,
     ):
         self.mode = mode
         self.enable_tracking = enable_tracking
         self.config = self._load_config(config_path)
         self.class_mapping = self.config.get('detection_classes', {})
         self.coco_mapping = self.config.get('coco_to_ontology', {})
+
+        # ISR class filtering - only detect mission-relevant classes
+        self.isr_filter_enabled = isr_filter_enabled and self.config.get('isr_filter_enabled', True)
+        isr_classes_config = self.config.get('isr_classes', list(ISR_RELEVANT_COCO_CLASSES))
+        self.isr_classes: Set[int] = set(isr_classes_config)
 
         # Initialize YOLO model if needed
         self.model = None
@@ -166,7 +202,8 @@ class YOLODetector:
             self.confidence_threshold = model_config.get('confidence_threshold', 0.4)
             self.nms_threshold = model_config.get('nms_iou_threshold', 0.45)
             tracking_str = "with ByteTrack" if enable_tracking else "detection only"
-            print(f"[YOLODetector] Loaded {model_path} in {mode} mode ({tracking_str})")
+            isr_str = f", ISR filter: {sorted(self.isr_classes)}" if self.isr_filter_enabled else ""
+            print(f"[YOLODetector] Loaded {model_path} in {mode} mode ({tracking_str}{isr_str})")
         elif mode == "inference":
             print("[YOLODetector] Warning: ultralytics not available, using mock detections")
 
@@ -190,11 +227,15 @@ class YOLODetector:
     def _default_config(self) -> Dict:
         """Default configuration if file not found.
 
-        COCO class IDs for ISR targets:
-        - 0: person
-        - 2: car
-        - 5: bus
-        - 7: truck
+        COCO class IDs for ISR targets (filtered for mission relevance):
+        - 0: person     -> internal class 1 (Person)
+        - 1: bicycle    -> internal class 8 (DynamicObstacle - light vehicle)
+        - 2: car        -> internal class 2 (DynamicObstacle)
+        - 3: motorcycle -> internal class 9 (DynamicObstacle - light vehicle)
+        - 5: bus        -> internal class 5 (DynamicObstacle)
+        - 7: truck      -> internal class 7 (DynamicObstacle)
+
+        All other COCO classes (backpacks, umbrellas, etc.) are filtered out.
         """
         return {
             'detection_classes': {
@@ -205,11 +246,24 @@ class YOLODetector:
                 5: {'name': 'bus', 'ontology_class': 'DynamicObstacle', 'priority': 2, 'safety_distance': 10.0},
                 6: {'name': 'landing_zone', 'ontology_class': 'LandingZone', 'priority': 5, 'safety_distance': 0.0},
                 7: {'name': 'truck', 'ontology_class': 'DynamicObstacle', 'priority': 2, 'safety_distance': 10.0},
+                8: {'name': 'bicycle', 'ontology_class': 'DynamicObstacle', 'priority': 3, 'safety_distance': 8.0},
+                9: {'name': 'motorcycle', 'ontology_class': 'DynamicObstacle', 'priority': 2, 'safety_distance': 10.0},
             },
-            # COCO class ID -> internal class ID
-            # person (0) -> 1, car (2) -> 2, bus (5) -> 5, truck (7) -> 7
-            'coco_to_ontology': {0: 1, 2: 2, 5: 5, 7: 7},
-            'model': {'confidence_threshold': 0.25, 'weights': 'yolo11x.pt'}
+            # COCO class ID -> internal class ID (ISR-relevant classes only)
+            # person (0) -> 1, bicycle (1) -> 8, car (2) -> 2,
+            # motorcycle (3) -> 9, bus (5) -> 5, truck (7) -> 7
+            'coco_to_ontology': {
+                0: 1,  # person
+                1: 8,  # bicycle
+                2: 2,  # car
+                3: 9,  # motorcycle
+                5: 5,  # bus
+                7: 7,  # truck
+            },
+            'model': {'confidence_threshold': 0.25, 'weights': 'yolo11x.pt'},
+            # ISR class filtering (set of COCO class IDs to detect)
+            'isr_filter_enabled': True,
+            'isr_classes': list(ISR_RELEVANT_COCO_CLASSES),
         }
 
     def detect(
@@ -266,10 +320,19 @@ class YOLODetector:
         - Kalman filtering for motion prediction
         - ByteTrack association algorithm
 
+        ISR Class Filtering:
+        When isr_filter_enabled=True, only detects ISR-relevant classes
+        (person, vehicles) using YOLO's built-in 'classes' parameter.
+        This is more efficient than post-filtering as it reduces NMS workload.
+
         Returns detections with bbox in xyxy pixel coordinates.
         Use Detection.get_bbox_normalized() for encoding.
         """
         img_h, img_w = image.shape[:2]
+
+        # ISR class filter - pass to YOLO for efficient filtering at inference time
+        # This filters BEFORE NMS, reducing computation on irrelevant detections
+        classes_filter = list(self.isr_classes) if self.isr_filter_enabled else None
 
         # Use track() for temporal consistency, or predict() for single-frame
         if self.enable_tracking:
@@ -280,13 +343,15 @@ class YOLODetector:
                 iou=self.nms_threshold,
                 persist=True,  # Keep track IDs across frames
                 tracker="bytetrack.yaml",  # Use ByteTrack (default)
+                classes=classes_filter,  # ISR-relevant classes only
             )
         else:
             results = self.model(
                 image,
                 verbose=False,
                 conf=self.confidence_threshold,
-                iou=self.nms_threshold
+                iou=self.nms_threshold,
+                classes=classes_filter,  # ISR-relevant classes only
             )
 
         detections = []

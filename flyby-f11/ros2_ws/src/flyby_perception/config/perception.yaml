@@ -1,0 +1,33 @@
+# Flyby F-11 Perception Configuration
+# =====================================
+# Settings for YOLO detection and perception encoding
+
+yolo_detector_node:
+  ros__parameters:
+    # Model settings
+    model_path: '/workspace/models/yolo11x.pt'
+    confidence_threshold: 0.25
+    nms_threshold: 0.45
+
+    # Tracking
+    enable_tracking: true
+    isr_filter_enabled: true
+
+    # Performance
+    inference_rate: 10.0  # Hz (every 6th frame at 60Hz sim)
+
+    # Topics
+    image_topic: '/camera/image_raw'
+    detection_topic: '/perception/detections'
+
+    # Debug
+    publish_debug_image: true
+
+perception_encoder_node:
+  ros__parameters:
+    # Topics
+    detection_topic: '/perception/detections'
+    output_topic: '/perception/encoded'
+
+    # Spatial encoding range (meters)
+    spatial_range: 100.0

@@ -232,23 +232,44 @@ class WorldGenerator:
         # Create world structure
         self._init_world_structure()
 
-        # Initialize spawners
-        spawn_config = SpawnConfig(
+        # Initialize spawners with appropriate spacing for each type
+        # Vegetation can be close together
+        veg_spawn_config = SpawnConfig(
             area_size=self.config.terrain_size,
             seed=self.config.seed,
+            min_spacing=1.0,
+        )
+        # Vehicles need more space to prevent physics collision issues
+        # Tanks are ~6-8m long, so we need at least 8m spacing
+        vehicle_spawn_config = SpawnConfig(
+            area_size=self.config.terrain_size,
+            seed=self.config.seed,
+            min_spacing=8.0,
+        )
+        # People need moderate spacing
+        people_spawn_config = SpawnConfig(
+            area_size=self.config.terrain_size,
+            seed=self.config.seed,
+            min_spacing=1.5,
         )
 
         self.vegetation = VegetationSpawner(
-            self.stage, models_path, spawn_config
+            self.stage, models_path, veg_spawn_config
         )
         self.vehicles = VehicleSpawner(
-            self.stage, models_path, spawn_config
+            self.stage, models_path, vehicle_spawn_config
         )
         self.people = PeopleSpawner(
-            self.stage, models_path, spawn_config
+            self.stage, models_path, people_spawn_config
+        )
+        # Drones need space similar to vehicles
+        drone_spawn_config = SpawnConfig(
+            area_size=self.config.terrain_size,
+            seed=self.config.seed,
+            min_spacing=5.0,
         )
         self.drones = DroneSpawner(
-            self.stage, models_path, spawn_config
+            self.stage, models_path, drone_spawn_config
         )
 
         # Track generated elements

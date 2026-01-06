@@ -17,6 +17,11 @@ from isaacsim.core.utils.stage import add_reference_to_stage
 from .base_spawner import BaseSpawner, SpawnConfig
 
 
+# Discrete yaw angles (24 total, 15-degree increments)
+# Figures can ONLY spawn at these orientations to ensure upright poses
+DISCRETE_YAW_ANGLES = tuple(i * 15.0 for i in range(24))  # 0, 15, 30, ... 345
+
+
 @dataclass
 class PersonConfig:
     """Configuration for person/pedestrian spawning."""
@@ -135,7 +140,7 @@ class PeopleSpawner(BaseSpawner):
         person_type: str,
         position: Tuple[float, float] = None,
         facing: float = None,
-    ) -> str:
+    ) -> Optional[str]:
         """
         Spawn a single person.
 
@@ -145,7 +150,7 @@ class PeopleSpawner(BaseSpawner):
             facing: Optional facing direction in degrees
 
         Returns:
-            Prim path of spawned person
+            Prim path of spawned person, or None if no valid position available
         """
         if person_type not in self.person_configs:
             raise ValueError(f"Unknown person type: {person_type}. "
@@ -157,16 +162,28 @@ class PeopleSpawner(BaseSpawner):
         person_radius = 0.5 * cfg.base_scale
 
         if position is None:
-            x, y = self.get_random_position(object_radius=person_radius)
+            result = self.get_random_position(object_radius=person_radius)
+            if result is None:
+                return None  # No valid position, skip spawning
+            x, y = result
         else:
             # Even with explicit position, find valid nearby spot to avoid overlap
-            x, y = self.find_valid_position(position[0], position[1], person_radius)
+            result = self.find_valid_position(position[0], position[1], person_radius)
+            if result is None:
+                # No valid position found - skip spawning this person
+                return None
+            x, y = result
 
         # Register position to prevent future overlaps
         self.register_position(x, y, person_radius)
 
         if facing is None:
-            facing = random.uniform(0, 360)
+            # Use discrete yaw angles only (15-degree increments)
+            # This ensures people spawn upright with only Z-axis rotation
+            facing = random.choice(DISCRETE_YAW_ANGLES)
+        else:
+            # Snap provided facing to nearest discrete angle
+            facing = min(DISCRETE_YAW_ANGLES, key=lambda x: abs((x - facing + 180) % 360 - 180))
 
         scale_var = random.uniform(*cfg.scale_variation)
         scale = cfg.base_scale * scale_var
@@ -250,7 +267,8 @@ class PeopleSpawner(BaseSpawner):
                 facing = None
 
             path = self.spawn_person(person_type, position=pos, facing=facing)
-            spawned.append(path)
+            if path is not None:
+                spawned.append(path)
 
         return spawned
 
@@ -306,7 +324,8 @@ class PeopleSpawner(BaseSpawner):
                     facing = (dy / dx * 180 / 3.14159 if dx != 0 else 90) % 360
 
                     path = self.spawn_person(person_type, position=(pos_x, pos_y), facing=facing)
-                    spawned.append(path)
+                    if path is not None:
+                        spawned.append(path)
                     break
 
                 current_dist += segment_len

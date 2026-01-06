@@ -143,7 +143,7 @@ class VegetationSpawner(BaseSpawner):
         tree_type: str,
         position: tuple = None,
         age: float = None,
-    ) -> str:
+    ) -> Optional[str]:
         """
         Spawn a simple procedural tree (cone + cylinder trunk).
 
@@ -153,17 +153,24 @@ class VegetationSpawner(BaseSpawner):
             age: Optional age factor (0.5-1.0), affects size
 
         Returns:
-            Prim path of spawned tree
+            Prim path of spawned tree, or None if no valid position available
         """
         # Tree approximate radius for overlap prevention (based on expected canopy size)
         tree_radius = 3.0  # ~3m radius for typical tree canopy
 
         # Get position with overlap prevention
         if position is None:
-            x, y = self.get_random_position(object_radius=tree_radius)
+            result = self.get_random_position(object_radius=tree_radius)
+            if result is None:
+                return None  # No valid position, skip spawning
+            x, y = result
         else:
             # Even with explicit position, find valid nearby spot to avoid overlap
-            x, y = self.find_valid_position(position[0], position[1], tree_radius)
+            result = self.find_valid_position(position[0], position[1], tree_radius)
+            if result is None:
+                # No valid position found - skip spawning this tree
+                return None
+            x, y = result
 
         # Register position to prevent future overlaps
         self.register_position(x, y, tree_radius)
@@ -297,7 +304,8 @@ class VegetationSpawner(BaseSpawner):
             count = int(total_trees * percentage / 100)
             for _ in range(count):
                 path = self.spawn_tree(tree_type)
-                spawned.append(path)
+                if path is not None:
+                    spawned.append(path)
 
         return spawned
 
@@ -305,17 +313,29 @@ class VegetationSpawner(BaseSpawner):
         self,
         bush_type: str,
         position: tuple = None,
-    ) -> str:
-        """Spawn a single bush."""
+    ) -> Optional[str]:
+        """Spawn a single bush. Returns None if no valid position available."""
         if bush_type not in self.bush_configs:
             raise ValueError(f"Unknown bush type: {bush_type}")
 
         cfg = self.bush_configs[bush_type]
 
+        # Bush approximate radius for overlap prevention (~1m)
+        bush_radius = 1.0 * cfg.base_scale
+
         if position is None:
-            x, y = self.get_random_position()
+            result = self.get_random_position(object_radius=bush_radius)
+            if result is None:
+                return None
+            x, y = result
         else:
-            x, y = position
+            result = self.find_valid_position(position[0], position[1], bush_radius)
+            if result is None:
+                return None
+            x, y = result
+
+        # Register position to prevent future overlaps
+        self.register_position(x, y, bush_radius)
 
         scale = random.uniform(*cfg.scale_variation) * cfg.base_scale
 

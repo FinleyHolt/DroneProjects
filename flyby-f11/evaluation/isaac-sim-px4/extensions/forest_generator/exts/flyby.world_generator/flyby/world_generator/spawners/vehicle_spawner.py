@@ -8,11 +8,16 @@ from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple
 import random
 
-from pxr import Gf, UsdGeom, UsdShade, Sdf
+from pxr import Gf, UsdGeom, UsdShade, Sdf, UsdPhysics
 import omni.isaac.core.utils.prims as prim_utils
 from isaacsim.core.utils.stage import add_reference_to_stage
 
 from .base_spawner import BaseSpawner, SpawnConfig
+
+
+# Discrete yaw angles (24 total, 15-degree increments)
+# Figures can ONLY spawn at these orientations to ensure upright poses
+DISCRETE_YAW_ANGLES = tuple(i * 15.0 for i in range(24))  # 0, 15, 30, ... 345
 
 
 @dataclass
@@ -48,73 +53,85 @@ DEFAULT_VEHICLES = {
     # Isaac Sim's GLB importer handles Y-up to Z-up conversion, but individual
     # models may need additional rotation. Verify each model visually.
     # rotation_offset is applied BEFORE random heading rotation.
-    "sedan": VehicleConfig(
-        usd_path="vehicles/glb/NormalCar1.glb",
-        category="civilian",
-        base_scale=2.25,
-        rotation_offset=(90, 0, 0),  # Verified: +90 X to bring wheels down
-    ),
+    # NOTE: NormalCar1.glb (sedan) removed - model has broken orientation that
+    # cannot be fixed with rotation offsets. Use sedan2 (NormalCar2) instead.
+    # Cars use 7m exclusion zone (reduced 30% from 10m since kinematic physics prevents tipping)
     "sedan2": VehicleConfig(
         usd_path="vehicles/glb/NormalCar2.glb",
         category="civilian",
         base_scale=2.25,
-        # No rotation offset needed - model imports correctly
+        length=7.0,
+        width=7.0,
     ),
     "suv": VehicleConfig(
         usd_path="vehicles/glb/SUV.glb",
         category="civilian",
         base_scale=2.3,
-        # No rotation offset needed - model imports correctly
+        length=7.0,
+        width=7.0,
     ),
     "sports_car": VehicleConfig(
         usd_path="vehicles/glb/SportsCar.glb",
         category="civilian",
         base_scale=2.2,
-        # No rotation offset needed - model imports correctly
+        length=7.0,
+        width=7.0,
     ),
     "sports_car2": VehicleConfig(
         usd_path="vehicles/glb/SportsCar2.glb",
         category="civilian",
         base_scale=2.2,
-        # No rotation offset needed - model imports correctly
+        length=7.0,
+        width=7.0,
     ),
     "taxi": VehicleConfig(
         usd_path="vehicles/glb/Taxi.glb",
         category="civilian",
         base_scale=2.25,
-        # No rotation offset needed - model imports correctly
+        length=7.0,
+        width=7.0,
     ),
     "police": VehicleConfig(
         usd_path="vehicles/glb/Cop.glb",
         category="civilian",
         base_scale=2.25,
-        # No rotation offset needed - model imports correctly
+        length=7.0,
+        width=7.0,
     ),
     # Military vehicles - scale ~1.0 (0.85 * 1.15 ≈ 0.98)
     # All tanks face +X instead of +Y, need +90 Z rotation to face forward
+    # Use large exclusion zone (20m diameter) to keep trees/objects well clear
     "tank": VehicleConfig(
         usd_path="tanks/glb/Tank.glb",
         category="military",
         base_scale=1.0,
         rotation_offset=(0, 0, 90),  # Faces +X, rotate +90 Z to face +Y (forward)
+        length=20.0,  # Large exclusion zone for tanks
+        width=20.0,
     ),
     "tank2": VehicleConfig(
         usd_path="tanks/glb/Tank2.glb",
         category="military",
         base_scale=1.0,
         rotation_offset=(0, 0, 90),  # Faces +X, rotate +90 Z to face +Y (forward)
+        length=20.0,
+        width=20.0,
     ),
     "tank3": VehicleConfig(
         usd_path="tanks/glb/Tank3.glb",
         category="military",
         base_scale=1.0,
         rotation_offset=(0, 0, 90),  # Faces +X, rotate +90 Z to face +Y (forward)
+        length=20.0,
+        width=20.0,
     ),
     "tank4": VehicleConfig(
         usd_path="tanks/glb/Tank4.glb",
         category="military",
         base_scale=1.0,
         rotation_offset=(0, 0, 90),  # Faces +X, rotate +90 Z to face +Y (forward)
+        length=20.0,
+        width=20.0,
     ),
 }
 
@@ -279,7 +296,7 @@ class VehicleSpawner(BaseSpawner):
         vehicle_type: str,
         position: Tuple[float, float] = None,
         heading: float = None,
-    ) -> str:
+    ) -> Optional[str]:
         """
         Spawn a single vehicle.
 
@@ -289,7 +306,7 @@ class VehicleSpawner(BaseSpawner):
             heading: Optional heading in degrees (0 = +X axis)
 
         Returns:
-            Prim path of spawned vehicle
+            Prim path of spawned vehicle, or None if no valid position available
         """
         if vehicle_type not in self.vehicle_configs:
             raise ValueError(f"Unknown vehicle type: {vehicle_type}. "
@@ -301,16 +318,28 @@ class VehicleSpawner(BaseSpawner):
         vehicle_radius = max(cfg.length, cfg.width) / 2 * cfg.base_scale
 
         if position is None:
-            x, y = self.get_random_position(object_radius=vehicle_radius)
+            result = self.get_random_position(object_radius=vehicle_radius)
+            if result is None:
+                return None  # No valid position, skip spawning
+            x, y = result
         else:
             # Even with explicit position, find valid nearby spot to avoid overlap
-            x, y = self.find_valid_position(position[0], position[1], vehicle_radius)
+            result = self.find_valid_position(position[0], position[1], vehicle_radius)
+            if result is None:
+                # No valid position found - skip spawning this vehicle
+                return None
+            x, y = result
 
         # Register position to prevent future overlaps
         self.register_position(x, y, vehicle_radius)
 
         if heading is None:
-            heading = random.uniform(0, 360)
+            # Use discrete yaw angles only (15-degree increments)
+            # This ensures vehicles spawn upright with only Z-axis rotation
+            heading = random.choice(DISCRETE_YAW_ANGLES)
+        else:
+            # Snap provided heading to nearest discrete angle
+            heading = min(DISCRETE_YAW_ANGLES, key=lambda x: abs((x - heading + 180) % 360 - 180))
 
         scale_var = random.uniform(*cfg.scale_variation)
         scale = cfg.base_scale * scale_var
@@ -347,6 +376,7 @@ class VehicleSpawner(BaseSpawner):
 
         # Clear existing ops and add new ones with explicit double precision
         vehicle_xform.ClearXformOpOrder()
+
         vehicle_xform.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(x, y, z))
 
         # Apply rotation offset to fix model orientation, with yaw-only heading
@@ -371,6 +401,11 @@ class VehicleSpawner(BaseSpawner):
         vehicle_xform.AddOrientOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(q_final)
 
         vehicle_xform.AddScaleOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(scale, scale, scale))
+
+        # Make vehicle kinematic to prevent physics from tipping it over
+        # Kinematic bodies maintain their position/orientation and don't respond to forces
+        rigid_body_api = UsdPhysics.RigidBodyAPI.Apply(vehicle_prim)
+        rigid_body_api.CreateKinematicEnabledAttr(True)
 
         self.spawned_objects.append(vehicle_path)
         self.vehicle_count += 1
@@ -418,6 +453,9 @@ class VehicleSpawner(BaseSpawner):
                 position = None
 
             path = self.spawn_vehicle(vehicle_type, position=position)
+            if path is None:
+                # No valid position found, skip this vehicle
+                continue
             spawned.append(path)
 
             if i == 0 and center is None:
@@ -459,6 +497,7 @@ class VehicleSpawner(BaseSpawner):
             pos_x = start_pos[0] + i * dx
             pos_y = start_pos[1] + i * dy
             path = self.spawn_vehicle(vehicle_type, position=(pos_x, pos_y), heading=direction)
-            spawned.append(path)
+            if path is not None:
+                spawned.append(path)
 
         return spawned

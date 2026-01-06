@@ -108,7 +108,7 @@ class BaseSpawner:
                 return False
         return True
 
-    def find_valid_position(self, x: float, y: float, radius: float, max_attempts: int = 20) -> Tuple[float, float]:
+    def find_valid_position(self, x: float, y: float, radius: float, max_attempts: int = 20) -> Optional[Tuple[float, float]]:
         """
         Find a valid position near the requested position, adjusting if needed to avoid overlap.
 
@@ -118,7 +118,9 @@ class BaseSpawner:
             max_attempts: Number of attempts to find nearby valid position
 
         Returns:
-            Valid (x, y) position (may be adjusted from original)
+            Valid (x, y) position, or None if no valid position can be found.
+            When None is returned, the caller should skip spawning rather than
+            force the object into an invalid position.
         """
         # First check if requested position is valid
         if self._check_position_valid(x, y, radius):
@@ -142,8 +144,9 @@ class BaseSpawner:
             if self._check_position_valid(new_x, new_y, radius):
                 return new_x, new_y
 
-        # Fallback to random position
-        return self.get_random_position(radius)
+        # No valid position found - return None so caller can skip spawning
+        # This prevents objects from being forced into overlapping positions
+        return None
 
     def register_position(self, x: float, y: float, radius: float = 1.0) -> None:
         """Register a spawned object's position for overlap prevention."""

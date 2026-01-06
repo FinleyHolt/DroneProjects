@@ -1162,8 +1162,8 @@ def run_drone_functions_check():
     world_gen.setup_lighting()
     forest_result = world_gen.generate_forest(density=0.3, include_undergrowth=False)
 
-    # Spawn target vehicles for YOLO detection
-    print("[WorldGen] Spawning target vehicles...", flush=True)
+    # Spawn target vehicles and people for YOLO detection
+    print("[WorldGen] Spawning target vehicles and people...", flush=True)
     target_clusters = [
         (25.0, 25.0),   # NE cluster (will be visible during square pattern)
         (-25.0, 25.0),  # NW cluster
@@ -1172,22 +1172,39 @@ def run_drone_functions_check():
     ]
 
     all_targets = []
+    all_people = []
     for center in target_clusters:
+        # Spawn vehicles at each cluster
+        # Available types: sedan2, suv, sports_car, sports_car2, taxi, police, tank, tank2, tank3, tank4
         vehicle_paths = world_gen.vehicles.spawn_vehicle_group(
-            vehicle_types=["sedan", "suv", "tank", "taxi"],
+            vehicle_types=["sedan2", "suv", "tank", "taxi"],
             count=4,
             clustering=0.7,
             center=center,
         )
         all_targets.extend(vehicle_paths)
 
-    print(f"[WorldGen] Created {len(forest_result['trees'])} trees, {len(all_targets)} targets")
+        # Spawn people near each vehicle cluster
+        # Get available person types from the spawner
+        if world_gen.people.person_configs:
+            person_types = list(world_gen.people.person_configs.keys())
+            # Spawn 3-5 people near each vehicle cluster
+            people_center = (center[0] + 5.0, center[1] + 5.0)  # Offset from vehicles
+            people_paths = world_gen.people.spawn_crowd(
+                person_types=person_types,
+                count=4,
+                center=people_center,
+                radius=8.0,
+            )
+            all_people.extend(people_paths)
+
+    print(f"[WorldGen] Created {len(forest_result['trees'])} trees, {len(all_targets)} vehicles, {len(all_people)} people")
 
     test_results.append(TestResult(
         name="World Generation",
         passed=True,
-        message=f"Generated terrain, {len(forest_result['trees'])} trees, {len(all_targets)} targets",
-        data={"trees": len(forest_result['trees']), "targets": len(all_targets)},
+        message=f"Generated terrain, {len(forest_result['trees'])} trees, {len(all_targets)} vehicles, {len(all_people)} people",
+        data={"trees": len(forest_result['trees']), "vehicles": len(all_targets), "people": len(all_people)},
     ))
 
     # Multiple updates to ensure stage is ready
@@ -1657,6 +1674,15 @@ def run_drone_functions_check():
         ("Pan left", -45, -60),
         ("Pan right", 45, -60),
         ("Look forward", 0, -30),
+        # Full 360° pan to show entire scene
+        ("Pan 360 - North", 0, -30),
+        ("Pan 360 - NE", 45, -30),
+        ("Pan 360 - East", 90, -30),
+        ("Pan 360 - SE", 135, -30),
+        ("Pan 360 - South", 180, -30),
+        ("Pan 360 - SW", 225, -30),
+        ("Pan 360 - West", 270, -30),
+        ("Pan 360 - NW", 315, -30),
         ("Reset", 0, -30),
     ]
 

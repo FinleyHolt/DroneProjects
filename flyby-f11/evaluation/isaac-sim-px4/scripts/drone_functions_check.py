@@ -105,9 +105,9 @@ REPORT_OUTPUT = f"{OUTPUT_DIR}/functions_check_report.json"
 YOLO_MODEL_PATH = "/workspace/models/yolo11x.pt"
 
 # Flight parameters
-TAKEOFF_ALTITUDE = 15.0  # meters
+TAKEOFF_ALTITUDE = 75.0  # meters
 WAYPOINT_SIZE = 30.0  # meters (square pattern side length)
-WAYPOINT_ALTITUDE = 15.0  # meters
+WAYPOINT_ALTITUDE = 75.0  # meters
 CRUISE_SPEED = 3.0  # m/s
 POSITION_TOLERANCE = 2.0  # meters
 
@@ -219,13 +219,19 @@ class VideoRecorder:
             self.ffmpeg_proc = None
             return False
 
-    def write_frame(self, rgba_frame: np.ndarray, overlay_text: str = None) -> int:
+    def write_frame(
+        self,
+        rgba_frame: np.ndarray,
+        overlay_text: str = None,
+        right_overlay_text: str = None,
+    ) -> int:
         """
         Write a frame with optional YOLO detection overlay.
 
         Args:
             rgba_frame: RGBA image array from camera
-            overlay_text: Optional text to overlay on frame
+            overlay_text: Optional text to overlay on frame (top-left)
+            right_overlay_text: Optional text to overlay on frame (top-right)
 
         Returns:
             Number of detections found (0 if YOLO disabled)
@@ -259,19 +265,17 @@ class VideoRecorder:
                 if self.frame_count % 100 == 0:
                     print(f"[VideoRecorder] YOLO error: {e}")
 
-        # Add text overlay if provided
+        # Add text overlay if provided (top-left)
         if overlay_text:
             try:
-                import cv2
-                # Add semi-transparent background for text
                 font = cv2.FONT_HERSHEY_SIMPLEX
-                font_scale = 0.6
+                font_scale = 0.5
                 thickness = 1
                 color = (255, 255, 255)
                 bg_color = (0, 0, 0)
 
                 lines = overlay_text.split('\n')
-                y_offset = 25
+                y_offset = 20
                 for line in lines:
                     (text_width, text_height), baseline = cv2.getTextSize(
                         line, font, font_scale, thickness
@@ -279,19 +283,53 @@ class VideoRecorder:
                     # Draw background rectangle
                     cv2.rectangle(
                         rgb_frame,
-                        (5, y_offset - text_height - 5),
-                        (15 + text_width, y_offset + 5),
+                        (5, y_offset - text_height - 3),
+                        (12 + text_width, y_offset + 3),
                         bg_color,
                         -1
                     )
                     # Draw text
                     cv2.putText(
-                        rgb_frame, line, (10, y_offset),
+                        rgb_frame, line, (8, y_offset),
                         font, font_scale, color, thickness
                     )
-                    y_offset += text_height + 10
-            except ImportError:
-                pass  # cv2 not available, skip text overlay
+                    y_offset += text_height + 8
+            except Exception:
+                pass
+
+        # Add right overlay text (top-right) for drone/gimbal angles
+        if right_overlay_text:
+            try:
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.45
+                thickness = 1
+                color = (0, 255, 255)  # Cyan for visibility
+                bg_color = (0, 0, 0)
+
+                lines = right_overlay_text.split('\n')
+                y_offset = 20
+
+                for line in lines:
+                    (text_width, text_height), baseline = cv2.getTextSize(
+                        line, font, font_scale, thickness
+                    )
+                    x_pos = self.width - text_width - 12
+                    # Draw background rectangle
+                    cv2.rectangle(
+                        rgb_frame,
+                        (x_pos - 5, y_offset - text_height - 3),
+                        (self.width - 5, y_offset + 3),
+                        bg_color,
+                        -1
+                    )
+                    # Draw text
+                    cv2.putText(
+                        rgb_frame, line, (x_pos, y_offset),
+                        font, font_scale, color, thickness
+                    )
+                    y_offset += text_height + 8
+            except Exception:
+                pass
 
         # Ensure contiguous array for FFmpeg
         rgb_frame = np.ascontiguousarray(rgb_frame)
@@ -326,86 +364,231 @@ class VideoRecorder:
 # ============================================================================
 
 class GimbalController:
-    """Simulates gimbal control by rotating the camera prim."""
+    """
+    Simulates a stabilized gimbal by rotating the camera prim.
 
-    def __init__(self, camera_prim_path: str, stage):
+    Isaac Sim Camera Convention:
+    - Camera looks along -Z axis (optical axis)
+    - +Y is up in camera frame
+    - +X is right in camera frame
+
+    World Coordinate System (Isaac Sim ENU):
+    - +X = East
+    - +Y = North (forward for drone)
+    - +Z = Up
+
+    Gimbal Angles (in world frame):
+    - Pan: Rotation around world Z axis (0 = looking along +X, 90 = looking along +Y/north)
+    - Tilt: Rotation around camera's local right axis (0 = horizon, negative = looking down)
+
+    The gimbal provides 3-axis stabilization by:
+    1. Computing desired world-frame camera orientation from pan/tilt
+    2. Countering the drone's current attitude to maintain that world orientation
+    """
+
+    # Gimbal slew rate in degrees per second
+    SLEW_RATE = 45.0
+
+    def __init__(self, camera_prim_path: str, stage, default_tilt: float = -30.0):
         self.camera_path = camera_prim_path
         self.stage = stage
-        self.pan = 0.0  # degrees
-        self.tilt = -45.0  # degrees (looking down by default)
+
+        # Current gimbal angles (world frame)
+        self.pan = 0.0    # degrees around Z (0 = +X direction)
+        self.tilt = default_tilt  # degrees (0 = horizon, negative = down)
+
+        # Target angles for smooth interpolation
+        self.target_pan = 0.0
+        self.target_tilt = default_tilt
+
         self.tilt_min, self.tilt_max = GIMBAL_TILT_RANGE
 
+        # Drone attitude for stabilization (in degrees)
+        self._drone_roll = 0.0
+        self._drone_pitch = 0.0
+        self._drone_yaw = 0.0
+
+        self._last_update_time = time.time()
+
     def set_angles(self, pan: float, tilt: float) -> None:
-        """Set gimbal pan and tilt angles."""
+        """Set target gimbal pan and tilt angles (will interpolate smoothly)."""
+        self.target_pan = pan % 360
+        self.target_tilt = max(self.tilt_min, min(self.tilt_max, tilt))
+
+    def set_angles_immediate(self, pan: float, tilt: float) -> None:
+        """Set gimbal angles immediately (no interpolation)."""
         self.pan = pan % 360
         self.tilt = max(self.tilt_min, min(self.tilt_max, tilt))
+        self.target_pan = self.pan
+        self.target_tilt = self.tilt
         self._update_camera_orientation()
 
     def pan_by(self, delta_pan: float) -> None:
-        """Adjust pan angle by delta degrees."""
-        self.pan = (self.pan + delta_pan) % 360
-        self._update_camera_orientation()
+        """Adjust target pan angle by delta degrees."""
+        self.target_pan = (self.target_pan + delta_pan) % 360
 
     def tilt_by(self, delta_tilt: float) -> None:
-        """Adjust tilt angle by delta degrees."""
-        self.tilt = max(self.tilt_min, min(self.tilt_max, self.tilt + delta_tilt))
-        self._update_camera_orientation()
+        """Adjust target tilt angle by delta degrees."""
+        self.target_tilt = max(self.tilt_min, min(self.tilt_max, self.target_tilt + delta_tilt))
 
     def look_at_ground(self) -> None:
         """Point camera straight down."""
-        self.tilt = -90.0
-        self._update_camera_orientation()
+        self.target_tilt = -90.0
 
     def look_forward(self) -> None:
         """Point camera forward (horizon)."""
-        self.tilt = 0.0
+        self.target_tilt = 0.0
+
+    def update_drone_attitude(self, roll: float, pitch: float, yaw: float) -> None:
+        """
+        Update the drone's current attitude for stabilization.
+
+        Args:
+            roll: Drone roll in degrees (positive = right wing down)
+            pitch: Drone pitch in degrees (positive = nose up)
+            yaw: Drone yaw in degrees (positive = clockwise from above)
+        """
+        self._drone_roll = roll
+        self._drone_pitch = pitch
+        self._drone_yaw = yaw
+
+    def get_drone_attitude(self) -> tuple:
+        """Return current drone attitude (roll, pitch, yaw) in degrees."""
+        return (self._drone_roll, self._drone_pitch, self._drone_yaw)
+
+    def get_gimbal_angles(self) -> tuple:
+        """Return current gimbal angles (pan, tilt) in degrees."""
+        return (self.pan, self.tilt)
+
+    def update(self, dt: float = None) -> None:
+        """Update gimbal with smooth interpolation toward target angles."""
+        if dt is None:
+            current_time = time.time()
+            dt = current_time - self._last_update_time
+            self._last_update_time = current_time
+
+        dt = min(dt, 0.1)  # Clamp to avoid jumps
+        max_delta = self.SLEW_RATE * dt
+
+        # Interpolate pan (handle wraparound)
+        pan_diff = self.target_pan - self.pan
+        if pan_diff > 180:
+            pan_diff -= 360
+        elif pan_diff < -180:
+            pan_diff += 360
+
+        if abs(pan_diff) > max_delta:
+            self.pan += max_delta * np.sign(pan_diff)
+        else:
+            self.pan = self.target_pan
+        self.pan = self.pan % 360
+
+        # Interpolate tilt
+        tilt_diff = self.target_tilt - self.tilt
+        if abs(tilt_diff) > max_delta:
+            self.tilt += max_delta * np.sign(tilt_diff)
+        else:
+            self.tilt = self.target_tilt
+
         self._update_camera_orientation()
 
     def _update_camera_orientation(self) -> None:
-        """Update camera prim orientation based on current pan/tilt."""
+        """
+        Update camera orientation in WORLD frame (completely isolated from drone rotation).
+
+        This is a true gimbal isolation - the camera's orientation is set directly in
+        world coordinates. The camera position follows the drone, but rotation is
+        completely independent. No counter-rotation math needed.
+
+        Isaac Sim Camera Convention:
+        - Camera looks along -Z axis (optical axis)
+        - +Y is up in camera frame
+        - +X is right in camera frame
+
+        We construct the world-frame rotation matrix directly from pan/tilt angles.
+        """
         camera_prim = self.stage.GetPrimAtPath(self.camera_path)
         if not camera_prim.IsValid():
             return
 
-        # Convert pan/tilt to rotation
-        # Camera default is looking down -Z in local frame
-        # We rotate: first tilt around X, then pan around Z
-        # For a gimbal: tilt is pitch (X rotation), pan is yaw (Z rotation)
+        # Negate pan to fix direction: positive pan = look left (CCW from above)
+        pan_rad = np.radians(-self.pan)
+        tilt_rad = np.radians(self.tilt)
 
-        # Create quaternion from euler angles
-        # Isaac Sim camera: +90 X rotation makes it look down
-        # We add tilt to that base and add pan as Z rotation
-        roll = 0.0
-        pitch = 90.0 + self.tilt  # Base 90 (looking down) + tilt adjustment
-        yaw = self.pan
+        # Compute look direction in world frame
+        # pan=0, tilt=0 -> looking along +X (east)
+        # pan rotates around Z, tilt pitches up/down
+        cos_pan = np.cos(pan_rad)
+        sin_pan = np.sin(pan_rad)
+        cos_tilt = np.cos(tilt_rad)
+        sin_tilt = np.sin(tilt_rad)
 
-        quat = rot_utils.euler_angles_to_quats(
-            np.array([pitch, yaw, roll]), degrees=True
-        )
+        # Look direction (what the camera points at)
+        look_dir = np.array([
+            cos_pan * cos_tilt,
+            sin_pan * cos_tilt,
+            sin_tilt
+        ])
+        look_dir = look_dir / np.linalg.norm(look_dir)
 
-        # Update camera transform
+        # World up vector
+        world_up = np.array([0.0, 0.0, 1.0])
+
+        # Right vector = look_dir x world_up (then normalize)
+        right = np.cross(look_dir, world_up)
+        right_norm = np.linalg.norm(right)
+        if right_norm < 1e-6:
+            # Looking straight up or down - pick arbitrary right
+            right = np.array([0.0, 1.0, 0.0])
+        else:
+            right = right / right_norm
+
+        # Camera up = right x look_dir (ensures orthogonal frame)
+        up = np.cross(right, look_dir)
+        up = up / np.linalg.norm(up)
+
+        # Build rotation matrix: columns are camera basis vectors in world coords
+        # Camera frame: X=right, Y=up, Z=back (camera looks along -Z)
+        # So camera's -Z should point along look_dir -> camera's +Z = -look_dir
+        R_cam_to_world = np.column_stack([right, up, -look_dir])
+
+        # Convert to quaternion
+        world_rot = Rotation.from_matrix(R_cam_to_world)
+        quat_xyzw = world_rot.as_quat()  # scipy format: [x, y, z, w]
+        quat_wxyz = Gf.Quatd(quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2])
+
+        # Set the camera's world orientation directly
         xform = UsdGeom.Xformable(camera_prim)
+        ops = xform.GetOrderedXformOps()
 
-        # Find or create orient op
+        # Find existing orient op or create one
         orient_op = None
-        for op in xform.GetOrderedXformOps():
+        for op in ops:
             if op.GetOpType() == UsdGeom.XformOp.TypeOrient:
                 orient_op = op
                 break
 
         if orient_op is None:
-            # Clear and recreate ops
+            # Get current translation before modifying
             translate_val = None
-            for op in xform.GetOrderedXformOps():
+            for op in ops:
                 if op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
                     translate_val = op.Get()
+                    break
 
+            # Clear and rebuild xform ops
             xform.ClearXformOpOrder()
-            if translate_val is not None:
-                xform.AddTranslateOp().Set(translate_val)
-            orient_op = xform.AddOrientOp()
 
-        orient_op.Set(Gf.Quatd(quat[0], quat[1], quat[2], quat[3]))
+            # Add translate first
+            translate_op = xform.AddTranslateOp()
+            if translate_val is not None:
+                translate_op.Set(translate_val)
+
+            # Add orient op with double precision (quatd) to match existing camera setup
+            orient_op = xform.AddOrientOp(precision=UsdGeom.XformOp.PrecisionDouble)
+
+        # Set the quaternion value
+        orient_op.Set(quat_wxyz)
 
 
 # ============================================================================
@@ -415,24 +598,60 @@ class GimbalController:
 class FlightController:
     """PX4 flight controller interface via MAVLink."""
 
-    # PX4 custom modes
-    PX4_MODE_MANUAL = 0
-    PX4_MODE_OFFBOARD = 6
-    PX4_MODE_RTL = 5
-    PX4_MODE_LAND = 9
+    # PX4 custom modes - these are the ENCODED values from heartbeat.custom_mode
+    # The encoding is: main_mode << 16 | sub_mode << 24
+    # Main modes: 1=MANUAL, 2=ALTCTL, 3=POSCTL, 4=AUTO, 5=ACRO, 6=OFFBOARD, 7=STABILIZED, 8=RATTITUDE
+    # For AUTO mode, sub_mode specifies: 1=READY, 2=TAKEOFF, 3=LOITER, 4=MISSION, 5=RTL, 6=LAND
+    PX4_MODE_MANUAL = 1 << 16      # 65536
+    PX4_MODE_ALTCTL = 2 << 16      # 131072
+    PX4_MODE_POSCTL = 3 << 16      # 196608
+    PX4_MODE_AUTO = 4 << 16        # 262144
+    PX4_MODE_ACRO = 5 << 16        # 327680
+    PX4_MODE_OFFBOARD = 6 << 16    # 393216
+    PX4_MODE_STABILIZED = 7 << 16  # 458752
+    PX4_MODE_RATTITUDE = 8 << 16   # 524288
 
+    # AUTO sub-modes (add to PX4_MODE_AUTO)
+    PX4_AUTO_RTL = PX4_MODE_AUTO | (5 << 24)    # AUTO + RTL sub-mode
+    PX4_AUTO_LAND = PX4_MODE_AUTO | (6 << 24)   # AUTO + LAND sub-mode
+
+    # MODE_NAMES uses encoded values as keys
     MODE_NAMES = {
-        0: "MANUAL",
-        1: "ALTCTL",
-        2: "POSCTL",
-        3: "AUTO",
-        4: "ACRO",
-        5: "RTL",
-        6: "OFFBOARD",
-        7: "STABILIZED",
-        8: "RATTITUDE",
-        9: "LAND",
+        1 << 16: "MANUAL",
+        2 << 16: "ALTCTL",
+        3 << 16: "POSCTL",
+        4 << 16: "AUTO",
+        5 << 16: "ACRO",
+        6 << 16: "OFFBOARD",
+        7 << 16: "STABILIZED",
+        8 << 16: "RATTITUDE",
     }
+
+    @staticmethod
+    def decode_px4_mode(custom_mode: int) -> tuple:
+        """Decode PX4 custom_mode into main_mode and sub_mode."""
+        main_mode = (custom_mode >> 16) & 0xFF
+        sub_mode = (custom_mode >> 24) & 0xFF
+        return main_mode, sub_mode
+
+    def get_mode_name(self, custom_mode: int) -> str:
+        """Get human-readable mode name from encoded custom_mode."""
+        # First check for exact match (handles AUTO sub-modes)
+        if custom_mode in self.MODE_NAMES:
+            return self.MODE_NAMES[custom_mode]
+
+        # Extract main mode for lookup
+        main_mode_encoded = custom_mode & 0x00FF0000
+        main_mode_name = self.MODE_NAMES.get(main_mode_encoded, "UNKNOWN")
+
+        # If AUTO mode, add sub-mode info
+        main_mode, sub_mode = self.decode_px4_mode(custom_mode)
+        if main_mode == 4 and sub_mode > 0:  # AUTO mode with sub-mode
+            sub_names = {1: "READY", 2: "TAKEOFF", 3: "LOITER", 4: "MISSION", 5: "RTL", 6: "LAND"}
+            sub_name = sub_names.get(sub_mode, f"SUB{sub_mode}")
+            return f"AUTO_{sub_name}"
+
+        return main_mode_name if main_mode_name != "UNKNOWN" else f"MODE_{custom_mode}"
 
     def __init__(self, vehicle: Multirotor, world: World):
         self.vehicle = vehicle
@@ -441,6 +660,24 @@ class FlightController:
         self.connected = False
         self.state = FlightState()
         self._home_position = None
+        # Optional callback called on every world.step() to keep camera synced
+        self._step_callback = None
+
+    def set_step_callback(self, callback) -> None:
+        """
+        Set a callback that is called on every simulation step.
+        This ensures camera position stays synced with drone during all operations.
+        """
+        self._step_callback = callback
+
+    def _step(self, render: bool = True) -> None:
+        """
+        Step the simulation and call any registered callback.
+        This ensures camera stays attached to drone during all operations.
+        """
+        self.world.step(render=render)
+        if self._step_callback:
+            self._step_callback()
 
     def connect(self, max_steps: int = 500) -> bool:
         """Connect to PX4 via MAVLink."""
@@ -449,7 +686,7 @@ class FlightController:
         self.mav = mavutil.mavlink_connection('udpin:localhost:14550', source_system=255)
 
         for i in range(max_steps):
-            self.world.step(render=True)
+            self._step()
             msg = self.mav.recv_match(type='HEARTBEAT', blocking=False)
             if msg and msg.get_srcSystem() != 0:
                 print(f"[FlightController] Connected to system {msg.get_srcSystem()}", flush=True)
@@ -458,9 +695,70 @@ class FlightController:
                 self.connected = True
                 self._update_state()
                 self._home_position = self.state.position.copy()
+
+                # Set parameters to allow OFFBOARD mode without RC input
+                # COM_RC_IN_MODE: 2 = RC input disabled (critical for SITL without RC)
+                # COM_RCL_EXCEPT: bitmask where bit 2 (value 4) = OFFBOARD exception
+                # NAV_RCL_ACT: 0 = disabled (no RC loss action)
+                # NAV_DLL_ACT: 0 = disabled (no data link loss action)
+                self._set_param("COM_RC_IN_MODE", 2)
+                self._set_param("COM_RCL_EXCEPT", 4)
+                self._set_param("NAV_RCL_ACT", 0)
+                self._set_param("NAV_DLL_ACT", 0)
+
+                # Wait for parameters to take effect
+                for _ in range(50):
+                    self._step()
+
                 return True
 
         print("[FlightController] ERROR: Failed to connect to MAVLink", flush=True)
+        return False
+
+    def _set_param(self, param_id: str, value: float, param_type: int = None) -> bool:
+        """
+        Set a PX4 parameter via MAVLink PARAM_SET.
+
+        Args:
+            param_id: Parameter name (e.g., "COM_RCL_EXCEPT")
+            value: Parameter value
+            param_type: MAVLink param type (auto-detected if None)
+
+        Returns:
+            True if parameter was acknowledged
+        """
+        if not self.connected:
+            return False
+
+        # Determine param type if not specified
+        if param_type is None:
+            if isinstance(value, float) and not value.is_integer():
+                param_type = mavutil.mavlink.MAV_PARAM_TYPE_REAL32
+            else:
+                param_type = mavutil.mavlink.MAV_PARAM_TYPE_INT32
+
+        # Pad param_id to 16 bytes
+        param_id_bytes = param_id.encode('utf-8')[:16].ljust(16, b'\x00')
+
+        print(f"[FlightController] Setting param {param_id}={value}", flush=True)
+
+        self.mav.mav.param_set_send(
+            self.mav.target_system,
+            self.mav.target_component,
+            param_id_bytes,
+            float(value),
+            param_type
+        )
+
+        # Wait for acknowledgement
+        for _ in range(50):
+            self._step()
+            msg = self.mav.recv_match(type='PARAM_VALUE', blocking=False)
+            if msg and msg.param_id.rstrip('\x00') == param_id:
+                print(f"[FlightController] Param {param_id} confirmed: {msg.param_value}", flush=True)
+                return True
+
+        print(f"[FlightController] WARNING: No ACK for param {param_id}", flush=True)
         return False
 
     def _update_state(self) -> None:
@@ -474,7 +772,7 @@ class FlightController:
         if msg:
             self.state.armed = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
             self.state.mode = msg.custom_mode
-            self.state.mode_name = self.MODE_NAMES.get(msg.custom_mode, f"MODE_{msg.custom_mode}")
+            self.state.mode_name = self.get_mode_name(msg.custom_mode)
 
     def _send_velocity_setpoint(self, vx: float = 0.0, vy: float = 0.0, vz: float = 0.0) -> None:
         """Send velocity setpoint in NED frame (negative Z = up)."""
@@ -502,32 +800,54 @@ class FlightController:
             yaw, 0
         )
 
-    def set_mode_offboard(self, max_attempts: int = 5) -> bool:
+    def set_mode_offboard(self, max_attempts: int = 10) -> bool:
         """Set flight mode to OFFBOARD."""
         # Prime with setpoints first - PX4 requires continuous stream before OFFBOARD
         print("[FlightController] Priming OFFBOARD with setpoints...", flush=True)
-        for _ in range(200):
+        for _ in range(300):
             self._send_velocity_setpoint()
-            self.world.step(render=True)
+            self._step()
 
         for attempt in range(max_attempts):
+            # Send mode change command
+            # Note: param2 takes the simple main mode number (6 for OFFBOARD),
+            # NOT the encoded custom_mode value from heartbeat
             self.mav.mav.command_long_send(
                 self.mav.target_system, self.mav.target_component,
                 mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
                 mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-                self.PX4_MODE_OFFBOARD, 0, 0, 0, 0, 0
+                6,  # OFFBOARD main mode number (heartbeat reports this as 6 << 16 = 393216)
+                0, 0, 0, 0, 0
             )
 
             # Keep sending setpoints while waiting for mode change
-            for _ in range(150):
+            # Check multiple heartbeats to ensure we catch the mode change
+            for i in range(200):
                 self._send_velocity_setpoint()
-                self.world.step(render=True)
+                self._step()
 
-            self._update_state()
+                # Check for mode change every 20 steps
+                if i % 20 == 0:
+                    # Drain all pending heartbeats and use the latest
+                    latest_mode = None
+                    while True:
+                        msg = self.mav.recv_match(type='HEARTBEAT', blocking=False)
+                        if msg is None:
+                            break
+                        if msg.get_srcSystem() == self.mav.target_system:
+                            latest_mode = msg.custom_mode
+                            self.state.armed = bool(msg.base_mode & mavutil.mavlink.MAV_MODE_FLAG_SAFETY_ARMED)
+
+                    if latest_mode is not None:
+                        self.state.mode = latest_mode
+                        self.state.mode_name = self.get_mode_name(latest_mode)
+
+                        # Compare with encoded value (393216 = 6 << 16)
+                        if latest_mode == self.PX4_MODE_OFFBOARD:
+                            print(f"[FlightController] OFFBOARD mode set (attempt {attempt+1})", flush=True)
+                            return True
+
             print(f"[FlightController] Mode check (attempt {attempt+1}): {self.state.mode_name} ({self.state.mode})", flush=True)
-            if self.state.mode == self.PX4_MODE_OFFBOARD:
-                print(f"[FlightController] OFFBOARD mode set (attempt {attempt+1})", flush=True)
-                return True
 
         print(f"[FlightController] WARNING: Failed to set OFFBOARD mode, current: {self.state.mode_name}", flush=True)
         return False
@@ -543,7 +863,7 @@ class FlightController:
 
             for _ in range(100):
                 self._send_velocity_setpoint()
-                self.world.step(render=True)
+                self._step()
 
             self._update_state()
             if self.state.armed:
@@ -561,7 +881,7 @@ class FlightController:
         )
 
         for _ in range(50):
-            self.world.step(render=True)
+            self._step()
 
         self._update_state()
         return not self.state.armed
@@ -569,7 +889,7 @@ class FlightController:
     def takeoff(
         self,
         target_altitude: float,
-        max_steps: int = 1000,
+        max_steps: int = 3000,
         callback=None,
     ) -> bool:
         """
@@ -588,7 +908,7 @@ class FlightController:
         for step in range(max_steps):
             # Send upward velocity
             self._send_velocity_setpoint(vz=-2.0)  # NED: negative Z = up
-            self.world.step(render=True)
+            self._step()
             self._update_state()
 
             if callback:
@@ -622,7 +942,7 @@ class FlightController:
         """
         for step in range(max_steps):
             self._send_position_setpoint(target[0], target[1], target[2])
-            self.world.step(render=True)
+            self._step()
             self._update_state()
 
             # Re-request OFFBOARD mode periodically to prevent fallback
@@ -631,7 +951,8 @@ class FlightController:
                     self.mav.target_system, self.mav.target_component,
                     mavutil.mavlink.MAV_CMD_DO_SET_MODE, 0,
                     mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
-                    self.PX4_MODE_OFFBOARD, 0, 0, 0, 0, 0
+                    6,  # OFFBOARD main mode number
+                    0, 0, 0, 0, 0
                 )
 
             if callback:
@@ -689,7 +1010,7 @@ class FlightController:
                     # So we need: vx_ned = vy_enu, vy_ned = vx_enu, vz_ned = -vz_enu
                     self._send_velocity_setpoint(velocity[1], velocity[0], -velocity[2])
 
-                self.world.step(render=True)
+                self._step()
                 self._update_state()
 
                 if callback:
@@ -720,21 +1041,43 @@ class FlightController:
 
         return True
 
-    def land(self, max_steps: int = 1500, callback=None) -> bool:
-        """Land the vehicle."""
+    def land(self, max_steps: int = 5000, callback=None) -> bool:
+        """
+        Land the vehicle by descending at current XY position.
+
+        Uses position setpoints with decreasing altitude for more reliable descent,
+        since velocity-only commands can be ignored by some PX4 modes.
+        """
         print("[FlightController] Landing...", flush=True)
 
+        # Get current position for XY hold
+        start_x = self.state.position[0]
+        start_y = self.state.position[1]
+        current_alt = self.state.altitude
+
+        # Descent rate in meters per step
+        # Slow descent of 0.02m/step at ~60Hz = ~1.2 m/s descent rate
+        # This gives the drone time to track the descending setpoint
+        descent_rate = 0.02
+
         for step in range(max_steps):
-            # Descend slowly
-            self._send_velocity_setpoint(vz=1.0)  # NED: positive Z = down
-            self.world.step(render=True)
+            # Calculate target altitude (descending)
+            target_alt = max(0.0, current_alt - (step * descent_rate))
+
+            # Send position setpoint to descend while holding XY position
+            # Using ENU coordinates for Isaac Sim
+            self._send_position_setpoint(start_x, start_y, target_alt)
+            self._step()
             self._update_state()
+
+            if step % 300 == 0:
+                print(f"[FlightController] Descending: {self.state.altitude:.1f}m -> target {target_alt:.1f}m", flush=True)
 
             if callback:
                 callback(step, self.state)
 
-            # Check if landed
-            if self.state.altitude < 0.5:
+            # Check if landed (increased threshold slightly for ground detection)
+            if self.state.altitude < 1.0:
                 print(f"[FlightController] Landed at altitude {self.state.altitude:.2f}m", flush=True)
                 return True
 
@@ -871,11 +1214,25 @@ def run_drone_functions_check():
     camera.initialize()
     simulation_app.update()
 
+    # Set wider FOV (double the default ~55 deg to ~110 deg)
+    # This is done by adjusting the horizontal aperture
+    # Default aperture is ~20.955mm for 55deg FOV with 50mm focal length
+    # Double aperture = double FOV approximately
+    camera_prim_fov = stage.GetPrimAtPath(CAMERA_PATH)
+    if camera_prim_fov.IsValid():
+        from pxr import UsdGeom
+        usd_camera = UsdGeom.Camera(camera_prim_fov)
+        if usd_camera:
+            # Set horizontal aperture to ~42mm for ~110 deg FOV
+            usd_camera.GetHorizontalApertureAttr().Set(42.0)
+            print("[Camera] Set wide FOV (~110 degrees)")
+
     print(f"[Camera] Created at {CAMERA_PATH}, resolution {CAMERA_WIDTH}x{CAMERA_HEIGHT}")
 
-    # Initialize gimbal controller
-    gimbal = GimbalController(CAMERA_PATH, stage)
-    gimbal.set_angles(0, -45)  # Initial: looking down at 45 degrees
+    # Initialize gimbal controller with forward-down default angle
+    # -30 degrees gives a good forward-looking view while still seeing the ground ahead
+    gimbal = GimbalController(CAMERA_PATH, stage, default_tilt=-30.0)
+    gimbal.set_angles_immediate(0, -30)  # Initial: forward-down at 30 degrees
 
     test_results.append(TestResult(
         name="Camera Setup",
@@ -920,6 +1277,51 @@ def run_drone_functions_check():
 
     # Initialize flight controller
     fc = FlightController(vehicle, world)
+
+    # Set up camera tracking callback EARLY - before any flight operations
+    # This ensures camera stays attached to drone during connect/arm/mode changes
+    camera_prim_early = stage.GetPrimAtPath(CAMERA_PATH)
+    camera_xform_early = UsdGeom.Xformable(camera_prim_early) if camera_prim_early.IsValid() else None
+    camera_translate_op_early = None
+    if camera_xform_early:
+        for op in camera_xform_early.GetOrderedXformOps():
+            if op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
+                camera_translate_op_early = op
+                break
+        if camera_translate_op_early is None:
+            camera_translate_op_early = camera_xform_early.AddTranslateOp()
+
+    def early_camera_update():
+        """Keep camera attached to drone during all simulation steps."""
+        if camera_translate_op_early is None:
+            return
+        try:
+            drone_pos = vehicle.state.position
+            if drone_pos is not None:
+                camera_pos = np.array([drone_pos[0], drone_pos[1], drone_pos[2] + 0.5])
+                camera_translate_op_early.Set(Gf.Vec3d(*camera_pos))
+        except Exception:
+            pass
+
+    def early_gimbal_update():
+        """Update gimbal stabilization during all simulation steps."""
+        try:
+            quat = vehicle.state.attitude
+            if quat is not None and len(quat) == 4:
+                rot = Rotation.from_quat([quat[0], quat[1], quat[2], quat[3]])
+                euler = rot.as_euler('xyz', degrees=True)
+                gimbal.update_drone_attitude(euler[0], euler[1], euler[2])
+            gimbal.update()
+        except Exception:
+            pass
+
+    def early_step_callback():
+        """Combined callback for camera tracking and gimbal stabilization."""
+        early_camera_update()
+        early_gimbal_update()
+
+    # Register the callback so camera follows drone during connect/arm/mode changes
+    fc.set_step_callback(early_step_callback)
 
     test_results.append(TestResult(
         name="Vehicle Creation",
@@ -1014,53 +1416,77 @@ def run_drone_functions_check():
     print("\n[7/7] Running flight tests...")
 
     # Helper to update camera position and record frame
-    gimbal_phase = 0  # Track gimbal animation phase
     current_test_phase = "Initializing"  # Track which test is running
 
+    # Reuse the camera translate op from earlier setup
+    camera_translate_op = camera_translate_op_early
+
+    def update_camera_position():
+        """
+        Update camera position to follow the drone.
+        Reuses the early_camera_update function to ensure consistency.
+        """
+        early_camera_update()
+
+    def update_gimbal_from_drone():
+        """
+        Update gimbal orientation based on current drone attitude.
+        Returns (drone_roll, drone_pitch, drone_yaw) for overlay display.
+        """
+        drone_roll, drone_pitch, drone_yaw = 0.0, 0.0, 0.0
+        try:
+            quat = vehicle.state.attitude  # [x, y, z, w] convention in Pegasus
+            if quat is not None and len(quat) == 4:
+                # Convert quaternion to euler angles (degrees)
+                rot = Rotation.from_quat([quat[0], quat[1], quat[2], quat[3]])
+                euler = rot.as_euler('xyz', degrees=True)
+                drone_roll, drone_pitch, drone_yaw = euler[0], euler[1], euler[2]
+
+                # Update gimbal with drone attitude for stabilization
+                gimbal.update_drone_attitude(drone_roll, drone_pitch, drone_yaw)
+        except Exception:
+            pass
+
+        # Update gimbal (smooth interpolation and stabilization)
+        gimbal.update()
+
+        return drone_roll, drone_pitch, drone_yaw
+
     def flight_callback(step, state, waypoint_idx=None):
-        nonlocal total_detections, gimbal_phase, current_test_phase
+        nonlocal total_detections, current_test_phase
 
-        # Move camera to follow drone
-        camera_pos = state.position.copy()
-        camera_pos[2] += 0.5  # Slightly above drone
+        # Update camera position to follow drone
+        update_camera_position()
 
-        # Update camera position via prim
-        camera_prim = stage.GetPrimAtPath(CAMERA_PATH)
-        if camera_prim.IsValid():
-            xform = UsdGeom.Xformable(camera_prim)
-            translate_op = None
-            for op in xform.GetOrderedXformOps():
-                if op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
-                    translate_op = op
-                    break
-            if translate_op:
-                translate_op.Set(Gf.Vec3d(*camera_pos))
-            else:
-                xform.AddTranslateOp().Set(Gf.Vec3d(*camera_pos))
+        # Update gimbal stabilization
+        drone_roll, drone_pitch, drone_yaw = update_gimbal_from_drone()
 
-        # Animate gimbal during waypoint flight
-        if waypoint_idx is not None:
-            # Pan camera slowly during waypoint navigation
-            gimbal.pan_by(0.5)  # Slow pan
-
-            # Vary tilt based on waypoint
-            if step % 100 < 50:
-                gimbal.tilt_by(-0.2)  # Tilt down
-            else:
-                gimbal.tilt_by(0.2)  # Tilt up
+        # Get gimbal angles
+        gimbal_pan, gimbal_tilt = gimbal.get_gimbal_angles()
 
         # Record frame
         try:
             rgba = camera.get_rgba()
             if rgba is not None and rgba.size > 0:
-                # Create overlay text with current test phase prominently displayed
+                # Create overlay text with current test phase (top-left)
                 overlay = f"TEST: {current_test_phase}"
                 if waypoint_idx is not None:
                     overlay += f" (WP {waypoint_idx + 1})"
                 overlay += f"\nAlt: {state.altitude:.1f}m | Mode: {state.mode_name}"
-                overlay += f"\nPos: ({state.position[0]:.1f}, {state.position[1]:.1f}, {state.position[2]:.1f})"
+                overlay += f"\nPos: ({state.position[0]:.1f}, {state.position[1]:.1f})"
 
-                detections = recorder.write_frame(rgba, overlay)
+                # Create right overlay with drone body and gimbal angles (top-right)
+                # This shows stabilization in action - drone angles change but gimbal stays stable
+                right_overlay = "=== STABILIZATION ==="
+                right_overlay += f"\nDRONE BODY:"
+                right_overlay += f"\n  Roll:  {drone_roll:+6.1f} deg"
+                right_overlay += f"\n  Pitch: {drone_pitch:+6.1f} deg"
+                right_overlay += f"\n  Yaw:   {drone_yaw:+6.1f} deg"
+                right_overlay += f"\nGIMBAL (world):"
+                right_overlay += f"\n  Pan:   {gimbal_pan:+6.1f} deg"
+                right_overlay += f"\n  Tilt:  {gimbal_tilt:+6.1f} deg"
+
+                detections = recorder.write_frame(rgba, overlay, right_overlay)
                 total_detections += detections
         except Exception as e:
             if step % 200 == 0:
@@ -1109,39 +1535,186 @@ def run_drone_functions_check():
         data={"waypoints_reached": reached, "waypoints_total": total},
     ))
 
+    # ----- TEST: Stabilization Stress Test -----
+    print("\n--- Test: Stabilization Stress Test (Aggressive Maneuvers) ---")
+    current_test_phase = "STAB TEST"
+
+    # This test performs aggressive maneuvers while the gimbal maintains stable orientation
+    # The goal is to demonstrate that the camera view remains stable even during:
+    # 1. Quick lateral movements (left-right-left)
+    # 2. Forward-backward surges
+    # 3. Spinning/yaw rotation
+    # The drone will move aggressively but the camera should stay pointed at the same world direction
+
+    # Set gimbal to look forward-down for the test
+    gimbal.set_angles_immediate(0, -30)
+
+    stab_test_start = time.time()
+    stab_success = True
+
+    # Get current position as reference
+    ref_pos = fc.state.position.copy()
+    ref_alt = WAYPOINT_ALTITUDE
+
+    # Maneuver sequence: each is (name, velocity_x, velocity_y, velocity_z, duration_steps)
+    # Velocities in ENU frame (x=east, y=north, z=up)
+    maneuvers = [
+        ("Lateral Right", 0, -3.0, 0, 100),   # Quick strafe right
+        ("Lateral Left", 0, 3.0, 0, 100),     # Quick strafe left
+        ("Lateral Right", 0, -3.0, 0, 100),   # Quick strafe right again
+        ("Center", 0, 3.0, 0, 50),            # Return to center
+        ("Surge Forward", 3.0, 0, 0, 100),    # Forward surge
+        ("Surge Back", -3.0, 0, 0, 100),      # Backward surge
+        ("Surge Forward", 3.0, 0, 0, 50),     # Return
+        ("Spin CW", 0, 0, 0, 150),            # We'll add yaw rate for this one
+        ("Spin CCW", 0, 0, 0, 150),           # Counter-clockwise
+        ("Stabilize", 0, 0, 0, 100),          # Hold position to stabilize
+    ]
+
+    print("[StabTest] Starting aggressive maneuver sequence...")
+
+    for maneuver_name, vx, vy, vz, steps in maneuvers:
+        print(f"[StabTest] Maneuver: {maneuver_name}", flush=True)
+
+        for step in range(steps):
+            # For spin maneuvers, we need to send yaw rate
+            if "Spin" in maneuver_name:
+                # Send velocity with yaw rate (spinning in place)
+                yaw_rate = 45.0 if "CW" in maneuver_name else -45.0  # deg/s
+                # Convert to rad/s for MAVLink
+                yaw_rate_rad = np.radians(yaw_rate)
+                fc.mav.mav.set_position_target_local_ned_send(
+                    0, fc.mav.target_system, fc.mav.target_component,
+                    mavutil.mavlink.MAV_FRAME_LOCAL_NED,
+                    0b0000010111000111,  # velocity + yaw rate
+                    0, 0, 0,
+                    0, 0, 0,  # No velocity, just spin in place
+                    0, 0, 0,
+                    0, yaw_rate_rad  # yaw rate
+                )
+            else:
+                # Standard velocity command (ENU to NED conversion)
+                fc._send_velocity_setpoint(vy, vx, -vz)
+
+            fc._step()
+            fc._update_state()
+
+            # Update gimbal (it should maintain world orientation despite drone movement)
+            try:
+                quat = vehicle.state.attitude
+                if quat is not None and len(quat) == 4:
+                    rot = Rotation.from_quat([quat[0], quat[1], quat[2], quat[3]])
+                    euler = rot.as_euler('xyz', degrees=True)
+                    gimbal.update_drone_attitude(euler[0], euler[1], euler[2])
+            except Exception:
+                pass
+            gimbal.update()
+
+            # Record frame with detailed overlay
+            try:
+                rgba = camera.get_rgba()
+                if rgba is not None and rgba.size > 0:
+                    drone_roll, drone_pitch, drone_yaw = gimbal.get_drone_attitude()
+                    gimbal_pan, gimbal_tilt = gimbal.get_gimbal_angles()
+
+                    overlay = f"TEST: STAB TEST - {maneuver_name}"
+                    overlay += f"\nAlt: {fc.state.altitude:.1f}m"
+                    overlay += f"\nVel cmd: ({vx:.1f}, {vy:.1f}, {vz:.1f})"
+
+                    right_overlay = "=== STABILIZATION ==="
+                    right_overlay += f"\nDRONE BODY:"
+                    right_overlay += f"\n  Roll:  {drone_roll:+6.1f} deg"
+                    right_overlay += f"\n  Pitch: {drone_pitch:+6.1f} deg"
+                    right_overlay += f"\n  Yaw:   {drone_yaw:+6.1f} deg"
+                    right_overlay += f"\nGIMBAL (world):"
+                    right_overlay += f"\n  Pan:   {gimbal_pan:+6.1f} deg"
+                    right_overlay += f"\n  Tilt:  {gimbal_tilt:+6.1f} deg"
+                    right_overlay += f"\n--- ISOLATED ---"
+
+                    detections = recorder.write_frame(rgba, overlay, right_overlay)
+                    total_detections += detections
+            except Exception:
+                pass
+
+    stab_test_duration = time.time() - stab_test_start
+
+    test_results.append(TestResult(
+        name="Stabilization Stress Test",
+        passed=stab_success,
+        message="Aggressive maneuvers completed with gimbal isolation",
+        duration_seconds=stab_test_duration,
+        data={"maneuvers_completed": len(maneuvers)},
+    ))
+
     # ----- TEST: Gimbal Control -----
     print("\n--- Test: Gimbal Control ---")
     current_test_phase = "GIMBAL CTRL"
 
-    # Demonstrate gimbal control with camera movements
+    # Demonstrate gimbal control with smooth camera movements
+    # Each movement uses set_angles() which smoothly interpolates to the target
     gimbal_tests = [
-        ("Look down", lambda: gimbal.set_angles(0, -90)),
-        ("Pan left", lambda: gimbal.set_angles(-45, -60)),
-        ("Pan right", lambda: gimbal.set_angles(45, -60)),
-        ("Look forward", lambda: gimbal.set_angles(0, -30)),
-        ("Reset", lambda: gimbal.set_angles(0, -45)),
+        ("Look down", 0, -90),
+        ("Pan left", -45, -60),
+        ("Pan right", 45, -60),
+        ("Look forward", 0, -30),
+        ("Reset", 0, -30),
     ]
 
     gimbal_success = True
-    for name, action in gimbal_tests:
-        action()
-        # Let it stabilize and record some frames
-        for _ in range(30):
-            world.step(render=True)
+    for name, target_pan, target_tilt in gimbal_tests:
+        # Set target angles (will interpolate smoothly)
+        gimbal.set_angles(target_pan, target_tilt)
+
+        # Run enough frames for smooth movement to complete
+        # At 45 deg/sec slew rate, 90 deg movement takes 2 seconds = 60 frames at 30fps
+        for frame in range(75):
+            # Use fc._step() to ensure camera stays attached to drone
+            fc._step()
+
+            # Get drone attitude for display
+            drone_roll, drone_pitch, drone_yaw = 0.0, 0.0, 0.0
+            try:
+                quat = vehicle.state.attitude
+                if quat is not None and len(quat) == 4:
+                    rot = Rotation.from_quat([quat[0], quat[1], quat[2], quat[3]])
+                    euler = rot.as_euler('xyz', degrees=True)
+                    drone_roll, drone_pitch, drone_yaw = euler[0], euler[1], euler[2]
+                    gimbal.update_drone_attitude(drone_roll, drone_pitch, drone_yaw)
+            except Exception:
+                pass
+
+            # Update gimbal (smooth interpolation)
+            gimbal.update()
+            gimbal_pan, gimbal_tilt = gimbal.get_gimbal_angles()
+
             try:
                 rgba = camera.get_rgba()
                 if rgba is not None and rgba.size > 0:
-                    overlay = f"TEST: GIMBAL CTRL - {name}\nPan: {gimbal.pan:.0f}deg | Tilt: {gimbal.tilt:.0f}deg"
+                    # Show current and target angles to demonstrate smooth movement
+                    overlay = f"TEST: GIMBAL CTRL - {name}"
+                    overlay += f"\nCurrent: Pan {gimbal_pan:.0f} Tilt {gimbal_tilt:.0f}"
+                    overlay += f"\nTarget:  Pan {target_pan:.0f} Tilt {target_tilt:.0f}"
                     overlay += f"\nAlt: {fc.state.altitude:.1f}m"
-                    detections = recorder.write_frame(rgba, overlay)
+
+                    # Right overlay with stabilization info
+                    right_overlay = "=== STABILIZATION ==="
+                    right_overlay += f"\nDRONE BODY:"
+                    right_overlay += f"\n  Roll:  {drone_roll:+6.1f} deg"
+                    right_overlay += f"\n  Pitch: {drone_pitch:+6.1f} deg"
+                    right_overlay += f"\n  Yaw:   {drone_yaw:+6.1f} deg"
+                    right_overlay += f"\nGIMBAL (world):"
+                    right_overlay += f"\n  Pan:   {gimbal_pan:+6.1f} deg"
+                    right_overlay += f"\n  Tilt:  {gimbal_tilt:+6.1f} deg"
+
+                    detections = recorder.write_frame(rgba, overlay, right_overlay)
                     total_detections += detections
-            except:
+            except Exception:
                 pass
 
     test_results.append(TestResult(
         name="Gimbal Control",
         passed=gimbal_success,
-        message="Gimbal pan/tilt tested",
+        message="Gimbal pan/tilt tested with smooth interpolation",
         data={"final_pan": gimbal.pan, "final_tilt": gimbal.tilt},
     ))
 

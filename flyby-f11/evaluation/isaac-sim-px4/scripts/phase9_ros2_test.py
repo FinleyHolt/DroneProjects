@@ -2,12 +2,38 @@
 """
 Phase 9 ROS2: Comms-Denied Integration Test with Manual ROS 2 Publishing
 
-Due to Isaac Sim 5.0+ headless regression, the OmniGraph ROS2CameraHelper
-doesn't work in headless mode. This script uses manual rclpy publishing:
-1. Uses isaacsim.sensors.camera.Camera class to capture images
-2. Manually publishes to ROS 2 using rclpy
+Author: Finley Holt
 
-Architecture:
+=============================================================================
+CRITICAL: Isaac Sim 5.0+ Headless Mode ROS 2 Camera Workaround
+=============================================================================
+
+PROBLEM:
+    Isaac Sim 5.0+ has a regression where the built-in OmniGraph ROS2CameraHelper
+    node does NOT work in headless mode. Topics are created but no images are
+    published, making it impossible to integrate with external ROS 2 perception
+    nodes. This affects all Isaac Sim 5.x versions (tested on 5.0.0 and 5.1.0).
+
+SYMPTOMS (if you accidentally break this):
+    - ROS 2 topics exist (/camera/rgb, /camera/camera_info) but never publish
+    - `ros2 topic hz /camera/rgb` shows 0 Hz
+    - `ros2 topic echo /camera/rgb` hangs forever
+    - GUI mode works fine, only headless mode is broken
+
+SOLUTION (implemented in this script):
+    1. Use isaacsim.sensors.camera.Camera class with get_rgba() method
+    2. Manually publish to ROS 2 topics using rclpy
+    3. Initialize camera TWICE (required per official Isaac Sim examples)
+    4. Enable ROS 2 extension BEFORE importing rclpy
+    5. Use NumPy 1.26.4 (not 2.x - causes dtype errors with Isaac Sim cameras)
+
+WHY THESE PATTERNS ARE REQUIRED:
+    - Camera class: The only reliable way to get image data in headless mode
+    - Double initialization: Isaac Sim camera requires two init calls to work
+    - Extension order: rclpy imports fail if extension not enabled first
+    - NumPy 1.26.4: Isaac Sim's internal camera system expects NumPy 1.x dtypes
+
+ARCHITECTURE:
     Isaac Sim (Camera.get_rgba()) → Manual rclpy publish → /camera/image_raw
                                                                 ↓
                                               External ROS 2 nodes:
@@ -27,7 +53,9 @@ Usage:
     ros2 run flyby_perception yolo_detector_node
     ros2 run flyby_autonomy ontology_controller_node
 
-Author: Finley Holt
+See Also:
+    - Containerfile: NumPy version pinning explanation
+    - test_ros2_camera.py: Simpler test case with same workaround
 """
 
 from isaacsim import SimulationApp
@@ -68,13 +96,21 @@ from isaacsim.core.utils import extensions
 import isaacsim.core.utils.numpy.rotations as rot_utils
 from isaacsim.sensors.camera import Camera
 
-# Enable ROS 2 bridge extension BEFORE importing rclpy
+# =============================================================================
+# CRITICAL: Enable ROS 2 extension BEFORE importing rclpy
+# =============================================================================
+# The isaacsim.ros2.bridge extension sets up the ROS 2 environment, including
+# LD_LIBRARY_PATH for ROS 2 libraries. If you import rclpy before enabling
+# this extension, the import will fail with missing library errors.
+#
+# DO NOT MOVE THIS SECTION - rclpy imports MUST come after enable_extension()
+# =============================================================================
 print("[ROS2] Enabling isaacsim.ros2.bridge extension...", flush=True)
 extensions.enable_extension("isaacsim.ros2.bridge")
 simulation_app.update()
 print("[ROS2] Extension enabled", flush=True)
 
-# ROS 2 imports (AFTER extension is enabled)
+# ROS 2 imports (MUST be AFTER extension is enabled - see warning above)
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, CameraInfo
@@ -229,7 +265,14 @@ def run_phase9_ros2_test():
     for _ in range(10):
         simulation_app.update()
 
-    # Create camera using Camera class (NOT USD prim - this works reliably)
+    # =========================================================================
+    # CRITICAL: Use Camera class, NOT USD prim or OmniGraph ROS2CameraHelper
+    # =========================================================================
+    # The OmniGraph ROS2CameraHelper does NOT work in headless mode (Isaac Sim
+    # 5.0+ regression). We must use the Camera class directly and manually
+    # publish images to ROS 2. Do NOT refactor this to use OmniGraph - it will
+    # break headless operation.
+    # =========================================================================
     print("\n[Camera] Creating camera using Camera class...", flush=True)
     camera = Camera(
         prim_path=CAMERA_PATH,
@@ -239,11 +282,20 @@ def run_phase9_ros2_test():
         orientation=rot_utils.euler_angles_to_quats(np.array([90, 0, 0]), degrees=True),  # Looking down
     )
 
-    # Initialize camera (called TWICE as per official example)
+    # =========================================================================
+    # CRITICAL: Initialize camera TWICE
+    # =========================================================================
+    # Per official Isaac Sim examples, the camera requires double initialization
+    # to work reliably. The first call creates internal resources, the second
+    # finalizes them. Removing either call may cause get_rgba() to return None
+    # or empty arrays.
+    #
+    # Reference: Isaac Sim standalone_examples/api/isaacsim.sensors.camera
+    # =========================================================================
     print("[Camera] Initializing camera (double init)...", flush=True)
     camera.initialize()
     simulation_app.update()
-    camera.initialize()
+    camera.initialize()  # Second init required - do not remove
     simulation_app.update()
 
     print(f"[Camera] Camera created at {CAMERA_PATH}", flush=True)

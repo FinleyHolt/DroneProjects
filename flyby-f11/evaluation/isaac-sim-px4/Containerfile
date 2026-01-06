@@ -114,6 +114,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     astyle \
     genromfs \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Set GCC 12 as the default compiler for PX4 build
@@ -135,8 +136,24 @@ RUN pip3 install --break-system-packages \
     future \
     nunavut
 
+# =============================================================================
+# CRITICAL: NumPy 1.26.4 Required for Isaac Sim Headless Camera Operation
+# =============================================================================
+# Isaac Sim's internal camera system (used by Camera.get_rgba()) expects
+# NumPy 1.x data types. NumPy 2.x changed the dtype system and causes:
+#
+# SYMPTOMS (if you upgrade NumPy to 2.x):
+#   - Camera.get_rgba() returns arrays with incorrect dtypes
+#   - "TypeError: expected np.uint8, got np.uint8" (different dtype objects)
+#   - Image data appears corrupted or has wrong dimensions
+#   - ROS 2 Image messages fail to serialize properly
+#
+# This affects BOTH system Python and Isaac Sim's embedded Python.
+# Both environments must use NumPy 1.26.4 for camera operations to work.
+#
+# DO NOT UPGRADE TO NUMPY 2.x - it will break headless camera publishing.
+# =============================================================================
 # Install perception stack for ROS 2 nodes (system Python)
-# ultralytics for YOLO, numpy 1.26.4 for Isaac Sim compatibility
 RUN pip3 install --break-system-packages \
     "numpy==1.26.4" \
     ultralytics \
@@ -224,9 +241,17 @@ RUN DONT_RUN=1 make px4_sitl_default
 # Create symlink for Pegasus compatibility (expects ~/PX4-Autopilot)
 RUN ln -sfn ${PX4_HOME} /isaac-sim/PX4-Autopilot
 
-# Install Python packages in Isaac Sim's Python environment
-# This is separate from system Python - Isaac Sim uses its own Python
-# CRITICAL: numpy 1.26.4 required - numpy 2.x causes dtype errors in Isaac Sim headless mode
+# =============================================================================
+# CRITICAL: Isaac Sim Python Environment - NumPy 1.26.4 Required
+# =============================================================================
+# Isaac Sim uses its own embedded Python, separate from system Python.
+# BOTH environments must use NumPy 1.26.4 for headless camera to work.
+#
+# See the NumPy warning above (line ~138) for full explanation of why
+# NumPy 2.x breaks Isaac Sim headless camera operations.
+#
+# DO NOT UPGRADE TO NUMPY 2.x in this environment either.
+# =============================================================================
 RUN /isaac-sim/python.sh -m pip install --no-cache-dir \
     "numpy==1.26.4" \
     pymavlink \

@@ -5,14 +5,19 @@ Uses simple procedural geometry (cones for trees) for performance
 while maintaining realistic shapes for physics and occlusion.
 """
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+# Standard library
 import random
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
-from pxr import Gf, UsdGeom, UsdShade, Sdf
+# Third-party
+from pxr import Gf, Sdf, UsdGeom, UsdPhysics, UsdShade
+
+# Isaac Sim / Omniverse
 import omni.isaac.core.utils.prims as prim_utils
 from isaacsim.core.utils.stage import add_reference_to_stage
 
+# Local
 from .base_spawner import BaseSpawner, SpawnConfig
 
 
@@ -74,6 +79,11 @@ class VegetationSpawner(BaseSpawner):
         self.bush_configs = bush_configs or self._load_default_bushes()
         self.tree_count = 0
         self.bush_count = 0
+        # Material cache: key is color bucket, value is material path
+        self._foliage_material_cache: Dict[Tuple[int, int, int], str] = {}
+        self._material_count = 0
+        # Ensure trunk material exists once
+        self._trunk_mat_path = self._create_trunk_material()
 
     def _load_default_trees(self) -> Dict[str, TreeConfig]:
         """Load default tree configs with full paths."""
@@ -102,32 +112,13 @@ class VegetationSpawner(BaseSpawner):
             )
         return configs
 
-    def _ensure_tree_material(self) -> str:
-        """Create shared green material for trees."""
-        mat_path = "/World/Looks/tree_green_mat"
-        if not self.stage.GetPrimAtPath(mat_path):
-            material = UsdShade.Material.Define(self.stage, mat_path)
-            shader = UsdShade.Shader.Define(self.stage, f"{mat_path}/Shader")
-            shader.CreateIdAttr("UsdPreviewSurface")
-            # Dark forest green color
-            shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(
-                Gf.Vec3f(0.05, 0.15, 0.05)  # Dark forest green
-            )
-            shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.9)
-            shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
-            material.CreateSurfaceOutput().ConnectToSource(
-                shader.ConnectableAPI(), "surface"
-            )
-        return mat_path
-
-    def _ensure_trunk_material(self) -> str:
+    def _create_trunk_material(self) -> str:
         """Create shared brown material for tree trunks."""
         mat_path = "/World/Looks/tree_trunk_mat"
         if not self.stage.GetPrimAtPath(mat_path):
             material = UsdShade.Material.Define(self.stage, mat_path)
             shader = UsdShade.Shader.Define(self.stage, f"{mat_path}/Shader")
             shader.CreateIdAttr("UsdPreviewSurface")
-            # Dark brown bark color
             shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(
                 Gf.Vec3f(0.15, 0.08, 0.03)  # Dark brown
             )
@@ -136,6 +127,36 @@ class VegetationSpawner(BaseSpawner):
             material.CreateSurfaceOutput().ConnectToSource(
                 shader.ConnectableAPI(), "surface"
             )
+        return mat_path
+
+    def _bucket_color(self, color: 'Gf.Vec3f', bucket_size: float = 0.05) -> Tuple[int, int, int]:
+        """Bucket a color into discrete values for material reuse."""
+        return (
+            int(color[0] / bucket_size),
+            int(color[1] / bucket_size),
+            int(color[2] / bucket_size)
+        )
+
+    def _get_or_create_foliage_material(self, foliage_color: 'Gf.Vec3f') -> str:
+        """Get existing material for similar color or create new one."""
+        color_bucket = self._bucket_color(foliage_color)
+
+        if color_bucket in self._foliage_material_cache:
+            return self._foliage_material_cache[color_bucket]
+
+        # Create new material for this color bucket
+        mat_path = f"/World/Looks/foliage_mat_{self._material_count:03d}"
+        self._material_count += 1
+
+        material = UsdShade.Material.Define(self.stage, mat_path)
+        shader = UsdShade.Shader.Define(self.stage, f"{mat_path}/Shader")
+        shader.CreateIdAttr("UsdPreviewSurface")
+        shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(foliage_color)
+        shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.8)
+        shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
+        material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+
+        self._foliage_material_cache[color_bucket] = mat_path
         return mat_path
 
     def spawn_tree(
@@ -158,22 +179,10 @@ class VegetationSpawner(BaseSpawner):
         # Tree approximate radius for overlap prevention (based on expected canopy size)
         tree_radius = 3.0  # ~3m radius for typical tree canopy
 
-        # Get position with overlap prevention
-        if position is None:
-            result = self.get_random_position(object_radius=tree_radius)
-            if result is None:
-                return None  # No valid position, skip spawning
-            x, y = result
-        else:
-            # Even with explicit position, find valid nearby spot to avoid overlap
-            result = self.find_valid_position(position[0], position[1], tree_radius)
-            if result is None:
-                # No valid position found - skip spawning this tree
-                return None
-            x, y = result
-
-        # Register position to prevent future overlaps
-        self.register_position(x, y, tree_radius)
+        result = self.get_spawn_position(position, tree_radius)
+        if result is None:
+            return None
+        x, y = result
 
         # Calculate size with variation
         if age is None:
@@ -185,8 +194,8 @@ class VegetationSpawner(BaseSpawner):
         trunk_height = base_height * 0.3
         trunk_radius = base_height * 0.05
 
-        # Randomly choose tree shape: cone (conifer) or sphere (deciduous)
-        tree_shape = random.choice(["cone", "cone", "sphere"])  # 2:1 ratio favoring cones
+        # Randomly choose tree shape: cone (conifer) or sphere (deciduous), 2:1 ratio
+        tree_shape = "cone" if random.random() < 0.67 else "sphere"
 
         # Noticeable color variation for each individual tree
         # Base dark green with random shifts toward yellow-green, blue-green, or darker
@@ -225,8 +234,11 @@ class VegetationSpawner(BaseSpawner):
             Gf.Vec3d(0, 0, trunk_height / 2)
         )
 
+        # Add collision shape to trunk
+        UsdPhysics.CollisionAPI.Apply(trunk.GetPrim())
+
         # Apply trunk material
-        trunk_mat = UsdShade.Material(self.stage.GetPrimAtPath(self._ensure_trunk_material()))
+        trunk_mat = UsdShade.Material(self.stage.GetPrimAtPath(self._trunk_mat_path))
         UsdShade.MaterialBindingAPI(trunk.GetPrim()).Bind(trunk_mat)
 
         # Create foliage based on tree shape
@@ -247,6 +259,8 @@ class VegetationSpawner(BaseSpawner):
             foliage_xform.AddScaleOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(
                 Gf.Vec3d(1.0, 1.0, 1.2)  # Slightly taller than wide
             )
+            # Add collision shape to sphere foliage
+            UsdPhysics.CollisionAPI.Apply(foliage.GetPrim())
         else:
             # Conifer tree - cone canopy
             foliage = UsdGeom.Cone.Define(self.stage, foliage_path)
@@ -258,18 +272,21 @@ class VegetationSpawner(BaseSpawner):
             foliage_xform.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(
                 Gf.Vec3d(0, 0, trunk_height + foliage_height / 2)
             )
+            # Add collision shape to cone foliage
+            UsdPhysics.CollisionAPI.Apply(foliage.GetPrim())
 
-        # Create unique material for this tree with color variation
-        tree_mat_path = f"/World/Looks/tree_foliage_{self.tree_count:04d}"
-        material = UsdShade.Material.Define(self.stage, tree_mat_path)
-        shader = UsdShade.Shader.Define(self.stage, f"{tree_mat_path}/Shader")
-        shader.CreateIdAttr("UsdPreviewSurface")
-        shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(foliage_color)
-        shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.9)
-        shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
-        material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+        # Get or create pooled material for this foliage color
+        foliage_mat_path = self._get_or_create_foliage_material(foliage_color)
+        UsdShade.MaterialBindingAPI(foliage.GetPrim()).Bind(
+            UsdShade.Material.Get(self.stage, foliage_mat_path)
+        )
 
-        UsdShade.MaterialBindingAPI(foliage.GetPrim()).Bind(material)
+        # Add semantic labels for Isaac Sim's native annotators
+        self.add_semantic_labels_recursive(
+            tree_path,
+            class_name="tree",
+            instance_id=self.tree_count,
+        )
 
         self.spawned_objects.append(tree_path)
         self.tree_count += 1
@@ -323,19 +340,10 @@ class VegetationSpawner(BaseSpawner):
         # Bush approximate radius for overlap prevention (~1m)
         bush_radius = 1.0 * cfg.base_scale
 
-        if position is None:
-            result = self.get_random_position(object_radius=bush_radius)
-            if result is None:
-                return None
-            x, y = result
-        else:
-            result = self.find_valid_position(position[0], position[1], bush_radius)
-            if result is None:
-                return None
-            x, y = result
-
-        # Register position to prevent future overlaps
-        self.register_position(x, y, bush_radius)
+        result = self.get_spawn_position(position, bush_radius)
+        if result is None:
+            return None
+        x, y = result
 
         scale = random.uniform(*cfg.scale_variation) * cfg.base_scale
 
@@ -351,6 +359,13 @@ class VegetationSpawner(BaseSpawner):
         prim_utils.set_prim_property(bush_path, "xformOp:orient", Gf.Quatd(qw, qx, qy, qz))
         prim_utils.set_prim_property(bush_path, "xformOp:translate", Gf.Vec3d(x, y, z))
         prim_utils.set_prim_property(bush_path, "xformOp:scale", Gf.Vec3d(scale, scale, scale))
+
+        # Add semantic labels for Isaac Sim's native annotators
+        self.add_semantic_labels_recursive(
+            bush_path,
+            class_name="vegetation",
+            instance_id=self.bush_count,
+        )
 
         self.spawned_objects.append(bush_path)
         self.bush_count += 1
@@ -387,14 +402,37 @@ class VegetationSpawner(BaseSpawner):
             # Check if this bush should spawn as a cluster
             if random.random() < cfg.cluster_probability:
                 # Spawn cluster
-                center_x, center_y = self.get_random_position()
+                center = self.get_random_position()
+                if center is None:
+                    continue
                 for _ in range(cfg.cluster_size):
                     offset_x = random.gauss(0, cfg.cluster_spread)
                     offset_y = random.gauss(0, cfg.cluster_spread)
-                    path = self.spawn_bush(bush_type, (center_x + offset_x, center_y + offset_y))
-                    spawned.append(path)
+                    path = self.spawn_bush(bush_type, (center[0] + offset_x, center[1] + offset_y))
+                    if path is not None:
+                        spawned.append(path)
             else:
                 path = self.spawn_bush(bush_type)
-                spawned.append(path)
+                if path is not None:
+                    spawned.append(path)
 
         return spawned
+
+    def clear_all(self) -> None:
+        """Remove all spawned objects and cached materials."""
+        for prim_path in self.spawned_objects:
+            prim = self.stage.GetPrimAtPath(prim_path)
+            if prim.IsValid():
+                self.stage.RemovePrim(prim_path)
+
+        # Clear cached materials
+        for mat_path in self._foliage_material_cache.values():
+            prim = self.stage.GetPrimAtPath(mat_path)
+            if prim.IsValid():
+                self.stage.RemovePrim(mat_path)
+
+        self.spawned_objects.clear()
+        self._foliage_material_cache.clear()
+        self._material_count = 0
+        self.tree_count = 0
+        self.bush_count = 0

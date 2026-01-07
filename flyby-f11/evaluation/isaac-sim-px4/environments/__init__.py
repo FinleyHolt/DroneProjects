@@ -48,6 +48,30 @@ from .perception_integration import (
     PerceptionIntegration,
     PerceptionIntegrationConfig,
 )
+from .perception_manager import (
+    PerceptionManager,
+    PerceptionConfig,
+    Detection,
+    GroundTruthConfig,
+    MILITARY_CLASS_MAP,
+    CLASS_ID_TO_NAME,
+)
+from .object_tracker import (
+    ObjectTracker,
+    TrackerConfig,
+    Track,
+)
+from .byte_tracker import (
+    ByteTracker,
+    ByteTrackerConfig,
+    STrack,
+    TrackState,
+    KalmanFilter,
+)
+from .debug_overlay import (
+    DebugOverlay,
+    OverlayConfig,
+)
 
 __all__ = [
     # Base environment and configs
@@ -82,4 +106,23 @@ __all__ = [
     'PerceptionIntegration',
     'PerceptionIntegrationConfig',
     'PerceptionConfig',
+    # Ground Truth & Military Detection (Phase 6g)
+    'PerceptionManager',
+    'Detection',
+    'GroundTruthConfig',
+    'MILITARY_CLASS_MAP',
+    'CLASS_ID_TO_NAME',
+    # Object Tracking (Simple)
+    'ObjectTracker',
+    'TrackerConfig',
+    'Track',
+    # ByteTrack (Advanced Temporal Coherence)
+    'ByteTracker',
+    'ByteTrackerConfig',
+    'STrack',
+    'TrackState',
+    'KalmanFilter',
+    # Debug Overlay
+    'DebugOverlay',
+    'OverlayConfig',
 ]

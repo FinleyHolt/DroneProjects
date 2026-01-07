@@ -4,20 +4,23 @@ Vehicle spawner for cars, trucks, and military vehicles.
 Supports both custom USD models and procedurally generated vehicles.
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Optional, Tuple
+# Standard library
+import os
 import random
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
-from pxr import Gf, UsdGeom, UsdShade, Sdf, UsdPhysics
+# Third-party
+import numpy as np
+from pxr import Gf, Sdf, UsdGeom, UsdPhysics, UsdShade
+
+# Isaac Sim / Omniverse
+import carb
 import omni.isaac.core.utils.prims as prim_utils
 from isaacsim.core.utils.stage import add_reference_to_stage
 
-from .base_spawner import BaseSpawner, SpawnConfig
-
-
-# Discrete yaw angles (24 total, 15-degree increments)
-# Figures can ONLY spawn at these orientations to ensure upright poses
-DISCRETE_YAW_ANGLES = tuple(i * 15.0 for i in range(24))  # 0, 15, 30, ... 345
+# Local
+from .base_spawner import BaseSpawner, SpawnConfig, DISCRETE_YAW_ANGLES
 
 
 @dataclass
@@ -228,14 +231,24 @@ class VehicleSpawner(BaseSpawner):
                 material = UsdShade.Material(mat)
                 UsdShade.MaterialBindingAPI(body.GetPrim()).Bind(material)
 
+        # Ensure wheel material exists
+        wheel_mat_path = "/World/Looks/wheel_mat"
+        if not self.stage.GetPrimAtPath(wheel_mat_path):
+            wheel_mat = UsdShade.Material.Define(self.stage, wheel_mat_path)
+            wheel_shader = UsdShade.Shader.Define(self.stage, f"{wheel_mat_path}/Shader")
+            wheel_shader.CreateIdAttr("UsdPreviewSurface")
+            wheel_shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(0.1, 0.1, 0.1))
+            wheel_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.8)
+            wheel_mat.CreateSurfaceOutput().ConnectToSource(wheel_shader.ConnectableAPI(), "surface")
+        wheel_material = UsdShade.Material(self.stage.GetPrimAtPath(wheel_mat_path))
+
         # Add wheels (4 cylinders)
-        wheel_radius = 0.35
-        wheel_width = 0.25
+        wheel_radius, wheel_width = 0.35, 0.25
         wheel_positions = [
-            (cfg.length * 0.35, cfg.width / 2, wheel_radius),   # Front right
-            (cfg.length * 0.35, -cfg.width / 2, wheel_radius),  # Front left
-            (-cfg.length * 0.35, cfg.width / 2, wheel_radius),  # Rear right
-            (-cfg.length * 0.35, -cfg.width / 2, wheel_radius), # Rear left
+            (cfg.length * 0.35, cfg.width / 2, wheel_radius),
+            (cfg.length * 0.35, -cfg.width / 2, wheel_radius),
+            (-cfg.length * 0.35, cfg.width / 2, wheel_radius),
+            (-cfg.length * 0.35, -cfg.width / 2, wheel_radius),
         ]
 
         for i, (wx, wy, wz) in enumerate(wheel_positions):
@@ -244,70 +257,22 @@ class VehicleSpawner(BaseSpawner):
             wheel.CreateRadiusAttr(wheel_radius)
             wheel.CreateHeightAttr(wheel_width)
             wheel.CreateAxisAttr("Y")
-
             wheel_xform = UsdGeom.Xformable(wheel.GetPrim())
             wheel_xform.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(wx, wy, wz))
-
-            # Dark wheel color
-            wheel_mat_path = "/World/Looks/wheel_mat"
-            if not self.stage.GetPrimAtPath(wheel_mat_path):
-                wheel_mat = UsdShade.Material.Define(self.stage, wheel_mat_path)
-                wheel_shader = UsdShade.Shader.Define(self.stage, f"{wheel_mat_path}/Shader")
-                wheel_shader.CreateIdAttr("UsdPreviewSurface")
-                wheel_shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(
-                    Gf.Vec3f(0.1, 0.1, 0.1)
-                )
-                wheel_shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.8)
-                wheel_mat.CreateSurfaceOutput().ConnectToSource(
-                    wheel_shader.ConnectableAPI(), "surface"
-                )
-
-            wheel_material = UsdShade.Material(self.stage.GetPrimAtPath(wheel_mat_path))
             UsdShade.MaterialBindingAPI(wheel.GetPrim()).Bind(wheel_material)
 
     def register_vehicle(self, name: str, config: VehicleConfig) -> None:
         """Register a new vehicle type."""
         self.vehicle_configs[name] = config
 
-    def register_custom_model(
-        self,
-        name: str,
-        usd_path: str,
-        category: str = "civilian",
-        scale: float = 1.0,
-    ) -> None:
-        """
-        Register a custom USD vehicle model.
+    def register_custom_model(self, name: str, usd_path: str, category: str = "civilian",
+                              scale: float = 1.0) -> None:
+        """Register a custom USD vehicle model."""
+        self.vehicle_configs[name] = VehicleConfig(usd_path=usd_path, category=category, base_scale=scale)
 
-        Args:
-            name: Identifier for this vehicle type
-            usd_path: Path to USD file
-            category: "civilian" or "military"
-            scale: Base scale factor
-        """
-        self.vehicle_configs[name] = VehicleConfig(
-            usd_path=usd_path,
-            category=category,
-            base_scale=scale,
-        )
-
-    def spawn_vehicle(
-        self,
-        vehicle_type: str,
-        position: Tuple[float, float] = None,
-        heading: float = None,
-    ) -> Optional[str]:
-        """
-        Spawn a single vehicle.
-
-        Args:
-            vehicle_type: Type of vehicle from registered configs
-            position: Optional (x, y) position
-            heading: Optional heading in degrees (0 = +X axis)
-
-        Returns:
-            Prim path of spawned vehicle, or None if no valid position available
-        """
+    def spawn_vehicle(self, vehicle_type: str, position: Tuple[float, float] = None,
+                      heading: float = None) -> Optional[str]:
+        """Spawn a single vehicle. Returns prim path or None if no valid position."""
         if vehicle_type not in self.vehicle_configs:
             raise ValueError(f"Unknown vehicle type: {vehicle_type}. "
                            f"Available: {list(self.vehicle_configs.keys())}")
@@ -317,21 +282,10 @@ class VehicleSpawner(BaseSpawner):
         # Vehicle approximate radius for overlap prevention
         vehicle_radius = max(cfg.length, cfg.width) / 2 * cfg.base_scale
 
-        if position is None:
-            result = self.get_random_position(object_radius=vehicle_radius)
-            if result is None:
-                return None  # No valid position, skip spawning
-            x, y = result
-        else:
-            # Even with explicit position, find valid nearby spot to avoid overlap
-            result = self.find_valid_position(position[0], position[1], vehicle_radius)
-            if result is None:
-                # No valid position found - skip spawning this vehicle
-                return None
-            x, y = result
-
-        # Register position to prevent future overlaps
-        self.register_position(x, y, vehicle_radius)
+        result = self.get_spawn_position(position, vehicle_radius)
+        if result is None:
+            return None
+        x, y = result
 
         if heading is None:
             # Use discrete yaw angles only (15-degree increments)
@@ -349,7 +303,6 @@ class VehicleSpawner(BaseSpawner):
 
         # Use USD/GLB model if provided, otherwise create procedural vehicle
         if cfg.usd_path:
-            import os
             # Resolve relative paths against models_path
             if not os.path.isabs(cfg.usd_path) and self.models_path:
                 full_path = os.path.join(self.models_path, cfg.usd_path)
@@ -359,7 +312,7 @@ class VehicleSpawner(BaseSpawner):
             if os.path.exists(full_path):
                 add_reference_to_stage(usd_path=full_path, prim_path=vehicle_path)
             else:
-                print(f"  Warning: Vehicle model not found: {full_path}, using procedural")
+                carb.log_warn(f"Vehicle model not found: {full_path}, using procedural")
                 self._create_procedural_vehicle(vehicle_path, cfg, vehicle_type)
         else:
             self._create_procedural_vehicle(vehicle_path, cfg, vehicle_type)
@@ -407,31 +360,28 @@ class VehicleSpawner(BaseSpawner):
         rigid_body_api = UsdPhysics.RigidBodyAPI.Apply(vehicle_prim)
         rigid_body_api.CreateKinematicEnabledAttr(True)
 
+        # Add semantic labels for Isaac Sim's native annotators
+        # Use category-specific class names for military vs civilian
+        if cfg.category == "military":
+            semantic_class = f"military_{vehicle_type}"
+        else:
+            semantic_class = "civilian_vehicle"
+
+        # Label all meshes in the vehicle hierarchy
+        self.add_semantic_labels_recursive(
+            vehicle_path,
+            class_name=semantic_class,
+            instance_id=self.vehicle_count,
+        )
+
         self.spawned_objects.append(vehicle_path)
         self.vehicle_count += 1
 
         return vehicle_path
 
-    def spawn_vehicle_group(
-        self,
-        vehicle_types: List[str],
-        count: int,
-        clustering: float = 0.0,
-        center: Tuple[float, float] = None,
-    ) -> List[str]:
-        """
-        Spawn a group of vehicles.
-
-        Args:
-            vehicle_types: List of vehicle types to randomly select from
-            count: Number of vehicles to spawn
-            clustering: 0.0 = random placement, 1.0 = tight clustering
-            center: Optional explicit (x, y) center for cluster. If None,
-                   first vehicle position becomes the center.
-
-        Returns:
-            List of spawned vehicle prim paths
-        """
+    def spawn_vehicle_group(self, vehicle_types: List[str], count: int, clustering: float = 0.0,
+                            center: Tuple[float, float] = None) -> List[str]:
+        """Spawn a group of vehicles with configurable clustering (0=random, 1=tight)."""
         spawned = []
         center_x, center_y = center if center else (None, None)
 
@@ -468,30 +418,14 @@ class VehicleSpawner(BaseSpawner):
 
         return spawned
 
-    def spawn_convoy(
-        self,
-        vehicle_types: List[str],
-        start_pos: Tuple[float, float],
-        direction: float,
-        spacing: float = 10.0,
-    ) -> List[str]:
-        """
-        Spawn vehicles in a convoy formation.
-
-        Args:
-            vehicle_types: List of vehicle types (spawned in order)
-            start_pos: Starting (x, y) position
-            direction: Heading in degrees
-            spacing: Distance between vehicles
-
-        Returns:
-            List of spawned vehicle prim paths
-        """
+    def spawn_convoy(self, vehicle_types: List[str], start_pos: Tuple[float, float],
+                     direction: float, spacing: float = 10.0) -> List[str]:
+        """Spawn vehicles in a convoy formation along a given direction."""
         spawned = []
-        direction_rad = direction * (3.14159 / 180)
+        direction_rad = np.radians(direction)
 
-        dx = spacing * (-1) * (direction_rad + 3.14159 / 2)
-        dy = spacing * (direction_rad + 3.14159 / 2)
+        dx = spacing * np.cos(direction_rad)
+        dy = spacing * np.sin(direction_rad)
 
         for i, vehicle_type in enumerate(vehicle_types):
             pos_x = start_pos[0] + i * dx

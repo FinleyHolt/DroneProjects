@@ -5,21 +5,23 @@ Spawns human figures in various poses and groupings for aerial detection trainin
 Uses NVIDIA Reallusion character models from the Characters asset pack.
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Optional, Tuple
-import random
+# Standard library
 import os
+import random
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
+# Third-party
+import numpy as np
 from pxr import Gf, UsdGeom
+
+# Isaac Sim / Omniverse
+import carb
 import omni.isaac.core.utils.prims as prim_utils
 from isaacsim.core.utils.stage import add_reference_to_stage
 
-from .base_spawner import BaseSpawner, SpawnConfig
-
-
-# Discrete yaw angles (24 total, 15-degree increments)
-# Figures can ONLY spawn at these orientations to ensure upright poses
-DISCRETE_YAW_ANGLES = tuple(i * 15.0 for i in range(24))  # 0, 15, 30, ... 345
+# Local
+from .base_spawner import BaseSpawner, SpawnConfig, DISCRETE_YAW_ANGLES
 
 
 @dataclass
@@ -104,7 +106,7 @@ class PeopleSpawner(BaseSpawner):
                     rotation_offset=(0, 0, 0),  # No rotation needed - models are Z-up
                 )
             else:
-                print(f"Warning: Character model not found: {full_path}")
+                carb.log_warn(f"Character model not found: {full_path}")
 
     def register_person(self, name: str, config: PersonConfig) -> None:
         """Register a new person type."""
@@ -161,21 +163,10 @@ class PeopleSpawner(BaseSpawner):
         # Person approximate radius for overlap prevention (~0.5m)
         person_radius = 0.5 * cfg.base_scale
 
-        if position is None:
-            result = self.get_random_position(object_radius=person_radius)
-            if result is None:
-                return None  # No valid position, skip spawning
-            x, y = result
-        else:
-            # Even with explicit position, find valid nearby spot to avoid overlap
-            result = self.find_valid_position(position[0], position[1], person_radius)
-            if result is None:
-                # No valid position found - skip spawning this person
-                return None
-            x, y = result
-
-        # Register position to prevent future overlaps
-        self.register_position(x, y, person_radius)
+        result = self.get_spawn_position(position, person_radius)
+        if result is None:
+            return None
+        x, y = result
 
         if facing is None:
             # Use discrete yaw angles only (15-degree increments)
@@ -208,16 +199,31 @@ class PeopleSpawner(BaseSpawner):
         # Use explicit double precision to avoid type conflicts
         person_xform.AddTranslateOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(x, y, z))
 
-        # Apply model rotation offset first (e.g., Y-up to Z-up)
+        # Compute quaternion for model orientation fix (rotation_offset)
         rx, ry, rz = cfg.rotation_offset
-        if rx != 0:
-            person_xform.AddRotateXOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(rx)
-        if ry != 0:
-            person_xform.AddRotateYOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(ry)
-        # Then apply facing direction
-        person_xform.AddRotateZOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(facing + rz)
+        qw_offset, qx_offset, qy_offset, qz_offset = self.euler_to_quaternion(rx, ry, rz)
+        q_offset = Gf.Quatd(qw_offset, qx_offset, qy_offset, qz_offset)
+
+        # Compute quaternion for facing direction (yaw rotation around Z-axis)
+        qw_facing, qx_facing, qy_facing, qz_facing = self.euler_to_quaternion(0, 0, facing)
+        q_facing = Gf.Quatd(qw_facing, qx_facing, qy_facing, qz_facing)
+
+        # Compose: first model offset, then facing. In quaternion math: q_final = q_facing * q_offset
+        q_final = q_facing * q_offset
+
+        person_xform.AddOrientOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(q_final)
 
         person_xform.AddScaleOp(precision=UsdGeom.XformOp.PrecisionDouble).Set(Gf.Vec3d(scale, scale, scale))
+
+        # Add semantic labels for Isaac Sim's native annotators
+        semantic_class = "person" if cfg.category == "civilian" else "military_person"
+
+        # Label all meshes in the person hierarchy
+        self.add_semantic_labels_recursive(
+            person_path,
+            class_name=semantic_class,
+            instance_id=self.person_count,
+        )
 
         self.spawned_objects.append(person_path)
         self.person_count += 1
@@ -245,6 +251,8 @@ class PeopleSpawner(BaseSpawner):
         """
         if center is None:
             center = self.get_random_position()
+            if center is None:
+                return []
 
         spawned = []
 
@@ -253,8 +261,9 @@ class PeopleSpawner(BaseSpawner):
             angle = random.uniform(0, 360)
             dist = random.uniform(0, radius)
 
-            offset_x = dist * (angle * 3.14159 / 180)
-            offset_y = dist * ((angle + 90) * 3.14159 / 180)
+            angle_rad = np.radians(angle)
+            offset_x = dist * np.cos(angle_rad)
+            offset_y = dist * np.sin(angle_rad)
 
             pos = (center[0] + offset_x, center[1] + offset_y)
 
@@ -262,7 +271,7 @@ class PeopleSpawner(BaseSpawner):
                 # Calculate facing toward center
                 dx = center[0] - pos[0]
                 dy = center[1] - pos[1]
-                facing = ((dx) / 3.14159 * 180 if dx != 0 else 0) % 360
+                facing = np.degrees(np.arctan2(dy, dx)) % 360
             else:
                 facing = None
 
@@ -321,7 +330,7 @@ class PeopleSpawner(BaseSpawner):
                     pos_y = waypoints[j-1][1] + t * dy
 
                     # Facing along path
-                    facing = (dy / dx * 180 / 3.14159 if dx != 0 else 90) % 360
+                    facing = np.degrees(np.arctan2(dy, dx)) % 360
 
                     path = self.spawn_person(person_type, position=(pos_x, pos_y), facing=facing)
                     if path is not None:
@@ -353,6 +362,8 @@ class PeopleSpawner(BaseSpawner):
         """
         if center is None:
             center = self.get_random_position()
+            if center is None:
+                return []
 
         selected = [random.choice(person_types) for _ in range(count)]
         return self.spawn_group(selected, center=center, radius=radius, facing_center=False)

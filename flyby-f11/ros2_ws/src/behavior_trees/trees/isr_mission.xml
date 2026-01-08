@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ISR Mission Behavior Tree
+
+  Hybrid BT + RL architecture for autonomous ISR operations.
+  BT handles mission-level sequencing and safety constraints.
+  RL policies handle adaptive search and dwell behaviors.
+
+  Tick rate: 50Hz (20ms period)
+  Target platform: Flyby F-11 / Jetson Orin NX 16GB
+-->
+<root BTCPP_format="4">
+
+  <!-- Main ISR Mission Tree -->
+  <BehaviorTree ID="ISR_Mission">
+    <Selector name="mission_root">
+
+      <!-- ============================================================
+           PRIORITY 1: Emergency RTB
+           Triggers when battery falls below reserve threshold.
+           Highest priority - overrides all other behaviors.
+           ============================================================ -->
+      <Sequence name="emergency_rtb">
+        <OntologyCondition query_type="battery_below_reserve"
+                           name="check_battery_critical"/>
+        <SubTree ID="RTB_Sequence"/>
+      </Sequence>
+
+      <!-- ============================================================
+           PRIORITY 2: NFZ Violation Recovery
+           Triggers when UAV has entered a no-fly zone.
+           Must exit NFZ before continuing mission.
+           ============================================================ -->
+      <Sequence name="nfz_recovery">
+        <OntologyCondition query_type="nfz_violation"
+                           name="check_nfz"/>
+        <GetSafeWaypoint safe_waypoint="{safe_waypoint}"/>
+        <PlanPath start="{current_pose}"
+                  goal="{safe_waypoint}"
+                  timeout_sec="0.5"
+                  planned_path="{planned_path}"/>
+        <Transit path="{planned_path}" name="exit_nfz"/>
+      </Sequence>
+
+      <!-- ============================================================
+           PRIORITY 3: Main Mission Execution
+           Normal ISR operations: transit, search, dwell
+           ============================================================ -->
+      <Sequence name="execute_tasking">
+
+        <!-- Verify we have valid mission tasking -->
+        <OntologyCondition query_type="has_valid_tasking"
+                           name="check_tasking"/>
+
+        <!-- Get current pose for planning -->
+        <GetCurrentPose pose="{current_pose}"/>
+
+        <!-- Get AO entry point -->
+        <GetAOEntry ao_entry="{ao_entry}"/>
+
+        <!-- Plan route to AO -->
+        <PlanPath start="{current_pose}"
+                  goal="{ao_entry}"
+                  timeout_sec="2.0"
+                  planned_path="{planned_path}"
+                  name="plan_to_ao"/>
+
+        <!-- Transit to AO -->
+        <Transit path="{planned_path}" name="transit_to_ao"/>
+
+        <!-- ========================================================
+             SEARCH PHASE
+             RL policy preferred, classical lawnmower as fallback
+             ======================================================== -->
+        <Selector name="search_ao">
+
+          <!-- Try RL search policy first -->
+          <Sequence name="rl_search_sequence">
+            <OntologyCondition query_type="rl_search_allowed"
+                               name="check_rl_search"/>
+            <SearchPolicy policy_name="search"
+                          name="rl_search"/>
+          </Sequence>
+
+          <!-- Fallback: Classical lawnmower pattern -->
+          <LawnmowerPattern area="{ao_bounds}"
+                            altitude="{ao_min_alt}"
+                            spacing="20.0"
+                            name="lawnmower_fallback"/>
+
+        </Selector>
+
+        <!-- ========================================================
+             DWELL PHASE
+             Triggered when target acquired during search.
+             RL policy preferred, classical orbit as fallback.
+             ======================================================== -->
+        <Selector name="dwell_poi">
+
+          <!-- Check if we have a target to dwell on -->
+          <Sequence name="rl_dwell_sequence">
+            <OntologyCondition query_type="target_acquired"
+                               name="check_target"/>
+            <OntologyCondition query_type="rl_dwell_allowed"
+                               name="check_rl_dwell"/>
+            <!-- DwellPolicy with 2-axis gimbal control -->
+            <DwellPolicy policy_name="dwell"
+                         name="rl_dwell"/>
+          </Sequence>
+
+          <!-- Fallback: Classical orbit with gimbal tracking -->
+          <Sequence name="classical_dwell_sequence">
+            <OntologyCondition query_type="target_acquired"
+                               name="check_target_fallback"/>
+            <OrbitPOI target="{current_target}"
+                      radius="30.0"
+                      speed="5.0"
+                      gimbal_track="true"
+                      name="orbit_fallback"/>
+          </Sequence>
+
+          <!-- No target - continue search (success to allow loop) -->
+          <AlwaysSuccess name="no_target_continue"/>
+
+        </Selector>
+
+        <!-- Verify battery still above reserve before continuing -->
+        <OntologyCondition query_type="battery_above_reserve"
+                           name="check_battery_ok"/>
+
+      </Sequence>
+
+      <!-- ============================================================
+           PRIORITY 4: Safe Default
+           If nothing else applies, loiter at current position.
+           ============================================================ -->
+      <Loiter altitude="50.0"
+              duration="-1.0"
+              name="safe_loiter"/>
+
+    </Selector>
+  </BehaviorTree>
+
+  <!-- ================================================================
+       RTB (Return To Base) Sub-Tree
+       Called when emergency RTB is triggered.
+       ================================================================ -->
+  <BehaviorTree ID="RTB_Sequence">
+    <Sequence name="rtb_root">
+
+      <!-- Get current pose and home base -->
+      <GetCurrentPose pose="{current_pose}"/>
+      <GetHomeBase home_base="{home_base}"/>
+
+      <!-- Plan path home -->
+      <PlanPath start="{current_pose}"
+                goal="{home_base}"
+                timeout_sec="2.0"
+                planned_path="{planned_path}"
+                name="plan_rtb"/>
+
+      <!-- Transit home -->
+      <Transit path="{planned_path}" name="transit_home"/>
+
+      <!-- Land at home base -->
+      <Land name="land_home"/>
+
+    </Sequence>
+  </BehaviorTree>
+
+</root>

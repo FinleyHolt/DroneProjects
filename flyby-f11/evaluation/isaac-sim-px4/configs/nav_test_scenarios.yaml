@@ -1,0 +1,171 @@
+# Navigation Test Scenarios Configuration
+# Used by nav_obstacle_test.py for headless simulation testing
+
+# Default test parameters
+defaults:
+  flight_altitude_agl: 30.0  # meters
+  max_velocity: 10.0  # m/s
+  goal_tolerance: 5.0  # meters
+  min_clearance: 5.0  # meters
+  max_time: 120.0  # seconds
+  record_video: true
+  video_fps: 30
+  log_metrics: true
+
+# Test scenarios
+scenarios:
+  # Basic test: single obstacle in path
+  simple_transit:
+    description: "Single large obstacle between start and goal"
+    start: [0.0, 0.0, 30.0]
+    goal: [500.0, 0.0, 30.0]
+    obstacles:
+      - type: box
+        position: [250.0, 0.0, 0.0]
+        size: [30.0, 30.0, 100.0]
+        name: building_center
+    success_criteria:
+      reached_goal: true
+      min_clearance: 5.0
+      max_time: 90.0
+      no_collisions: true
+
+  # Random field test
+  obstacle_field:
+    description: "Field of 10 random tall obstacles"
+    start: [0.0, 0.0, 30.0]
+    goal: [500.0, 0.0, 30.0]
+    obstacles:
+      - type: random_field
+        count: 10
+        height_range: [60.0, 150.0]
+        width_range: [15.0, 35.0]
+        spacing: 45.0
+        y_spread: 50.0
+    success_criteria:
+      reached_goal: true
+      min_clearance: 5.0
+      max_time: 120.0
+      no_collisions: true
+
+  # Precision test: narrow gap
+  narrow_passage:
+    description: "Two obstacles forming 20m wide passage"
+    start: [0.0, 0.0, 30.0]
+    goal: [400.0, 0.0, 30.0]
+    obstacles:
+      - type: box
+        position: [200.0, -35.0, 0.0]
+        size: [50.0, 50.0, 120.0]
+        name: wall_left
+      - type: box
+        position: [200.0, 35.0, 0.0]
+        size: [50.0, 50.0, 120.0]
+        name: wall_right
+    success_criteria:
+      reached_goal: true
+      min_clearance: 3.0
+      max_time: 90.0
+      no_collisions: true
+
+  # Performance test: high obstacle density
+  stress_test:
+    description: "Dense field of 20 obstacles"
+    start: [0.0, 0.0, 30.0]
+    goal: [500.0, 0.0, 30.0]
+    obstacles:
+      - type: random_field
+        count: 20
+        height_range: [50.0, 120.0]
+        width_range: [10.0, 25.0]
+        spacing: 22.0
+        y_spread: 60.0
+    success_criteria:
+      reached_goal: true
+      min_clearance: 3.0
+      max_time: 180.0
+      no_collisions: true
+
+  # Urban environment test
+  building_canyon:
+    description: "Urban canyon between two rows of buildings"
+    start: [0.0, 0.0, 30.0]
+    goal: [500.0, 0.0, 30.0]
+    obstacles:
+      # Left row
+      - type: box
+        position: [100.0, -60.0, 0.0]
+        size: [40.0, 40.0, 100.0]
+        name: building_left_0
+      - type: box
+        position: [180.0, -60.0, 0.0]
+        size: [40.0, 40.0, 120.0]
+        name: building_left_1
+      - type: box
+        position: [260.0, -60.0, 0.0]
+        size: [40.0, 40.0, 90.0]
+        name: building_left_2
+      - type: box
+        position: [340.0, -60.0, 0.0]
+        size: [40.0, 40.0, 130.0]
+        name: building_left_3
+      - type: box
+        position: [420.0, -60.0, 0.0]
+        size: [40.0, 40.0, 110.0]
+        name: building_left_4
+      # Right row
+      - type: box
+        position: [100.0, 60.0, 0.0]
+        size: [40.0, 40.0, 110.0]
+        name: building_right_0
+      - type: box
+        position: [180.0, 60.0, 0.0]
+        size: [40.0, 40.0, 95.0]
+        name: building_right_1
+      - type: box
+        position: [260.0, 60.0, 0.0]
+        size: [40.0, 40.0, 140.0]
+        name: building_right_2
+      - type: box
+        position: [340.0, 60.0, 0.0]
+        size: [40.0, 40.0, 85.0]
+        name: building_right_3
+      - type: box
+        position: [420.0, 60.0, 0.0]
+        size: [40.0, 40.0, 125.0]
+        name: building_right_4
+    success_criteria:
+      reached_goal: true
+      min_clearance: 5.0
+      max_time: 120.0
+      no_collisions: true
+
+# Metrics to track
+metrics:
+  - name: flight_time
+    unit: seconds
+    description: Time from start to goal
+  - name: path_length
+    unit: meters
+    description: Total distance traveled
+  - name: min_clearance
+    unit: meters
+    description: Minimum distance to any obstacle
+  - name: avg_clearance
+    unit: meters
+    description: Average distance to nearest obstacle
+  - name: num_avoidance_maneuvers
+    unit: count
+    description: Number of VFH+ redirections
+  - name: collision_count
+    unit: count
+    description: Number of obstacle collisions (should be 0)
+  - name: goal_reached
+    unit: boolean
+    description: Whether goal was reached
+  - name: depth_inference_fps
+    unit: Hz
+    description: Average depth estimation frame rate
+  - name: vfh_update_fps
+    unit: Hz
+    description: Average VFH+ computation rate

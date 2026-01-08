@@ -1,0 +1,75 @@
+# BT Executor Node Parameters
+# Configuration for ISR Mission Behavior Tree execution
+
+bt_executor:
+  ros__parameters:
+    # Behavior Tree Configuration
+    tree_file: ""  # Set via launch file to package path
+    tick_rate_hz: 50.0  # 50Hz = 20ms tick period
+    enable_logging: false  # Enable BT cout logger for debugging
+
+    # Service/Action names
+    ontology_service: "/flyby/ontology_query"
+    plan_path_action: "/flyby/plan_path"
+
+    # Transit Action Parameters
+    transit:
+      lookahead_distance: 5.0  # Pure pursuit lookahead (meters)
+      goal_tolerance: 2.0  # Distance to goal to consider reached (meters)
+      max_velocity: 10.0  # Maximum velocity during transit (m/s)
+      min_velocity: 2.0  # Minimum velocity during transit (m/s)
+
+    # Loiter Action Parameters
+    loiter:
+      position_tolerance: 3.0  # Position hold tolerance (meters)
+      default_altitude: 50.0  # Default loiter altitude AGL (meters)
+
+    # Land Action Parameters
+    land:
+      descent_velocity: 1.0  # Descent rate (m/s)
+      position_tolerance: 2.0  # Position hold tolerance during descent (meters)
+      ground_altitude_threshold: 0.5  # Altitude to trigger disarm (meters)
+
+    # Lawnmower Pattern Parameters
+    lawnmower:
+      default_spacing: 20.0  # Track spacing (meters)
+      default_speed: 8.0  # Search speed (m/s)
+      turn_radius: 10.0  # Turn radius at pattern ends (meters)
+
+    # Orbit POI Parameters
+    orbit:
+      default_radius: 30.0  # Orbit radius (meters)
+      default_speed: 5.0  # Orbit speed (m/s)
+      min_radius: 15.0  # Minimum orbit radius (meters)
+      max_radius: 100.0  # Maximum orbit radius (meters)
+
+    # RL Policy Parameters
+    rl_policy:
+      action_timeout_ms: 200  # Max time waiting for RL action (ms)
+      max_execution_time_sec: 300.0  # Max policy execution time (5 min)
+      fallback_on_timeout: true  # Fall back to classical if RL times out
+
+    # Search Policy Specific
+    search_policy:
+      coverage_threshold: 0.95  # Coverage % to consider search complete
+      min_search_time_sec: 60.0  # Minimum search time before termination
+
+    # Dwell Policy Specific
+    dwell_policy:
+      min_dwell_time_sec: 30.0  # Minimum dwell time per target
+      track_lost_timeout_sec: 5.0  # Time before declaring track lost
+      gimbal_pan_rate_limit: 0.785  # ~45 deg/s
+      gimbal_tilt_rate_limit: 0.785  # ~45 deg/s
+
+    # Safety Parameters
+    safety:
+      battery_reserve_pct: 20.0  # Battery reserve for RTB
+      nfz_buffer_m: 10.0  # Buffer distance from NFZ boundaries
+      max_altitude_agl: 120.0  # Maximum altitude AGL (meters)
+      min_altitude_agl: 20.0  # Minimum altitude AGL (meters)
+
+    # Ontology Query Parameters
+    ontology:
+      query_timeout_ms: 100  # Max time for ontology query (ms)
+      cache_duration_ms: 100  # Cache duration for repeated queries
+      fallback_on_timeout: true  # Use cached/default on timeout

@@ -1,0 +1,33 @@
+local_avoidance_node:
+  ros__parameters:
+    # Node parameters
+    update_rate: 20.0  # Hz
+    override_timeout: 0.5  # seconds
+    publish_octomap: true
+    publish_markers: true
+    pointcloud_topic: "/depth/points"
+    body_frame: "base_link"
+    map_frame: "odom"
+
+    # OctoMap parameters
+    octomap:
+      resolution: 0.5  # meters
+      max_range: 50.0  # meters
+      hit_probability: 0.7
+      miss_probability: 0.4
+
+    # VFH+ parameters
+    vfh:
+      # Histogram resolution
+      azimuth_bins: 36  # 10 degrees per bin
+      elevation_bins: 18  # 10 degrees per bin
+
+      # Safety distances
+      safety_radius: 5.0  # meters - minimum clearance
+      critical_radius: 2.0  # meters - emergency stop
+      lookahead_distance: 20.0  # meters - how far ahead to check
+
+      # Cost function weights
+      goal_weight: 5.0  # Weight for goal direction alignment
+      heading_weight: 2.0  # Weight for maintaining current heading
+      clearance_weight: 1.0  # Weight for obstacle clearance

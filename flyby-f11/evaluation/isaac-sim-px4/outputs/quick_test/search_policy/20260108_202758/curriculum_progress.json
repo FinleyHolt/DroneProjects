@@ -1,0 +1,62 @@
+{
+  "current_stage_idx": 3,
+  "stage_history": [
+    {
+      "stage_idx": 0,
+      "params": {
+        "coverage_target_pct": 70.0,
+        "spawn_area_radius": 30.0,
+        "mass_randomization": 0.0,
+        "wind_enabled": false
+      },
+      "timesteps": 2560
+    },
+    {
+      "stage_idx": 1,
+      "params": {
+        "coverage_target_pct": 75.0,
+        "spawn_area_radius": 40.0,
+        "mass_randomization": 0.03,
+        "wind_enabled": false
+      },
+      "timesteps": 5056
+    },
+    {
+      "stage_idx": 2,
+      "params": {
+        "coverage_target_pct": 80.0,
+        "spawn_area_radius": 50.0,
+        "mass_randomization": 0.05,
+        "wind_enabled": true
+      },
+      "timesteps": 7552
+    }
+  ],
+  "stages": [
+    {
+      "coverage_target_pct": 70.0,
+      "spawn_area_radius": 30.0,
+      "mass_randomization": 0.0,
+      "wind_enabled": false
+    },
+    {
+      "coverage_target_pct": 75.0,
+      "spawn_area_radius": 40.0,
+      "mass_randomization": 0.03,
+      "wind_enabled": false
+    },
+    {
+      "coverage_target_pct": 80.0,
+      "spawn_area_radius": 50.0,
+      "mass_randomization": 0.05,
+      "wind_enabled": true
+    },
+    {
+      "coverage_target_pct": 85.0,
+      "spawn_area_radius": 50.0,
+      "mass_randomization": 0.07,
+      "wind_enabled": true
+    }
+  ],
+  "total_timesteps": 10000
+}

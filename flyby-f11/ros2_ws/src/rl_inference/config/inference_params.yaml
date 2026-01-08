@@ -1,0 +1,43 @@
+# RL Inference Node Parameters
+# Configuration for TensorRT policy inference
+
+rl_inference:
+  ros__parameters:
+    # Policy engine paths (TensorRT .engine files)
+    # Set these to actual paths once models are trained and exported
+    search_policy_engine: ""  # e.g., "$(find rl_inference)/models/search_policy_fp16.engine"
+    dwell_policy_engine: ""   # e.g., "$(find rl_inference)/models/dwell_policy_fp16.engine"
+
+    # Inference rate (must match or exceed BT tick rate)
+    max_inference_rate_hz: 50.0
+
+    # Action timeout - max time to wait for inference result
+    action_timeout_ms: 200.0
+
+    # SearchPolicy configuration
+    search_policy:
+      observation_dim: 40
+      action_dim: 4
+      # Action scaling
+      max_forward_vel: 8.0    # m/s
+      max_lateral_vel: 8.0    # m/s
+      max_vertical_vel: 3.0   # m/s
+      max_yaw_rate: 0.5       # rad/s
+
+    # DwellPolicy configuration
+    dwell_policy:
+      observation_dim: 25
+      action_dim: 6
+      # Action scaling
+      max_forward_vel: 5.0    # m/s (slower for tracking)
+      max_lateral_vel: 5.0    # m/s
+      max_vertical_vel: 2.0   # m/s
+      max_yaw_rate: 0.3       # rad/s
+      gimbal_pan_rate_limit: 0.785   # rad/s (~45 deg/s)
+      gimbal_tilt_rate_limit: 0.785  # rad/s (~45 deg/s)
+
+    # TensorRT settings
+    tensorrt:
+      use_fp16: true
+      device_id: 0
+      workspace_size_mb: 256

@@ -1,0 +1,45 @@
+depth_estimation_node:
+  ros__parameters:
+    # Model configuration
+    model_size: "small"  # "small", "base", or "large"
+    model_path: ""  # Empty = auto-download from HuggingFace
+    device: "cuda"  # "cuda" or "cpu"
+
+    # Inference settings
+    inference_resolution: 518  # DepthAnything V2 native resolution
+    publish_rate: 15.0  # Hz (target rate for depth output)
+
+    # Scale correction (rangefinder)
+    scale_filter_alpha: 0.3  # EMA filter coefficient for scale stability
+    min_valid_range: 0.5  # Minimum valid rangefinder reading (meters)
+    max_valid_range: 1200.0  # Maximum valid rangefinder reading (meters)
+    scale_center_region: 0.1  # Fraction of image center to sample for scale (0.1 = 10%)
+
+    # Depth processing
+    max_depth: 100.0  # Maximum depth to output (meters, clips artifacts)
+    min_depth: 0.5  # Minimum valid depth (meters)
+    depth_confidence_threshold: 0.3  # Minimum confidence for valid depth
+
+    # Camera intrinsics (Gremsy VIO EO camera defaults)
+    # These are overridden by camera_info topic if available
+    image_width: 3840  # 4K
+    image_height: 2160  # 4K
+    focal_length_mm: 4.4  # Wide angle setting (4.4-88.4mm zoom)
+    sensor_width_mm: 6.4  # 1/2.5" sensor
+
+    # Point cloud generation
+    publish_pointcloud: true
+    pointcloud_decimation: 4  # Downsample factor for point cloud (4 = 1/16 points)
+    pointcloud_max_range: 50.0  # Max range for point cloud (meters)
+
+    # Topics
+    image_topic: "/camera/image_raw"
+    rangefinder_topic: "/rangefinder/range"
+    camera_info_topic: "/camera/camera_info"
+    depth_topic: "/depth/metric"
+    depth_map_topic: "/depth/depth_map"  # Full DepthMap message
+    pointcloud_topic: "/depth/points"
+
+    # Debug
+    publish_debug_image: true
+    debug_image_topic: "/depth/debug_image"

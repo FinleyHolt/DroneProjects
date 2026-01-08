@@ -1,0 +1,321 @@
+# Scenario Training Configurations
+#
+# Training hardware: RTX 5090 (24GB VRAM, 64GB RAM, 24-core CPU)
+# Deployment target: Jetson Orin NX 16GB (inference only)
+#
+# Each scenario has environment, mission, and training hyperparameters.
+#
+# Phase 5 Ontology-Constrained RL Improvements:
+# - RTB (Return to Base) feasibility checking (5.1)
+# - Dwell time tracking for quality detection (5.2)
+# - Action smoothness penalties (5.3)
+# - Altitude-dependent detection quality (5.4)
+# - Distance-dependent detection quality (5.5)
+# - Wind disturbances for domain randomization (5.6)
+# - Observation noise for sim-to-real robustness (5.7)
+
+# =============================================================================
+# Scenario 1: Area Coverage
+# =============================================================================
+# Objective: Survey assigned area to achieve coverage target while detecting targets
+# Key challenge: Efficient path planning to maximize coverage
+# Success criteria: 85% coverage, RTL with battery reserve
+
+area_coverage:
+  # Environment configuration
+  world:
+    bounds: [-250.0, 250.0, -250.0, 250.0, 0.0, 120.0]  # 500m x 500m world
+    coverage_resolution: 10.0  # 10m grid cells (50x50 = 2500 cells)
+    launch_position: [0.0, 0.0, 0.0]
+    # Wind disturbances (5.6)
+    wind_enabled: true
+    wind_speed_range: [0.0, 3.0]       # Light wind for coverage scenario
+    wind_gust_probability: 0.005
+    wind_gust_magnitude: 2.0
+    # Observation noise (5.7)
+    position_noise_std: 0.5            # GPS-like noise (meters)
+    velocity_noise_std: 0.1            # IMU noise (m/s)
+    attitude_noise_std: 0.01           # Gyro noise (radians)
+
+  mission:
+    scenario: area_coverage
+    max_episode_steps: 37500  # ~5 minutes at 125Hz effective rate
+    target_coverage_pct: 85.0
+    initial_battery_pct: 100.0
+    battery_reserve_pct: 25.0
+    battery_drain_rate: 0.001
+    # RTB configuration (5.1)
+    rtb_speed: 10.0                    # m/s assumed return speed
+    rtb_headroom: 1.2                  # 20% safety margin
+    rtb_reward: 50.0                   # Bonus for successful RTB
+    rtb_progress_reward: 0.1           # Per-meter reward when heading home
+
+  targets:
+    max_targets: 16
+    detection_reward: 10.0
+    tracking_reward: 0.1
+    # Dwell time tracking (5.2)
+    min_dwell_time: 2.0                # Seconds for quality detection
+    dwell_reward_rate: 0.5             # Reward per second of dwell
+    quality_detection_bonus: 5.0       # Bonus when dwell threshold met
+
+  camera:
+    # Altitude-dependent detection (5.4)
+    optimal_altitude: 50.0             # Best detection altitude (meters)
+    altitude_detection_falloff: 0.02   # Quality drops per meter deviation
+    min_detection_quality: 0.1         # Floor on detection probability
+    max_detection_altitude: 500.0      # Undetectable above this
+    # Distance-dependent detection (5.5)
+    optimal_range: 50.0                # Best detection range (meters)
+    range_detection_falloff: 1.5       # Exponent for range falloff
+
+  # NFZ and threat disabled for this scenario
+  nfz:
+    enabled: false
+
+  threat:
+    enabled: false
+
+  # Training hyperparameters (RTX 5090)
+  training:
+    num_envs: 256           # High parallelization for simple scenario
+    learning_rate: 3.0e-4
+    batch_size: 8192
+    minibatch_size: 1024
+    n_epochs: 10            # PPO epochs per update
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+    entropy_coef: 0.01
+    value_loss_coef: 0.5
+    max_grad_norm: 0.5
+    total_timesteps: 50_000_000
+    save_freq: 1_000_000
+    eval_freq: 500_000
+
+  # Reward weights
+  rewards:
+    coverage_progress: 1.0    # Reward for coverage increase
+    target_detection: 10.0    # Reward per new target detected
+    target_tracking: 0.1      # Reward per step tracking target
+    height_penalty: 0.001     # Penalty for altitude deviation
+    velocity_penalty: 0.0001  # Penalty for excessive speed
+    battery_critical: -50.0   # Penalty when battery < reserve
+    mission_success: 100.0    # Bonus for reaching coverage target
+    crash: -100.0             # Penalty for crashing
+    # Action smoothness penalties (5.3)
+    action_smoothness_penalty: 0.01    # Penalty per unit action change
+    gimbal_smoothness_penalty: 0.02    # Higher penalty for gimbal jerk
+
+# =============================================================================
+# Scenario 2: Dynamic NFZ Avoidance
+# =============================================================================
+# Objective: Transit to destination while avoiding pop-up no-fly zones
+# Key challenge: Re-planning when new NFZs appear mid-mission
+# Success criteria: Reach destination, zero NFZ violations
+
+nfz_avoidance:
+  # Environment configuration (4km corridor)
+  world:
+    bounds: [-500.0, 3500.0, -500.0, 1500.0, 0.0, 150.0]  # 4km x 2km corridor
+    coverage_resolution: 20.0  # Larger cells for bigger world
+    launch_position: [0.0, 500.0, 0.0]  # Start at corridor origin
+    # Wind disturbances (5.6) - stronger for transit scenario
+    wind_enabled: true
+    wind_speed_range: [0.0, 5.0]       # Moderate wind for transit
+    wind_gust_probability: 0.01
+    wind_gust_magnitude: 3.0
+    # Observation noise (5.7)
+    position_noise_std: 0.5
+    velocity_noise_std: 0.1
+    attitude_noise_std: 0.01
+
+  mission:
+    scenario: nfz_avoidance
+    max_episode_steps: 37500  # ~5 minutes
+    target_coverage_pct: 0.0  # Coverage not relevant for transit
+    initial_battery_pct: 100.0
+    battery_reserve_pct: 25.0
+    battery_drain_rate: 0.001
+    # RTB configuration (5.1) - critical for long transit
+    rtb_speed: 12.0                    # Faster return for long corridor
+    rtb_headroom: 1.3                  # Higher margin for longer distances
+    rtb_reward: 75.0                   # Higher bonus for successful RTB
+    rtb_progress_reward: 0.15
+
+  targets:
+    max_targets: 1  # Just destination marker
+    detection_reward: 0.0
+    tracking_reward: 0.0
+    # Dwell time (5.2) - not critical for transit
+    min_dwell_time: 1.0
+    dwell_reward_rate: 0.0
+    quality_detection_bonus: 0.0
+
+  camera:
+    # Detection parameters (5.4, 5.5) - less important for transit
+    optimal_altitude: 80.0             # Higher for transit
+    altitude_detection_falloff: 0.01
+    min_detection_quality: 0.1
+    max_detection_altitude: 500.0
+    optimal_range: 100.0
+    range_detection_falloff: 1.5
+
+  # NFZ configuration
+  nfz:
+    enabled: true
+    max_nfz: 5
+    nfz_violation_reward: -100.0
+    nfz_buffer_reward: -0.1
+    nfz_buffer_distance: 50.0
+
+  threat:
+    enabled: false
+
+  # Training hyperparameters
+  training:
+    num_envs: 128            # Lower due to larger world
+    learning_rate: 3.0e-4
+    batch_size: 4096
+    minibatch_size: 512
+    n_epochs: 10             # PPO epochs per update
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+    entropy_coef: 0.01
+    value_loss_coef: 0.5
+    max_grad_norm: 0.5
+    total_timesteps: 50_000_000
+    save_freq: 1_000_000
+    eval_freq: 500_000
+
+  # Reward weights
+  rewards:
+    progress_to_dest: 0.5     # Reward for getting closer to destination
+    dest_reached: 200.0       # Bonus for reaching destination
+    nfz_violation: -100.0     # Penalty for entering NFZ
+    nfz_buffer: -0.1          # Soft penalty for being close to NFZ
+    height_penalty: 0.001
+    velocity_penalty: 0.0001
+    crash: -100.0
+    # Action smoothness penalties (5.3)
+    action_smoothness_penalty: 0.01
+    gimbal_smoothness_penalty: 0.01    # Lower for transit (less critical)
+
+# =============================================================================
+# Scenario 3: Multi-Objective ISR with Threat Avoidance
+# =============================================================================
+# Objective: Maximize target value collection while managing threat exposure
+# Key challenge: Risk/reward tradeoff for high-value targets in threat zones
+# Success criteria: High value collection, exposure < 30s, no HIGH zone entry
+
+multi_objective:
+  # Environment configuration (1km x 1km)
+  world:
+    bounds: [-100.0, 900.0, -100.0, 900.0, 0.0, 120.0]  # 1km x 1km area
+    coverage_resolution: 15.0
+    launch_position: [0.0, 0.0, 0.0]
+    # Wind disturbances (5.6) - moderate for ISR
+    wind_enabled: true
+    wind_speed_range: [0.0, 4.0]       # Moderate wind
+    wind_gust_probability: 0.008
+    wind_gust_magnitude: 2.5
+    # Observation noise (5.7)
+    position_noise_std: 0.5
+    velocity_noise_std: 0.1
+    attitude_noise_std: 0.01
+
+  mission:
+    scenario: multi_objective
+    max_episode_steps: 75000  # ~10 minutes (longer for complex mission)
+    target_coverage_pct: 80.0
+    initial_battery_pct: 100.0
+    battery_reserve_pct: 25.0
+    battery_drain_rate: 0.0008  # Slower drain for longer mission
+    # RTB configuration (5.1) - critical for long missions
+    rtb_speed: 10.0
+    rtb_headroom: 1.25                 # 25% margin for complex mission
+    rtb_reward: 60.0
+    rtb_progress_reward: 0.12
+
+  targets:
+    max_targets: 8
+    detection_reward: 10.0  # Base reward (multiplied by priority)
+    tracking_reward: 0.1
+    # Dwell time tracking (5.2) - critical for ISR quality
+    min_dwell_time: 3.0                # Longer dwell for quality intel
+    dwell_reward_rate: 0.8             # Higher reward for sustained observation
+    quality_detection_bonus: 8.0       # Higher bonus for quality detection
+
+  camera:
+    # Altitude-dependent detection (5.4) - critical for ISR
+    optimal_altitude: 45.0             # Lower for better target detail
+    altitude_detection_falloff: 0.025  # Steeper falloff
+    min_detection_quality: 0.15
+    max_detection_altitude: 400.0
+    # Distance-dependent detection (5.5)
+    optimal_range: 40.0                # Closer for ISR quality
+    range_detection_falloff: 1.8       # Steeper range falloff
+
+  nfz:
+    enabled: false  # Use threat zones instead
+
+  # Threat zone configuration
+  threat:
+    enabled: true
+    max_threat_zones: 5
+    max_medium_exposure: 30.0   # Seconds allowed in MEDIUM zones
+    high_threat_terminates: true
+    medium_threat_rate: -0.1    # Per-second penalty in MEDIUM
+    high_threat_reward: -200.0  # Instant penalty for HIGH
+
+  # Training hyperparameters
+  training:
+    num_envs: 128
+    learning_rate: 3.0e-4
+    batch_size: 4096
+    minibatch_size: 512
+    n_epochs: 10              # PPO epochs per update
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+    entropy_coef: 0.02        # Higher entropy for exploration
+    value_loss_coef: 0.5
+    max_grad_norm: 0.5
+    total_timesteps: 100_000_000  # Longer training for complex scenario
+    save_freq: 2_000_000
+    eval_freq: 1_000_000
+
+  # Reward weights
+  rewards:
+    target_detection_base: 10.0    # Base reward (x4 for P1, x2 for P2, etc.)
+    coverage_progress: 0.5
+    threat_medium_rate: -0.1       # Per-second in MEDIUM zone
+    threat_high: -200.0            # Entering HIGH zone
+    exposure_warning: -1.0         # When approaching exposure limit
+    efficiency_bonus: 5.0          # Value collected / battery spent
+    mission_success: 150.0         # All P1 targets surveyed
+    crash: -100.0
+    # Action smoothness penalties (5.3) - critical for ISR imagery
+    action_smoothness_penalty: 0.015   # Higher penalty
+    gimbal_smoothness_penalty: 0.03    # High penalty for blurry imagery
+
+# =============================================================================
+# Curriculum Learning Configuration (optional)
+# =============================================================================
+# Start with simpler scenarios and progress to harder ones
+
+curriculum:
+  enabled: false  # Enable for curriculum learning
+  stages:
+    - scenario: area_coverage
+      success_threshold: 0.7    # 70% success rate to advance
+      min_episodes: 10000
+
+    - scenario: nfz_avoidance
+      success_threshold: 0.7
+      min_episodes: 10000
+
+    - scenario: multi_objective
+      success_threshold: 0.6
+      min_episodes: 20000

@@ -1,0 +1,55 @@
+# Path Planning Parameters
+# Configuration for global planner and trajectory controller
+
+global_planner:
+  ros__parameters:
+    # Planning bounds (meters)
+    x_min: -1000.0
+    x_max: 1000.0
+    y_min: -1000.0
+    y_max: 1000.0
+    z_min: 20.0    # Minimum altitude AGL
+    z_max: 120.0   # Maximum altitude AGL
+
+    # RRT* parameters
+    planning_timeout_sec: 2.0  # Default timeout
+    goal_tolerance: 2.0        # Distance to goal for success
+    range: 50.0                # RRT step size
+
+    # Path simplification
+    simplify_path: true
+    simplification_iterations: 10
+
+    # Threat zone cost weight
+    threat_cost_weight: 1.0
+
+trajectory_controller:
+  ros__parameters:
+    # Control rate
+    control_rate_hz: 50.0
+
+    # Pure Pursuit parameters
+    lookahead_distance: 5.0    # Base lookahead (meters)
+    min_lookahead: 2.0         # Minimum lookahead (meters)
+    max_lookahead: 15.0        # Maximum lookahead (meters)
+    lookahead_speed_gain: 0.5  # Lookahead scaling with speed
+
+    # Velocity limits
+    max_linear_velocity: 10.0  # Max XY velocity (m/s)
+    min_linear_velocity: 1.0   # Min XY velocity (m/s)
+    max_angular_velocity: 0.5  # Max yaw rate (rad/s)
+
+    # PID gains for altitude
+    altitude_kp: 1.0
+    altitude_ki: 0.1
+    altitude_kd: 0.2
+    altitude_max_velocity: 3.0  # Max vertical velocity (m/s)
+
+    # Goal tolerance
+    xy_goal_tolerance: 2.0     # XY distance to goal (meters)
+    z_goal_tolerance: 1.0      # Altitude tolerance (meters)
+    yaw_goal_tolerance: 0.1    # Yaw tolerance (radians)
+
+    # Rate limiting
+    max_linear_accel: 2.0      # Max linear acceleration (m/s^2)
+    max_angular_accel: 1.0     # Max angular acceleration (rad/s^2)

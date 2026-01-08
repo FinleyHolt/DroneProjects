@@ -1,0 +1,32 @@
+# PlanPath.action
+# Action for requesting path planning from the global planner
+#
+# Used by BT nodes to request paths for transit, RTB, and NFZ recovery
+
+# Goal
+geometry_msgs/PoseStamped start              # Start position
+geometry_msgs/PoseStamped goal               # Goal position
+geometry_msgs/Polygon[] no_fly_zones         # NFZ polygons (hard constraints)
+geometry_msgs/Polygon[] threat_zones         # Threat zones (soft cost constraints)
+float64 planning_timeout_sec                 # Maximum planning time in seconds
+bool allow_partial_path                      # If true, return best partial path on timeout
+string planner_id                            # Planner to use ("rrt_star", "informed_rrt_star", "prm")
+
+---
+
+# Result
+nav_msgs/Path path                           # Planned path as sequence of poses
+bool success                                 # True if planning succeeded
+string error_message                         # Error description if failed
+float64 path_length                          # Total path length in meters
+float64 planning_time_sec                    # Actual planning time used
+int32 iterations_used                        # Number of planner iterations
+float64 estimated_flight_time_sec            # Estimated time to traverse path
+
+---
+
+# Feedback
+int32 iterations_completed                   # Planner iterations completed so far
+float64 best_cost_so_far                     # Best path cost found so far
+float64 elapsed_time_sec                     # Time elapsed since planning started
+string status                                # Current planner status ("searching", "optimizing", "found")

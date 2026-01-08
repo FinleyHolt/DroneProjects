@@ -1,0 +1,28 @@
+# OntologyQuery.srv
+# Service for querying the ontology layer from BT condition nodes
+#
+# Query types:
+#   - "battery_below_reserve": Check if battery is below RTB reserve threshold
+#   - "battery_above_reserve": Check if battery is above RTB reserve threshold
+#   - "has_valid_tasking": Check if there is valid mission tasking available
+#   - "nfz_violation": Check if current position violates any NFZ
+#   - "target_acquired": Check if a target has been acquired for dwell
+#   - "rl_search_allowed": Check if RL search policy execution is allowed
+#   - "rl_dwell_allowed": Check if RL dwell policy execution is allowed
+#   - "can_execute": Generic check if an action can be executed
+#   - "safe_alternative": Request a safe alternative action
+
+# Request
+string query_type                    # Type of query (see above)
+string action_name                   # Action being queried (for can_execute, safe_alternative)
+float64[] parameters                 # Context parameters (query-specific)
+geometry_msgs/Point current_position # Current UAV position (optional, for spatial queries)
+
+---
+
+# Response
+bool result                          # Query result (true = condition satisfied)
+string[] alternatives                # Safe alternatives if query fails (for safe_alternative)
+string explanation                   # Human-readable explanation of result
+float64 confidence                   # Confidence level of result [0.0, 1.0]
+builtin_interfaces/Time timestamp    # Timestamp of when query was evaluated

@@ -11,8 +11,11 @@ find_package(builtin_interfaces REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(action_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  # === Existing messages ===
   # Detection messages
   "msg/Detection.msg"
   "msg/DetectionArray.msg"
@@ -25,11 +28,36 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   # Perception messages
   "msg/PerceptionState.msg"
 
+  # === New ISR messages ===
+  # Mission and area definitions
+  "msg/AreaOfOperations.msg"
+  "msg/TargetOfInterest.msg"
+  "msg/ThreatZone.msg"
+  "msg/MissionTasking.msg"
+
+  # RL policy interface
+  "msg/RLPolicyContext.msg"
+
+  # === Navigation messages ===
+  # Depth estimation and obstacle avoidance
+  "msg/DepthMap.msg"
+  "msg/ObstacleMap.msg"
+
+  # === Services ===
+  # Ontology query service for BT conditions
+  "srv/OntologyQuery.srv"
+
+  # === Actions ===
+  # Path planning action for BT planner nodes
+  "action/PlanPath.action"
+
   DEPENDENCIES
     builtin_interfaces
     std_msgs
     geometry_msgs
     sensor_msgs
+    nav_msgs
+    action_msgs
 )
 
 if(BUILD_TESTING)

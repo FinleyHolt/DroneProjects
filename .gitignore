@@ -42,7 +42,9 @@ ENV/
 *.swo
 *~
 .DS_Store
-.claude/
+
+# Claude Code local settings (user-specific, not shared)
+.claude/settings.local.json
 
 # Setup state tracking
 .setup_state/

@@ -2,6 +2,49 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Session Coordination (Automatic)
+
+**IMPORTANT**: This repository uses multi-session coordination. At the START of every conversation, BEFORE doing any work, you MUST:
+
+1. **Generate your session ID**: Format `{adjective}-{noun}-{4-hex}` using random values
+   - Adjectives: swift, bold, calm, keen, bright, quick, steady, sharp, clear, prime
+   - Nouns: falcon, vector, horizon, pulse, cipher, beacon, spark, drift, nexus, forge
+
+2. **Read coordination state**:
+   - `.claude/tasks/registry.json` - see who has claimed what
+   - `.claude/sessions/active/*.json` - see active sessions
+
+3. **Report to user** (brief summary):
+   ```
+   Session: {your-id} | Active: {N sessions} | Claimed paths: {list or "none"}
+   ```
+
+4. **Before editing ANY file**, check if the path is claimed by another session in registry.json. If claimed:
+   - Do NOT edit that file
+   - Inform the user of the conflict
+   - Suggest alternatives or waiting
+
+5. **When user specifies a task**:
+   - Create branch: `git checkout -b {session-id}/{task-slug}`
+   - Update `.claude/tasks/registry.json` with your claim
+   - Create session manifest in `.claude/sessions/active/{session-id}.json`
+   - Log to `.claude/coordination.log`
+
+6. **Commit prefix convention**:
+   - `WIP:` - work in progress
+   - `CHECKPOINT:` - stable, can be picked up by others
+   - `HANDOFF:` - releasing for another session
+   - `COMPLETE:` - ready for PR
+
+7. **When ending work** (user says done/stopping/etc.):
+   - Commit with `CHECKPOINT:` or `HANDOFF:` prefix
+   - Push branch
+   - Update session manifest status
+
+This automation ensures multiple Claude Code chats can work on the codebase simultaneously without conflicts.
+
+---
+
 ## Project Overview
 
 Drone autonomy development portfolio focused on Isaac Sim-based simulation, reinforcement learning, and edge AI deployment. The primary development environment is Isaac Sim with PX4 SITL for photorealistic drone simulation and RL training.
@@ -313,3 +356,32 @@ Key environment variables:
 - **Commit Style**: Imperative mood ("Add obstacle avoidance", "Fix depth correction")
 - **Logical Grouping**: Group related changes, reference issues when applicable
 - **Ignored Files**: Build artifacts, model weights, test outputs excluded via `.gitignore`
+
+## Multi-Session Coordination
+
+Session coordination is **automatic** - see "Session Coordination (Automatic)" at the top of this file. Each new chat will automatically:
+- Generate a session ID
+- Check for conflicts before editing
+- Claim paths when you start a task
+- Use proper commit prefixes
+
+### Manual Commands (if needed)
+
+| Command | Purpose |
+|---------|---------|
+| `/session-status` | View all active sessions and claims |
+| `/handoff` | Explicitly hand off work to another session |
+
+### Coordination Files
+
+```
+.claude/
+├── tasks/registry.json      # Active task claims (check before editing)
+├── sessions/active/         # Session manifests
+├── handoffs/                # Handoff documents
+└── coordination.log         # Event log
+```
+
+### Stale Session Recovery
+
+Sessions inactive >2 hours (no commits) can be recovered by other sessions. The new session takes over the branch and updates the registry.

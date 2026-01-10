@@ -1,0 +1,95 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'isaac-sim/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'isaac-sim/**'
+  workflow_dispatch:
+    inputs:
+      run_slow_tests:
+        description: 'Run slow/long-running tests'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  # Quick validation that container exists and GPU works
+  preflight:
+    runs-on: [self-hosted, gpu, isaac-sim]
+    steps:
+      - name: Check Isaac Sim container
+        run: |
+          podman image exists localhost/isaac-sim-px4:5.1.0 || {
+            echo "Error: Isaac Sim container not found"
+            echo "Run: cd isaac-sim && podman-compose build"
+            exit 1
+          }
+
+      - name: Check GPU access
+        run: |
+          podman run --rm --device nvidia.com/gpu=all \
+            localhost/isaac-sim-px4:5.1.0 \
+            nvidia-smi --query-gpu=name,memory.total --format=csv
+
+  # Unit tests with mocked Isaac Sim (fast)
+  unit-tests:
+    runs-on: [self-hosted, gpu, isaac-sim]
+    needs: preflight
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run unit tests
+        run: |
+          podman run --rm --device nvidia.com/gpu=all \
+            -v $(pwd)/isaac-sim:/workspace:ro \
+            localhost/isaac-sim-px4:5.1.0 \
+            /isaac-sim/python.sh -m pytest /workspace/tests/test_unit.py -v
+
+  # Integration tests (require Isaac Sim)
+  integration-tests:
+    runs-on: [self-hosted, gpu, isaac-sim]
+    needs: preflight
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run integration tests
+        run: |
+          podman run --rm --device nvidia.com/gpu=all \
+            -v $(pwd)/isaac-sim:/workspace:ro \
+            localhost/isaac-sim-px4:5.1.0 \
+            /isaac-sim/python.sh -m pytest /workspace/tests/test_integration.py -v
+
+  # E2E smoke tests (quick simulation runs)
+  e2e-smoke:
+    runs-on: [self-hosted, gpu, isaac-sim]
+    needs: [unit-tests, integration-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run e2e smoke tests
+        run: |
+          podman run --rm --device nvidia.com/gpu=all \
+            -v $(pwd)/isaac-sim:/workspace:ro \
+            localhost/isaac-sim-px4:5.1.0 \
+            /isaac-sim/python.sh -m pytest /workspace/tests/test_e2e_smoke.py -v -m "not slow"
+
+  # Full E2E tests (only on manual trigger with slow tests enabled)
+  e2e-full:
+    runs-on: [self-hosted, gpu, isaac-sim]
+    needs: e2e-smoke
+    if: github.event.inputs.run_slow_tests == 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run full e2e tests (slow)
+        run: |
+          podman run --rm --device nvidia.com/gpu=all \
+            -v $(pwd)/isaac-sim:/workspace:ro \
+            localhost/isaac-sim-px4:5.1.0 \
+            /isaac-sim/python.sh -m pytest /workspace/tests/test_e2e_smoke.py -v
+        timeout-minutes: 30

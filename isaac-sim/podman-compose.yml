@@ -58,8 +58,10 @@ services:
       - isaac-cache:/isaac-sim/kit/cache/Kit
       - isaac-data:/isaac-sim/kit/data
       - isaac-logs:/isaac-sim/kit/logs
-      # Workspace for development
-      - ./scripts:/workspace/scripts:rw
+      # Workspace for development - mount entire evaluation directory
+      - .:/workspace:rw
+      # Output directory for test results
+      - ./output:/workspace/output:rw
 
     # Keep container running for interactive use
     stdin_open: true

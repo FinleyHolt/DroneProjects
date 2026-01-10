@@ -11,6 +11,82 @@ Drone autonomy development portfolio focused on Isaac Sim-based simulation, rein
 
 **Technical Foundation**: Isaac Sim for photorealistic simulation, PX4 SITL for flight control, Stable Baselines3 for RL training, ROS 2 Jazzy for autonomy software, and Gymnasium for environment wrappers.
 
+## Current Development Status (January 2026)
+
+### Working
+- Isaac Sim 5.1.0 + PX4 SITL container with GPU passthrough
+- YOLO11 + ByteTrack perception pipeline
+- Ground truth frustum filtering (1000+ Hz)
+- 3 canonical ISR environments defined (comms-denied, dynamic NFZ, multi-objective)
+- ROS 2 camera bridge
+- Gimbal control
+
+### Proof of Concept (demonstrated but not production-ready)
+- SAC/PPO/TD3 training infrastructure - runs but no good trained model yet
+- Safety filter with Vampire ATP - integrated but not rigorously tested
+- Ontology reasoning - defined but needs significant testing/refinement
+
+### In Progress
+- Depth perception calibration and obstacle avoidance
+- Behavior tree architecture with RL as leaf nodes (for specific tasks like area exploration)
+
+### Planned
+- Rigorous ontology testing and validation
+- RL agent for area exploration (behavior tree leaf node)
+- Complete deployment containers for Jetson
+- MAVSDK bridge for project-drone
+- Real hardware flight testing
+
+## Capability Roadmap
+
+### M1: Simulation Infrastructure
+- [x] Isaac Sim + PX4 SITL container
+- [x] 3 canonical ISR environments defined
+- [x] Gymnasium wrapper for RL
+
+### M2: Perception Pipeline
+- [x] YOLO11 + ByteTrack detection/tracking
+- [x] Frustum culling (ground truth)
+- [x] Gimbal control
+- [ ] Depth avoidance calibration (in progress)
+
+### M3: Behavior Tree Architecture
+- [ ] BT executor with action nodes
+- [ ] RL leaf nodes for specific tasks (area exploration)
+- [ ] Ontology-guided behavior preemption
+
+### M4: Local Planning
+- [ ] 3D-VFH+ obstacle avoidance
+- [ ] OctoMap integration
+- [ ] NFZ-aware path planning
+
+### M5: Safety & Reasoning (needs rigorous testing)
+- [~] Safety filter (Vampire ATP) - integrated, not validated
+- [~] Ontology behavior controller - defined, not tested
+- [ ] Rigorous ontology test suite
+- [ ] Full ontology-RL integration
+
+### M6: RL Training
+- [~] SAC/PPO/TD3 infrastructure - runs, no good model
+- [ ] Area exploration RL agent (BT leaf node)
+- [ ] Fast training (direct dynamics)
+
+### M7: ROS 2 Stack
+- [x] Core messages (flyby_msgs)
+- [x] Perception nodes
+- [ ] Complete behavior tree nodes
+- [ ] Mission orchestrator
+
+### M8: Deployment
+- [x] Isaac Sim container
+- [ ] Complete quadlet containers
+- [ ] Jetson-optimized builds
+
+### M9: Hardware Integration
+- [ ] MAVSDK bridge for project-drone
+- [ ] VIO flight (T265)
+- [ ] Real flight validation
+
 ## Repository Structure
 
 ```
@@ -28,14 +104,26 @@ DroneProjects/
 │   ├── podman-compose.yml       # Development orchestration
 │   └── README.md
 │
-├── ros2_ws/                     # ROS 2 workspace for real hardware
+├── ros2_ws/                     # ROS 2 workspace for real hardware (14 packages)
 │   └── src/
-│       ├── flyby_msgs/          # Custom ROS 2 message definitions
-│       ├── flyby_perception/    # Perception ROS 2 nodes
-│       └── flyby_autonomy/      # Autonomy ROS 2 nodes
+│       ├── flyby_msgs/          # Custom message definitions (13 msgs, 1 action, 1 srv)
+│       ├── flyby_perception/    # YOLO + ByteTrack perception
+│       ├── flyby_depth/         # Depth processing (in progress)
+│       ├── flyby_autonomy/      # State estimator, ontology controller
+│       ├── flyby_f11_sensors/   # ISR camera, gimbal control
+│       ├── flyby_f11_bringup/   # Launch files
+│       ├── behavior_trees/      # BT executor, action/condition nodes
+│       ├── path_planning/       # OMPL Informed RRT* (scaffolded)
+│       ├── local_avoidance/     # 3D-VFH+, OctoMap (scaffolded)
+│       ├── rl_inference/        # TensorRT policy inference (scaffolded)
+│       ├── mission_orchestrator/ # Mission coordination (scaffolded)
+│       ├── vampire_bridge/      # Ontology reasoning bridge (scaffolded)
+│       └── ontology_rl/         # Ontology-RL integration (scaffolded)
 │
-├── ontology/                    # Ontology-based reasoning for mission planning
-│   └── [ontology pipeline files]
+├── ontology/                    # Ontology-based reasoning (needs rigorous testing)
+│   ├── planning_mode/           # SUMO + Vampire ATP (heavyweight, offline)
+│   ├── execution_mode/          # SWI-Prolog (lightweight, runtime)
+│   └── translation/             # KIF to Prolog translator
 │
 ├── deployment/                  # Production deployment configs
 │   ├── quadlet/                 # Systemd quadlet files for Jetson
@@ -98,6 +186,29 @@ pytest tests/
 pytest tests/test_environments.py -v
 ```
 
+### Local Development Environment (micromamba)
+
+For local linting, formatting, and tools that don't require Isaac Sim, use the `flyby-f11-eval` micromamba environment. **Do NOT install packages system-wide.**
+
+```bash
+# Activate the environment
+micromamba activate flyby-f11-eval
+
+# Run ruff format check
+ruff format --check isaac-sim/
+
+# Run ruff lint
+ruff check isaac-sim/
+
+# Run static tests (no Isaac Sim required)
+pytest isaac-sim/tests/test_static.py -v
+
+# Deactivate when done
+micromamba deactivate
+```
+
+Environment location: `/home/finley/micromamba/envs/flyby-f11-eval`
+
 ## Key Architectural Decisions
 
 - **Isaac Sim First**: Photorealistic simulation with PX4 SITL for high-fidelity training
@@ -137,6 +248,29 @@ Core environments in `isaac-sim/environments/`:
 - ByteTrack multi-object tracking
 - Frustum culling for efficient detection
 - ROS 2 camera bridge for sim-to-real parity
+
+## ROS 2 Packages (ros2_ws/src/)
+
+### Core (Complete)
+- **flyby_msgs**: 13 message types, 1 action (PlanPath), 1 service (OntologyQuery)
+- **flyby_perception**: YOLO11 + ByteTrack detection/tracking nodes
+- **flyby_f11_sensors**: ISR camera node, gimbal controller
+- **flyby_f11_bringup**: Launch files for simulation and hardware
+
+### Autonomy (Partial)
+- **flyby_autonomy**: State estimator, ontology controller (basic)
+- **flyby_depth**: Depth scale correction (in progress)
+- **behavior_trees**: BT executor @ 50Hz, action/condition nodes (partial)
+
+### Planning (Scaffolded)
+- **path_planning**: OMPL Informed RRT*, NFZ manager
+- **local_avoidance**: 3D-VFH+, OctoMap integration
+
+### RL & Reasoning (Scaffolded)
+- **rl_inference**: TensorRT policy inference for Jetson
+- **vampire_bridge**: ROS 2 interface to Vampire ATP
+- **ontology_rl**: Ontology-guided RL integration
+- **mission_orchestrator**: Mission-level coordination
 
 ## Container Environment
 

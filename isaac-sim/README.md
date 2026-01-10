@@ -135,7 +135,7 @@ podman pull nvcr.io/nvidia/isaac-sim:5.1.0
 ### 2. Build the Container
 
 ```bash
-cd flyby-f11/evaluation/isaac-sim-px4
+cd isaac-sim
 
 # Build with canonical image tag
 podman build -t localhost/isaac-sim-px4:5.1.0-px4-1.14.3 .
@@ -264,7 +264,7 @@ isaac-sim-px4/
 ```bash
 # Start container (detached)
 xhost +local:
-podman run -d --name flyby-f11 \
+podman run -d --name isaac-sim-dev \
   --device nvidia.com/gpu=all \
   -e DISPLAY=$DISPLAY \
   -e ACCEPT_EULA=Y \
@@ -277,19 +277,19 @@ podman run -d --name flyby-f11 \
   localhost/isaac-sim-px4:5.1.0-px4-1.14.3
 
 # Run a script
-podman exec flyby-f11 bash -c \
+podman exec isaac-sim-dev bash -c \
   'export PYTHONPATH=/pegasus/extensions/pegasus.simulator:$PYTHONPATH && \
    /isaac-sim/python.sh /workspace/scripts/phase2_procgen_test.py'
 
 # Stop container
-podman rm -f flyby-f11
+podman rm -f isaac-sim-dev
 ```
 
 ### Development with Mounted Volumes
 
 ```bash
 # Mount local directories for live editing
-podman run -d --name flyby-f11-dev \
+podman run -d --name isaac-sim-dev \
   --device nvidia.com/gpu=all \
   -e DISPLAY=$DISPLAY \
   -e ACCEPT_EULA=Y \

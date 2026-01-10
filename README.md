@@ -1,157 +1,128 @@
 # Drone Projects
 
-Personal drone autonomy development projects targeting various hardware platforms. Each folder represents a specific drone build with its own compute, sensors, and mission objectives.
+Personal drone autonomy development portfolio focused on Isaac Sim-based simulation, reinforcement learning, and edge AI deployment on NVIDIA Jetson platforms.
 
 ## Portfolio Overview
 
-This repository showcases autonomous drone development work focused on edge AI, computer vision, and embedded systems integration. All projects run ROS 2 for autonomy software, MAVSDK for flight control, and PX4 autopilot.
+This repository showcases autonomous drone development work focused on edge AI, computer vision, ontology-guided safety, and embedded systems integration.
 
 **Developer**: Finley Holt
-**Focus Areas**: Edge AI for drones, Visual SLAM, Autonomous navigation, Embedded systems
-
-## Hardware Platforms
-
-### project-drone/
-**Hardware**: Custom-built 7-inch FPV quadcopter with 3D-printed components
-**Sensors**:
-- Intel RealSense T265 (Visual Odometry)
-- Intel RealSense D455 (Depth Camera)
-- FPV system for manual flight testing
-
-**Compute**: NVIDIA Jetson Orin Nano Super (8GB, 67 TOPS)
-**Purpose**: Personal autonomy development platform - built from ground up for testing autonomous navigation algorithms
-**Status**: Hardware complete, sensors verified, active algorithm development
-
-**Key Features**:
-- Full simulation-to-flight workflow (PX4 SITL + Gazebo + ROS 2 + MAVSDK)
-- Indoor navigation and mapping
-- Visual odometry-based localization (T265)
-- Obstacle avoidance using depth sensing (D455)
-- BehaviorTree.CPP for mission logic
-- Docker-based development environment
-- Capable of running generative AI models (vision transformers, LLMs, VLMs)
-
-See [project-drone/README.md](project-drone/README.md) for setup and usage.
-
----
-
-### flyby-f11/
-**Hardware**: [Flyby Robotics F-11](https://www.flybyrobotics.com/) developer platform
-**Sensors**: TBD based on mission requirements
-**Compute**: NVIDIA Jetson Orin NX 16GB (50 TOPS)
-**Purpose**: Advanced autonomy platform with high payload capacity and processing power
-**Status**: Development planning (hardware access via MCTSSA)
-
-**Platform Specifications**:
-- 3 kg (6.6 lbs) payload capacity with 12 mounting hardpoints
-- Up to 50 minutes flight time with hot-swappable batteries
-- NVIDIA Jetson Orin NX 16GB onboard (50 trillion ops/sec)
-- Fully open flight controller and GPU for custom development
-- NDAA-compliant supply chain
-
-**Planned Capabilities**:
-- Mission-intent interpretation and autonomous execution
-- Advanced perception and object detection
-- Real-time path planning and obstacle avoidance
-- Multi-sensor fusion
-- Communications-denied operations
-
-See [flyby-f11/README.md](flyby-f11/README.md) for mission details and development roadmap.
-
----
-
-## Technology Stack
-
-**Flight Control**:
-- PX4 Autopilot (firmware)
-- MAVSDK (MAVLink interface)
-- Gazebo (simulation environment)
-
-**Autonomy Software**:
-- ROS 2 Humble (middleware)
-- BehaviorTree.CPP (mission logic)
-- RTAB-Map / ORB-SLAM3 (Visual SLAM)
-
-**Computer Vision**:
-- Intel RealSense SDK
-- OpenCV
-- YOLOv8 / RT-DETR (object detection)
-
-**Development**:
-- Ubuntu 22.04 LTS
-- Docker (containerized deployments)
-- Python 3.10+, C++17
+**Focus Areas**: Isaac Sim simulation, Reinforcement learning, Ontology-guided safety, Edge deployment
 
 ## Repository Structure
 
 ```
 DroneProjects/
-├── project-drone/          # Jetson Orin Nano Super development platform
-│   ├── ros2_ws/           # ROS 2 workspace
-│   ├── docker/            # Container configurations
-│   ├── simulation/        # Gazebo worlds and models
-│   ├── config/            # PX4 params and sensor calibration
-│   └── README.md
+├── isaac-sim/              # Primary: Isaac Sim + PX4 simulation and RL training
+│   ├── environments/       # Gymnasium RL environments
+│   ├── perception/         # YOLO11, ByteTrack, frustum culling
+│   ├── training/           # RL training infrastructure
+│   └── scripts/            # Test and utility scripts
 │
-├── flyby-f11/             # Flyby F-11 production platform
-│   ├── ros2_ws/           # ROS 2 workspace (will link shared packages)
-│   ├── docker/            # Deployment containers
-│   ├── config/            # Mission-specific configurations
-│   └── README.md
+├── ros2_ws/                # ROS 2 Jazzy packages for real hardware (14 packages)
+│   └── src/                # flyby_msgs, perception, autonomy, planning, etc.
 │
-├── AGENTS.md              # Development guidelines
-└── CLAUDE.md              # AI assistant guidance
+├── ontology/               # Ontology-based reasoning (SUMO + Vampire ATP)
+│   ├── planning_mode/      # Heavyweight offline reasoning
+│   └── execution_mode/     # Lightweight runtime (Prolog)
+│
+├── deployment/             # Jetson deployment configs
+│   └── containers/         # Quadlet files for systemd
+│
+├── project-drone/          # Personal dev platform (Jetson Orin Nano Super)
+│
+├── CLAUDE.md               # AI assistant guidance with capability roadmap
+└── README.md               # This file
 ```
 
-## Quick Start
+## Technology Stack
 
-Each drone project is self-contained and uses Docker for consistent development environments:
+**Simulation**:
+- Isaac Sim 5.1.0 (photorealistic simulation)
+- PX4 Autopilot v1.14.3 SITL
+- Pegasus Simulator v5.1.0
+
+**Autonomy Software**:
+- ROS 2 Jazzy (middleware)
+- BehaviorTree.CPP v4 (mission logic)
+- Stable Baselines3 (RL: SAC, PPO, TD3)
+- Gymnasium (RL environment API)
+
+**Perception**:
+- YOLO11 (object detection)
+- ByteTrack (multi-object tracking)
+- Intel RealSense SDK (depth + VIO)
+
+**Reasoning**:
+- SUMO + Vampire ATP (formal planning)
+- SWI-Prolog (runtime safety)
+
+**Development**:
+- Podman (containerized workflows)
+- Python 3.10+, C++17
+
+## Target Hardware
+
+### Flyby F-11 (Production)
+- NVIDIA Jetson Orin NX 16GB (50 TOPS)
+- 3kg payload capacity
+- NDAA-compliant for government applications
+
+### project-drone (Development)
+- NVIDIA Jetson Orin Nano Super 8GB (67 TOPS)
+- T265 visual odometry + D455 depth camera
+- Custom 7-inch FPV quadcopter
+
+## Quick Start
 
 ```bash
 # Clone repository
 git clone https://github.com/finleyholt/DroneProjects.git
 cd DroneProjects
 
-# Navigate to specific platform
-cd project-drone  # or flyby-f11
+# Build and run Isaac Sim container
+cd isaac-sim
+podman-compose up --build
 
-# Launch with Docker (recommended)
-docker compose up
+# Enter container
+podman exec -it isaac-sim-px4 bash
 
-# OR build locally
-cd ros2_ws
-colcon build --symlink-install
-source install/setup.bash
-ros2 launch <platform>_bringup simulation.launch.py
+# Run a test
+/isaac-sim/python.sh scripts/depth_avoidance_test.py
 ```
 
-See individual platform README files for detailed setup instructions.
+See [isaac-sim/README.md](isaac-sim/README.md) for detailed setup.
 
-## Development Approach
+## Current Status (January 2026)
 
-**Modular Design**: Core autonomy packages are designed to be hardware-agnostic and can be shared between platforms via symlinks or git submodules.
+**Working**:
+- Isaac Sim + PX4 SITL container
+- YOLO11 + ByteTrack perception
+- 3 canonical ISR environments defined
+- Gimbal control
 
-**Simulation First**: All features are validated in Gazebo simulation before hardware deployment.
+**In Progress**:
+- Depth avoidance calibration
+- Behavior tree architecture (RL as leaf nodes)
 
-**Containerized Workflows**: Docker ensures consistent development and deployment environments across different host systems.
+**Proof of Concept**:
+- RL training infrastructure (runs, no good model yet)
+- Ontology safety filter (integrated, needs rigorous testing)
 
-**Edge-First**: All processing runs locally on embedded compute - no cloud dependency required.
+**Planned**:
+- Complete deployment containers
+- Real hardware flight testing
+
+See [CLAUDE.md](CLAUDE.md) for detailed capability roadmap.
 
 ## Documentation
 
-- **[AGENTS.md](AGENTS.md)**: Developer guidelines, coding standards, and best practices
-- **[CLAUDE.md](CLAUDE.md)**: Project structure and guidance for Claude Code AI assistant
-- **Platform READMEs**: Specific setup and usage for each drone build
-
-## Current Status
-
-**Active Development**: project-drone (7-inch FPV quadcopter with Jetson Orin Nano Super 8GB)
-- Custom-built airframe with 3D-printed components
-- Full simulation-to-flight workflow (PX4 SITL, Gazebo, ROS 2, MAVSDK, Docker)
-- Sensors verified working, ready for algorithm development
-
-**Planning**: flyby-f11 (development via MCTSSA collaboration)
+- **[CLAUDE.md](CLAUDE.md)**: Project structure, capability roadmap, AI guidance
+- **[isaac-sim/CLAUDE.md](isaac-sim/CLAUDE.md)**: Simulation and training guide
+- **[ros2_ws/CLAUDE.md](ros2_ws/CLAUDE.md)**: ROS 2 package documentation
+- **[ontology/CLAUDE.md](ontology/CLAUDE.md)**: Reasoning system guide
+- **[deployment/CLAUDE.md](deployment/CLAUDE.md)**: Jetson deployment guide
 
 ---
 
-**Last Updated**: 2025-12-08
+**Last Updated**: 2026-01-10

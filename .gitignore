@@ -95,3 +95,4 @@ isaac-sim/extensions/forest_generator/models/quaternius_*/
 *.mp4
 *.avi
 *.mov
+.runner/

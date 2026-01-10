@@ -86,6 +86,7 @@ class ObstacleWorldGenerator:
             "narrow_passage": self._create_narrow_passage,
             "stress_test": self._create_stress_test,
             "building_canyon": self._create_building_canyon,
+            "pillar_field": self._create_pillar_field,
         }
 
         if scenario_name not in scenarios:
@@ -275,6 +276,89 @@ class ObstacleWorldGenerator:
             description="Urban canyon between two rows of buildings",
             start_position=(0.0, 0.0, 30.0),
             goal_position=(500.0, 0.0, 30.0),
+            obstacles=obstacles,
+            max_time_seconds=120.0,
+            min_clearance_meters=5.0,
+        )
+
+    def _create_pillar_field(self) -> NavigationScenario:
+        """
+        Field of massive pillars requiring weaving navigation.
+
+        Tests precise maneuvering between large cylindrical obstacles.
+        8 pillars arranged in 4 rows with varying positions.
+        """
+        obstacles = []
+
+        # Row 1 (x=60): Single 15m pillar at center
+        obstacles.append(Obstacle(
+            obstacle_type=ObstacleType.CYLINDER,
+            position=(60.0, 0.0, 0.0),
+            size=(15.0, 15.0, 180.0),
+            color=(0.7, 0.7, 0.75),
+            name="pillar_r1_center",
+        ))
+
+        # Row 2 (x=120): 12m at y=-30, 18m at y=+35
+        obstacles.append(Obstacle(
+            obstacle_type=ObstacleType.CYLINDER,
+            position=(120.0, -30.0, 0.0),
+            size=(12.0, 12.0, 160.0),
+            color=(0.65, 0.65, 0.7),
+            name="pillar_r2_left",
+        ))
+        obstacles.append(Obstacle(
+            obstacle_type=ObstacleType.CYLINDER,
+            position=(120.0, 35.0, 0.0),
+            size=(18.0, 18.0, 200.0),
+            color=(0.65, 0.65, 0.7),
+            name="pillar_r2_right",
+        ))
+
+        # Row 3 (x=180): 10m at y=-15, 14m at y=+20 (narrow passage)
+        obstacles.append(Obstacle(
+            obstacle_type=ObstacleType.CYLINDER,
+            position=(180.0, -15.0, 0.0),
+            size=(10.0, 10.0, 150.0),
+            color=(0.6, 0.6, 0.65),
+            name="pillar_r3_left",
+        ))
+        obstacles.append(Obstacle(
+            obstacle_type=ObstacleType.CYLINDER,
+            position=(180.0, 20.0, 0.0),
+            size=(14.0, 14.0, 170.0),
+            color=(0.6, 0.6, 0.65),
+            name="pillar_r3_right",
+        ))
+
+        # Row 4 (x=240): 16m at center, 12m at y=-40, 10m at y=+45
+        obstacles.append(Obstacle(
+            obstacle_type=ObstacleType.CYLINDER,
+            position=(240.0, 0.0, 0.0),
+            size=(16.0, 16.0, 190.0),
+            color=(0.55, 0.55, 0.6),
+            name="pillar_r4_center",
+        ))
+        obstacles.append(Obstacle(
+            obstacle_type=ObstacleType.CYLINDER,
+            position=(240.0, -40.0, 0.0),
+            size=(12.0, 12.0, 140.0),
+            color=(0.55, 0.55, 0.6),
+            name="pillar_r4_left",
+        ))
+        obstacles.append(Obstacle(
+            obstacle_type=ObstacleType.CYLINDER,
+            position=(240.0, 45.0, 0.0),
+            size=(10.0, 10.0, 145.0),
+            color=(0.55, 0.55, 0.6),
+            name="pillar_r4_right",
+        ))
+
+        return NavigationScenario(
+            name="pillar_field",
+            description="8 massive pillars requiring weaving navigation",
+            start_position=(0.0, 0.0, 30.0),
+            goal_position=(300.0, 0.0, 30.0),
             obstacles=obstacles,
             max_time_seconds=120.0,
             min_clearance_meters=5.0,

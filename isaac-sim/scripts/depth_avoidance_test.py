@@ -33,22 +33,43 @@ import argparse
 
 # Parse args before SimulationApp
 parser = argparse.ArgumentParser(description="Depth + Avoidance Navigation Test")
-parser.add_argument("--scenario", type=str, default="pillar_field",
-                    help="Scenario name (default: pillar_field)")
-parser.add_argument("--headless", action="store_true", default=True,
-                    help="Run headless (default)")
-parser.add_argument("--gui", action="store_true",
-                    help="Run with GUI (overrides --headless)")
-parser.add_argument("--with-ros", action="store_true",
-                    help="Use ROS 2 nodes for depth/avoidance (full pipeline test)")
-parser.add_argument("--output-dir", type=str, default="/workspace/output/depth_avoidance_tests",
-                    help="Output directory for results")
-parser.add_argument("--max-steps", type=int, default=3000,
-                    help="Maximum simulation steps")
-parser.add_argument("--save-benchmark", action="store_true",
-                    help="Save benchmark dataset for offline testing")
-parser.add_argument("--benchmark-interval", type=int, default=30,
-                    help="Frame interval for benchmark capture (default: every 30 frames)")
+parser.add_argument(
+    "--scenario",
+    type=str,
+    default="pillar_field",
+    help="Scenario name (default: pillar_field)",
+)
+parser.add_argument(
+    "--headless", action="store_true", default=True, help="Run headless (default)"
+)
+parser.add_argument(
+    "--gui", action="store_true", help="Run with GUI (overrides --headless)"
+)
+parser.add_argument(
+    "--with-ros",
+    action="store_true",
+    help="Use ROS 2 nodes for depth/avoidance (full pipeline test)",
+)
+parser.add_argument(
+    "--output-dir",
+    type=str,
+    default="/workspace/output/depth_avoidance_tests",
+    help="Output directory for results",
+)
+parser.add_argument(
+    "--max-steps", type=int, default=3000, help="Maximum simulation steps"
+)
+parser.add_argument(
+    "--save-benchmark",
+    action="store_true",
+    help="Save benchmark dataset for offline testing",
+)
+parser.add_argument(
+    "--benchmark-interval",
+    type=int,
+    default=30,
+    help="Frame interval for benchmark capture (default: every 30 frames)",
+)
 args = parser.parse_args()
 
 HEADLESS = not args.gui
@@ -65,7 +86,7 @@ simulation_app = SimulationApp(simulation_config)
 import omni
 import omni.timeline
 from omni.isaac.core.world import World
-from pxr import UsdGeom, UsdPhysics, UsdLux, UsdShade, Sdf, Gf, PhysxSchema
+from pxr import UsdGeom, UsdPhysics, UsdLux, UsdShade, Sdf, Gf
 import omni.physx
 from isaacsim.sensors.camera import Camera
 import time
@@ -74,7 +95,7 @@ import os
 import json
 from datetime import datetime
 from dataclasses import dataclass, asdict
-from typing import Optional, List, Dict, Tuple
+from typing import Optional, List, Tuple
 from scipy.spatial.transform import Rotation
 import cv2
 
@@ -95,7 +116,7 @@ from enum import Enum, auto
 from mvp_scale_corrector import WarmupScaleCorrector
 
 # Import trajectory rollout planner (proactive path planning)
-from trajectory_planner import TrajectoryRolloutPlanner, TrajectoryPlanResult
+from trajectory_planner import TrajectoryRolloutPlanner
 
 # ROS 2 imports (optional - for actual ROS integration)
 ROS2_AVAILABLE = False
@@ -104,6 +125,7 @@ try:
     from rclpy.node import Node
     from sensor_msgs.msg import Image, Range
     from cv_bridge import CvBridge
+
     ROS2_AVAILABLE = True
 except ImportError:
     print("[Warning] ROS 2 not available - running in standalone mode", flush=True)
@@ -170,7 +192,7 @@ class GroundFilter:
         h, w = depth_map.shape
 
         # Convert to 3D points (sparse sampling for speed)
-        rows, cols = np.mgrid[0:h:self.sample_stride, 0:w:self.sample_stride]
+        rows, cols = np.mgrid[0 : h : self.sample_stride, 0 : w : self.sample_stride]
         depths = depth_map[rows, cols]
         valid = (depths > 0.5) & (depths < 100)
 
@@ -219,7 +241,9 @@ class GroundFilter:
 
         return filtered, best_plane
 
-    def _ransac_plane(self, points: np.ndarray) -> Optional[Tuple[float, float, float, float]]:
+    def _ransac_plane(
+        self, points: np.ndarray
+    ) -> Optional[Tuple[float, float, float, float]]:
         """RANSAC plane fitting.
 
         Args:
@@ -366,9 +390,7 @@ class DepthFieldNavigator:
 
         # Precompute sector angles (from left to right in image)
         # Left edge = +hfov/2, right edge = -hfov/2 (camera convention)
-        self.sector_angles = np.linspace(
-            self.hfov / 2, -self.hfov / 2, num_sectors
-        )
+        self.sector_angles = np.linspace(self.hfov / 2, -self.hfov / 2, num_sectors)
         self.sector_width = self.hfov / num_sectors
 
     def compute_avoidance(
@@ -474,21 +496,27 @@ class DepthFieldNavigator:
                         # End of opening
                         end_sector = i - 1
                         opening_sectors = range(start_sector, end_sector + 1)
-                        avg_depth = sector_min_depths[start_sector:end_sector + 1].mean()
+                        avg_depth = sector_min_depths[
+                            start_sector : end_sector + 1
+                        ].mean()
                         center_idx = (start_sector + end_sector) / 2
                         center_angle = self.sector_angles[int(center_idx)]
                         width = end_sector - start_sector + 1
-                        openings.append((start_sector, end_sector, avg_depth, center_angle, width))
+                        openings.append(
+                            (start_sector, end_sector, avg_depth, center_angle, width)
+                        )
                         in_opening = False
 
             # Handle opening that extends to right edge
             if in_opening:
                 end_sector = self.num_sectors - 1
-                avg_depth = sector_min_depths[start_sector:end_sector + 1].mean()
+                avg_depth = sector_min_depths[start_sector : end_sector + 1].mean()
                 center_idx = (start_sector + end_sector) / 2
                 center_angle = self.sector_angles[int(center_idx)]
                 width = end_sector - start_sector + 1
-                openings.append((start_sector, end_sector, avg_depth, center_angle, width))
+                openings.append(
+                    (start_sector, end_sector, avg_depth, center_angle, width)
+                )
 
             if openings:
                 # Score each opening based on:
@@ -513,7 +541,10 @@ class DepthFieldNavigator:
                     )
 
                     # Hysteresis bonus: prefer previous opening to prevent oscillation
-                    if self._prev_opening_idx is not None and idx == self._prev_opening_idx:
+                    if (
+                        self._prev_opening_idx is not None
+                        and idx == self._prev_opening_idx
+                    ):
                         score += self.hysteresis_bonus
 
                     opening_scores.append((score, idx, opening))
@@ -523,16 +554,25 @@ class DepthFieldNavigator:
                 best_score, best_idx, best_opening = opening_scores[0]
 
                 # Apply hysteresis: only switch if improvement is significant
-                if self._prev_opening_idx is not None and best_idx != self._prev_opening_idx:
+                if (
+                    self._prev_opening_idx is not None
+                    and best_idx != self._prev_opening_idx
+                ):
                     # Check if previous opening still exists
-                    prev_entries = [(s, i, o) for s, i, o in opening_scores
-                                    if i == self._prev_opening_idx]
+                    prev_entries = [
+                        (s, i, o)
+                        for s, i, o in opening_scores
+                        if i == self._prev_opening_idx
+                    ]
                     if prev_entries:
                         prev_entry = prev_entries[0]
                         prev_score_without_bonus = prev_entry[0] - self.hysteresis_bonus
 
                         # Only switch if new opening is significantly better
-                        if best_score < prev_score_without_bonus + self.min_switch_improvement:
+                        if (
+                            best_score
+                            < prev_score_without_bonus + self.min_switch_improvement
+                        ):
                             # Stay with previous opening
                             best_opening = prev_entry[2]
                             best_idx = self._prev_opening_idx
@@ -546,12 +586,17 @@ class DepthFieldNavigator:
                     recommended_heading = center_angle
                     self._prev_heading = center_angle
 
-                    print(f"[DepthNav] Found opening: center={np.degrees(center_angle):.1f}° "
-                          f"width={best_opening[4]} sectors, depth={best_opening[2]:.1f}m", flush=True)
+                    print(
+                        f"[DepthNav] Found opening: center={np.degrees(center_angle):.1f}° "
+                        f"width={best_opening[4]} sectors, depth={best_opening[2]:.1f}m",
+                        flush=True,
+                    )
             else:
                 # No horizontal openings - all sectors blocked
                 # Would need vertical escape (not implemented in this version)
-                print("[DepthNav] All sectors blocked - no horizontal escape", flush=True)
+                print(
+                    "[DepthNav] All sectors blocked - no horizontal escape", flush=True
+                )
         else:
             # Path is clear - head toward goal
             # But if we're still near an obstacle, blend toward opening
@@ -590,7 +635,6 @@ class DepthFieldNavigator:
         )
 
 
-
 # =============================================================================
 # TACTICAL PLANNER STATE MACHINE
 # Orchestrates navigation with recovery behaviors
@@ -599,9 +643,10 @@ class DepthFieldNavigator:
 
 class TacticalState(Enum):
     """States for the tactical planner."""
-    NAVIGATE = auto()       # Normal goal-directed flight
-    AVOID = auto()          # Active obstacle avoidance
-    STUCK = auto()          # Detected stuck condition
+
+    NAVIGATE = auto()  # Normal goal-directed flight
+    AVOID = auto()  # Active obstacle avoidance
+    STUCK = auto()  # Detected stuck condition
     RECOVER_CLIMB = auto()  # Altitude increase to escape
     RECOVER_ORBIT = auto()  # Rotate in place to scan
     RECOVER_REVERSE = auto()  # Back up from dead end
@@ -610,11 +655,12 @@ class TacticalState(Enum):
 @dataclass
 class TacticalCommand:
     """Command output from tactical planner."""
-    heading: float = 0.0      # Heading offset in radians
-    pitch: float = 0.0        # Pitch angle in degrees
-    speed: float = 8.0        # Target speed m/s
-    vertical: bool = False    # Whether this is a vertical maneuver
-    rotate_only: bool = False # Whether to only rotate (no translation)
+
+    heading: float = 0.0  # Heading offset in radians
+    pitch: float = 0.0  # Pitch angle in degrees
+    speed: float = 8.0  # Target speed m/s
+    vertical: bool = False  # Whether this is a vertical maneuver
+    rotate_only: bool = False  # Whether to only rotate (no translation)
 
 
 class OscillationDetector:
@@ -764,9 +810,7 @@ class TacticalPlanner:
         # It continuously analyzes the depth field and steers toward openings
         speed = self._compute_safety_speed(avoidance_data)
         return TacticalCommand(
-            heading=avoidance_data.recommended_heading,
-            pitch=0,
-            speed=speed
+            heading=avoidance_data.recommended_heading, pitch=0, speed=speed
         )
 
     def _handle_avoid(
@@ -787,7 +831,10 @@ class TacticalPlanner:
 
             # Only go to STUCK if there are literally no openings in the depth field
             if avoidance_data.candidate_directions == 0:
-                print("[TACTICAL] No openings found in depth field - transitioning to STUCK", flush=True)
+                print(
+                    "[TACTICAL] No openings found in depth field - transitioning to STUCK",
+                    flush=True,
+                )
                 self.state = TacticalState.STUCK
                 return TacticalCommand(heading=0, pitch=0, speed=0)
 
@@ -875,7 +922,9 @@ class TacticalPlanner:
         if self.reverse_start is not None:
             dist_reversed = np.linalg.norm(position[:2] - self.reverse_start[:2])
             if dist_reversed >= self.backup_distance:
-                print(f"[TACTICAL] Reversed {dist_reversed:.1f}m - retrying", flush=True)
+                print(
+                    f"[TACTICAL] Reversed {dist_reversed:.1f}m - retrying", flush=True
+                )
                 self.state = TacticalState.STUCK  # Will trigger another recovery cycle
                 return TacticalCommand(heading=0, pitch=0, speed=0)
 
@@ -956,7 +1005,7 @@ class SimpleTacticalPlanner:
         """Detect if we're oscillating (high heading variance)."""
         if len(self._heading_history) < self._history_size:
             return False
-        recent = self._heading_history[-self._history_size:]
+        recent = self._heading_history[-self._history_size :]
         return float(np.std(recent)) > self._oscillation_threshold
 
     def _apply_smoothing(self, raw_heading: float) -> float:
@@ -965,7 +1014,10 @@ class SimpleTacticalPlanner:
             return raw_heading
 
         # EMA smoothing
-        smoothed = self.heading_alpha * raw_heading + (1 - self.heading_alpha) * self._smoothed_heading
+        smoothed = (
+            self.heading_alpha * raw_heading
+            + (1 - self.heading_alpha) * self._smoothed_heading
+        )
 
         # Rate limiting
         delta = smoothed - self._smoothed_heading
@@ -997,15 +1049,22 @@ class SimpleTacticalPlanner:
             self._commitment_frames -= 1
             smoothed_heading = self._committed_heading
             if self._commitment_frames % 10 == 0:
-                print(f"[SimplePlanner] COMMITTED: holding {np.degrees(smoothed_heading):.1f}° "
-                      f"({self._commitment_frames} frames left)", flush=True)
+                print(
+                    f"[SimplePlanner] COMMITTED: holding {np.degrees(smoothed_heading):.1f}° "
+                    f"({self._commitment_frames} frames left)",
+                    flush=True,
+                )
         elif self._detect_oscillation():
             # Start commitment
-            self._committed_heading = self._smoothed_heading if self._smoothed_heading else raw_heading
+            self._committed_heading = (
+                self._smoothed_heading if self._smoothed_heading else raw_heading
+            )
             self._commitment_frames = self._commitment_duration
             smoothed_heading = self._committed_heading
-            print(f"[SimplePlanner] OSCILLATION DETECTED: committing to {np.degrees(smoothed_heading):.1f}°",
-                  flush=True)
+            print(
+                f"[SimplePlanner] OSCILLATION DETECTED: committing to {np.degrees(smoothed_heading):.1f}°",
+                flush=True,
+            )
         else:
             # Normal smoothing
             smoothed_heading = self._apply_smoothing(raw_heading)
@@ -1017,7 +1076,7 @@ class SimpleTacticalPlanner:
             if avoidance_data.path_blocked:
                 self.state = self.AVOID
                 self._clear_count = 0
-                print(f"[SimplePlanner] NAVIGATE -> AVOID (path blocked)", flush=True)
+                print("[SimplePlanner] NAVIGATE -> AVOID (path blocked)", flush=True)
 
             return TacticalCommand(
                 heading=smoothed_heading,
@@ -1032,7 +1091,7 @@ class SimpleTacticalPlanner:
                 self._clear_count += 1
                 if self._clear_count >= self._clear_threshold:
                     self.state = self.NAVIGATE
-                    print(f"[SimplePlanner] AVOID -> NAVIGATE (path clear)", flush=True)
+                    print("[SimplePlanner] AVOID -> NAVIGATE (path clear)", flush=True)
             else:
                 self._clear_count = 0
 
@@ -1107,9 +1166,14 @@ class FixedGimbal:
 
         # Set initial orientation
         self._update_camera_orientation()
-        print(f"  [Gimbal] Fixed at {self.NAV_TILT}° pitch (no calibration sweeps)", flush=True)
+        print(
+            f"  [Gimbal] Fixed at {self.NAV_TILT}° pitch (no calibration sweeps)",
+            flush=True,
+        )
 
-    def update(self, sim_time: float, scale_confidence: float, dt: float) -> Tuple[float, bool]:
+    def update(
+        self, sim_time: float, scale_confidence: float, dt: float
+    ) -> Tuple[float, bool]:
         """Update gimbal state (no-op for fixed gimbal).
 
         Returns:
@@ -1154,7 +1218,9 @@ class FixedGimbal:
         R_cam_to_world = np.column_stack([right, up, -look_dir])
         world_rot = Rotation.from_matrix(R_cam_to_world)
         quat_xyzw = world_rot.as_quat()
-        self._orient_op.Set(Gf.Quatd(quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]))
+        self._orient_op.Set(
+            Gf.Quatd(quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2])
+        )
 
 
 class InProcessDepthEstimator:
@@ -1202,54 +1268,70 @@ class InProcessDepthEstimator:
             # Use RELATIVE models - output normalized disparity
             # These require rangefinder fusion to get metric depth
             model_names = {
-                'small': 'depth-anything/Depth-Anything-V2-Small-hf',
-                'base': 'depth-anything/Depth-Anything-V2-Base-hf',
-                'large': 'depth-anything/Depth-Anything-V2-Large-hf',
+                "small": "depth-anything/Depth-Anything-V2-Small-hf",
+                "base": "depth-anything/Depth-Anything-V2-Base-hf",
+                "large": "depth-anything/Depth-Anything-V2-Large-hf",
             }
 
-            model_name = model_names.get(self.model_size, model_names['small'])
-            print(f"  [DepthEstimator] Loading Depth Anything V2 RELATIVE ({self.model_size})...", flush=True)
+            model_name = model_names.get(self.model_size, model_names["small"])
+            print(
+                f"  [DepthEstimator] Loading Depth Anything V2 RELATIVE ({self.model_size})...",
+                flush=True,
+            )
             print(f"  [DepthEstimator] Model: {model_name}", flush=True)
-            print(f"  [DepthEstimator] Output: Disparity (higher=closer), requires rangefinder fusion", flush=True)
+            print(
+                "  [DepthEstimator] Output: Disparity (higher=closer), requires rangefinder fusion",
+                flush=True,
+            )
 
             device = 0 if torch.cuda.is_available() else -1
-            print(f"  [DepthEstimator] Device: {'CUDA' if device == 0 else 'CPU'}", flush=True)
+            print(
+                f"  [DepthEstimator] Device: {'CUDA' if device == 0 else 'CPU'}",
+                flush=True,
+            )
 
             self.model = pipeline(
-                task='depth-estimation',
+                task="depth-estimation",
                 model=model_name,
                 device=device,
             )
-            print(f"  [DepthEstimator] Model loaded successfully", flush=True)
+            print("  [DepthEstimator] Model loaded successfully", flush=True)
 
             # Initialize scale corrector for rangefinder fusion
             # This converts normalized relative depth to metric depth
             self.scale_corrector = WarmupScaleCorrector(
-                warmup_frames=60,      # 2 seconds at 30Hz
+                warmup_frames=60,  # 2 seconds at 30Hz
                 min_samples=20,
-                min_depth_cv=0.02,     # 2% coefficient of variation
-                alpha=0.1,             # Slow EMA for fallback
+                min_depth_cv=0.02,  # 2% coefficient of variation
+                alpha=0.1,  # Slow EMA for fallback
                 min_valid_range=1.0,
                 max_valid_range=200.0,
             )
             self.use_metric_model = False  # Requires rangefinder fusion
-            print(f"  [DepthEstimator] Scale corrector initialized (rangefinder fusion enabled)", flush=True)
+            print(
+                "  [DepthEstimator] Scale corrector initialized (rangefinder fusion enabled)",
+                flush=True,
+            )
 
         except ImportError as e:
-            print(f"  [DepthEstimator] ERROR: Failed to import dependencies: {e}", flush=True)
-            print(f"  [DepthEstimator] Install with: pip install transformers torch", flush=True)
+            print(
+                f"  [DepthEstimator] ERROR: Failed to import dependencies: {e}",
+                flush=True,
+            )
+            print(
+                "  [DepthEstimator] Install with: pip install transformers torch",
+                flush=True,
+            )
             self.model = None
         except Exception as e:
             print(f"  [DepthEstimator] ERROR: Failed to load model: {e}", flush=True)
             import traceback
+
             traceback.print_exc()
             self.model = None
 
     def estimate_depth(
-        self,
-        rgb_image: np.ndarray,
-        rangefinder_reading: float,
-        rangefinder_valid: bool
+        self, rgb_image: np.ndarray, rangefinder_reading: float, rangefinder_valid: bool
     ) -> Tuple[Optional[np.ndarray], DepthData, Optional[np.ndarray]]:
         """Run depth inference and return metric depth with metadata.
 
@@ -1264,22 +1346,27 @@ class InProcessDepthEstimator:
         """
         if self.model is None:
             # Return fallback data if model not loaded
-            return None, DepthData(
-                scale_factor=1.0,
-                scale_confidence=0.0,
-                rangefinder_reading=rangefinder_reading,
-                rangefinder_valid=False,
-                min_depth=0.5,
-                max_depth=100.0,
-                mean_depth=50.0,
-                inference_time_ms=0.0,
-            ), None
+            return (
+                None,
+                DepthData(
+                    scale_factor=1.0,
+                    scale_confidence=0.0,
+                    rangefinder_reading=rangefinder_reading,
+                    rangefinder_valid=False,
+                    min_depth=0.5,
+                    max_depth=100.0,
+                    mean_depth=50.0,
+                    inference_time_ms=0.0,
+                ),
+                None,
+            )
 
         start = time.perf_counter()
 
         try:
             # Run depth inference
             from PIL import Image as PILImage
+
             pil_image = PILImage.fromarray(rgb_image)
             result = self.model(pil_image)
             inference_time = (time.perf_counter() - start) * 1000
@@ -1287,40 +1374,61 @@ class InProcessDepthEstimator:
             # =========================================================
             # RELATIVE DEPTH MODEL + RANGEFINDER FUSION PIPELINE
             # =========================================================
-            # The pipeline returns result['depth'] as a PIL Image (8-bit grayscale)
-            # This is DISPARITY: higher values = CLOSER objects
-            # We need to: 1) Invert to depth, 2) Normalize, 3) Scale with rangefinder
+            # Depth Anything V2 (relative) outputs DISPARITY (inverse depth):
+            #   - Higher values = CLOSER objects (more disparity)
+            #   - Lower values = FARTHER objects (less disparity)
+            # We INVERT to get metric depth: relative_depth = 1 / disparity
+            #
+            # Pipeline: raw_disparity -> invert -> scale -> metric_depth (meters)
             #
             # DEBUG: Log what the pipeline returns on first frame
-            if not hasattr(self, '_logged_keys'):
+            if not hasattr(self, "_logged_keys"):
                 self._logged_keys = True
-                print(f"[DEBUG] Pipeline result keys: {list(result.keys())}", flush=True)
+                print(
+                    f"[DEBUG] Pipeline result keys: {list(result.keys())}", flush=True
+                )
 
-            # Step 1: Get raw disparity output (8-bit grayscale image)
-            raw_disparity = np.array(result['depth']).astype(np.float32)
-
-            # Normalize disparity to 0-1 range
-            if raw_disparity.max() > 1.0:
-                raw_disparity = raw_disparity / 255.0
+            # Step 1: Get raw depth output
+            # Use 'predicted_depth' (raw tensor) NOT 'depth' (8-bit visualization)
+            # The raw tensor preserves precision and actual model values
+            if "predicted_depth" in result:
+                raw_depth = np.array(result["predicted_depth"]).astype(np.float32)
+                # Ensure 2D (remove batch dim if present)
+                if raw_depth.ndim == 3:
+                    raw_depth = raw_depth[0]
+                elif raw_depth.ndim == 4:
+                    raw_depth = raw_depth[0, 0]
+            else:
+                # Fallback to visualization image
+                raw_depth = np.array(result["depth"]).astype(np.float32)
+                if raw_depth.max() > 1.0:
+                    raw_depth = raw_depth / 255.0
 
             # Debug first frame
-            if not hasattr(self, '_logged_depth'):
+            if not hasattr(self, "_logged_depth"):
                 self._logged_depth = True
-                print(f"[DEBUG] raw_disparity shape={raw_disparity.shape} "
-                      f"range=[{raw_disparity.min():.3f}, {raw_disparity.max():.3f}] "
-                      f"(higher=closer)", flush=True)
+                print(
+                    f"[DEBUG] raw_depth shape={raw_depth.shape} "
+                    f"range=[{raw_depth.min():.3f}, {raw_depth.max():.3f}] "
+                    f"(higher=CLOSER - this is disparity-like)",
+                    flush=True,
+                )
 
-            # Step 2: Invert disparity to get relative depth (higher = farther)
-            # depth = 1 / disparity, but need to handle zeros
-            # DO NOT normalize - scale corrector needs proportional relationship
-            eps = 0.001  # Prevent division by zero
-            relative_depth = 1.0 / (raw_disparity + eps)
+            # Step 2: INVERT to get relative depth where higher = farther
+            # The model outputs disparity-like values: higher = closer
+            # We need: higher = farther for proper depth
+            # Clamp to small positive first to avoid division issues
+            raw_clamped = np.maximum(raw_depth, 0.01)
+            relative_depth = 1.0 / raw_clamped
 
             # Debug on first frame
-            if not hasattr(self, '_logged_rel'):
+            if not hasattr(self, "_logged_rel"):
                 self._logged_rel = True
-                print(f"[DEBUG] relative_depth range=[{relative_depth.min():.3f}, {relative_depth.max():.3f}] "
-                      f"(higher=farther)", flush=True)
+                print(
+                    f"[DEBUG] relative_depth (inverted) range=[{relative_depth.min():.3f}, {relative_depth.max():.3f}] "
+                    f"(higher=FARTHER after inversion)",
+                    flush=True,
+                )
 
             # Step 3: Update scale corrector with rangefinder
             # scale = rangefinder_reading / center_relative_depth
@@ -1331,15 +1439,17 @@ class InProcessDepthEstimator:
             )
 
             # Debug: Print scale status periodically
-            if not hasattr(self, '_frame_count'):
+            if not hasattr(self, "_frame_count"):
                 self._frame_count = 0
             self._frame_count += 1
             if self._frame_count % 30 == 0:
                 frozen_str = "FROZEN" if scale_estimate.frozen else "warmup"
                 center_val = self.scale_corrector._sample_center(relative_depth)
-                print(f"[SCALE] scale={scale_estimate.scale:.1f} conf={scale_estimate.confidence:.2f} "
-                      f"status={frozen_str} center={center_val:.3f} range_gt={rangefinder_reading:.1f}m",
-                      flush=True)
+                print(
+                    f"[SCALE] scale={scale_estimate.scale:.1f} conf={scale_estimate.confidence:.2f} "
+                    f"status={frozen_str} center={center_val:.3f} range_gt={rangefinder_reading:.1f}m",
+                    flush=True,
+                )
 
             # Step 4: Apply scale to get metric depth
             # metric_depth = scale * relative_depth
@@ -1350,8 +1460,11 @@ class InProcessDepthEstimator:
 
             # Debug: Check if depth makes sense
             if self._frame_count % 30 == 0:
-                print(f"[DEPTH] min={metric_depth.min():.1f}m max={metric_depth.max():.1f}m "
-                      f"mean={metric_depth.mean():.1f}m", flush=True)
+                print(
+                    f"[DEPTH] min={metric_depth.min():.1f}m max={metric_depth.max():.1f}m "
+                    f"mean={metric_depth.mean():.1f}m",
+                    flush=True,
+                )
 
             # Compute stats
             valid_mask = metric_depth > 0.5
@@ -1361,9 +1474,15 @@ class InProcessDepthEstimator:
                 scale_confidence=scale_estimate.confidence,
                 rangefinder_reading=rangefinder_reading,
                 rangefinder_valid=rangefinder_valid,
-                min_depth=float(metric_depth[valid_mask].min()) if valid_mask.any() else 0.5,
-                max_depth=float(metric_depth[valid_mask].max()) if valid_mask.any() else 200.0,
-                mean_depth=float(metric_depth[valid_mask].mean()) if valid_mask.any() else 100.0,
+                min_depth=float(metric_depth[valid_mask].min())
+                if valid_mask.any()
+                else 0.5,
+                max_depth=float(metric_depth[valid_mask].max())
+                if valid_mask.any()
+                else 200.0,
+                mean_depth=float(metric_depth[valid_mask].mean())
+                if valid_mask.any()
+                else 100.0,
                 inference_time_ms=inference_time,
             )
 
@@ -1372,16 +1491,20 @@ class InProcessDepthEstimator:
 
         except Exception as e:
             print(f"  [DepthEstimator] Inference error: {e}", flush=True)
-            return None, DepthData(
-                scale_factor=1.0,
-                scale_confidence=0.0,
-                rangefinder_reading=rangefinder_reading,
-                rangefinder_valid=False,
-                min_depth=0.5,
-                max_depth=100.0,
-                mean_depth=50.0,
-                inference_time_ms=0.0,
-            ), None
+            return (
+                None,
+                DepthData(
+                    scale_factor=1.0,
+                    scale_confidence=0.0,
+                    rangefinder_reading=rangefinder_reading,
+                    rangefinder_valid=False,
+                    min_depth=0.5,
+                    max_depth=100.0,
+                    mean_depth=50.0,
+                    inference_time_ms=0.0,
+                ),
+                None,
+            )
 
 
 class DepthBasedVFH:
@@ -1390,7 +1513,9 @@ class DepthBasedVFH:
     Converts depth map to polar histogram and finds safe navigation directions.
     """
 
-    def __init__(self, hfov_deg: float = 160.0, num_bins: int = 36, safety_dist: float = 8.0):
+    def __init__(
+        self, hfov_deg: float = 160.0, num_bins: int = 36, safety_dist: float = 8.0
+    ):
         """Initialize VFH.
 
         Args:
@@ -1404,11 +1529,7 @@ class DepthBasedVFH:
         self.safety_dist = safety_dist
 
     def compute_avoidance(
-        self,
-        depth_map: np.ndarray,
-        goal_direction: np.ndarray,
-        fx: float,
-        cx: float
+        self, depth_map: np.ndarray, goal_direction: np.ndarray, fx: float, cx: float
     ) -> AvoidanceData:
         """Compute VFH+ avoidance from depth map.
 
@@ -1424,7 +1545,7 @@ class DepthBasedVFH:
         h, w = depth_map.shape
 
         # Build polar histogram - minimum depth per angular bin
-        histogram = np.full(self.num_bins, float('inf'))
+        histogram = np.full(self.num_bins, float("inf"))
 
         for col in range(w):
             # Column azimuth angle relative to image center
@@ -1467,12 +1588,21 @@ class DepthBasedVFH:
         path_blocked = goal_blocked or adjacent_blocked
 
         # Debug: Print goal bin depth and blocked bin range
-        goal_bin_depth = histogram[goal_bin] if 0 <= goal_bin < self.num_bins else float('inf')
+        goal_bin_depth = (
+            histogram[goal_bin] if 0 <= goal_bin < self.num_bins else float("inf")
+        )
         blocked_indices = np.where(blocked)[0]
-        blocked_range = f"{blocked_indices.min()}-{blocked_indices.max()}" if len(blocked_indices) > 0 else "none"
+        blocked_range = (
+            f"{blocked_indices.min()}-{blocked_indices.max()}"
+            if len(blocked_indices) > 0
+            else "none"
+        )
         center_bins = histogram[15:21]  # bins around center (18 is center of 36)
-        print(f"[VFH-DEBUG] goal_bin={goal_bin} goal_depth={goal_bin_depth:.1f}m blocked_range={blocked_range} "
-              f"center_depths=[{','.join(f'{d:.1f}' for d in center_bins)}]", flush=True)
+        print(
+            f"[VFH-DEBUG] goal_bin={goal_bin} goal_depth={goal_bin_depth:.1f}m blocked_range={blocked_range} "
+            f"center_depths=[{','.join(f'{d:.1f}' for d in center_bins)}]",
+            flush=True,
+        )
 
         # Find best heading - search outward from goal direction
         recommended_heading = 0.0
@@ -1488,7 +1618,9 @@ class DepthBasedVFH:
                     break
 
         # Closest obstacle distance
-        closest_dist = float(histogram.min()) if histogram.min() < float('inf') else 100.0
+        closest_dist = (
+            float(histogram.min()) if histogram.min() < float("inf") else 100.0
+        )
 
         # Safety level classification
         if closest_dist > 20:
@@ -1525,9 +1657,9 @@ print("=" * 70, flush=True)
 print(f"  Scenario: {args.scenario}", flush=True)
 print(f"  Headless: {HEADLESS}", flush=True)
 if args.with_ros:
-    print(f"  Mode: FULL PIPELINE (ROS 2 depth + avoidance nodes)", flush=True)
+    print("  Mode: FULL PIPELINE (ROS 2 depth + avoidance nodes)", flush=True)
 else:
-    print(f"  Mode: GROUND TRUTH (Isaac Sim depth, isolated nav test)", flush=True)
+    print("  Mode: GROUND TRUTH (Isaac Sim depth, isolated nav test)", flush=True)
 print(f"  Output: {args.output_dir}", flush=True)
 
 # Create output directory with timestamp
@@ -1539,7 +1671,9 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 class VideoWriter:
     """Simple video writer using OpenCV."""
 
-    def __init__(self, output_path: str, fps: int = 30, resolution: Tuple[int, int] = (1280, 720)):
+    def __init__(
+        self, output_path: str, fps: int = 30, resolution: Tuple[int, int] = (1280, 720)
+    ):
         self.output_path = output_path
         self.fps = fps
         self.resolution = resolution
@@ -1549,13 +1683,14 @@ class VideoWriter:
 
         try:
             import cv2
+
             self._cv2 = cv2
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             self.writer = cv2.VideoWriter(output_path, fourcc, fps, resolution)
             if self.writer.isOpened():
                 print(f"  [Video] Writer initialized: {output_path}", flush=True)
             else:
-                print(f"  [Video] Warning: Writer failed to open", flush=True)
+                print("  [Video] Warning: Writer failed to open", flush=True)
                 self.writer = None
         except ImportError:
             print("  [Video] OpenCV not available", flush=True)
@@ -1578,9 +1713,13 @@ class VideoWriter:
             self._closed = True
             self.writer.release()
             self.writer = None
-            print(f"  [Video] Saved {self.frame_count} frames to {self.output_path}", flush=True)
+            print(
+                f"  [Video] Saved {self.frame_count} frames to {self.output_path}",
+                flush=True,
+            )
             # Verify file was written correctly
             import os
+
             if os.path.exists(self.output_path):
                 size_mb = os.path.getsize(self.output_path) / (1024 * 1024)
                 print(f"  [Video] File size: {size_mb:.1f} MB", flush=True)
@@ -1593,6 +1732,7 @@ class VideoWriter:
 @dataclass
 class NavigationMetrics:
     """Metrics collected during navigation test."""
+
     scenario_name: str
     success: bool
     goal_reached: bool
@@ -1673,7 +1813,7 @@ class DepthAvoidanceTestRunner:
 
         # Metrics
         self.path_length = 0.0
-        self.min_clearance = float('inf')
+        self.min_clearance = float("inf")
         self.total_clearance = 0.0
         self.clearance_samples = 0
         self.collision_count = 0
@@ -1711,12 +1851,12 @@ class DepthAvoidanceTestRunner:
         self.depth_estimator = InProcessDepthEstimator(model_size="small")
 
         # Initialize gimbal controller
-        self.calibration_gimbal = FixedGimbal(
-            self.camera_prim_path, stage
-        )
+        self.calibration_gimbal = FixedGimbal(self.camera_prim_path, stage)
 
         # Initialize depth-based VFH (legacy, kept for fallback)
-        self.depth_vfh = DepthBasedVFH(hfov_deg=160.0, num_bins=36, safety_dist=15.0)  # 15m for earlier reaction at 8m/s
+        self.depth_vfh = DepthBasedVFH(
+            hfov_deg=160.0, num_bins=36, safety_dist=15.0
+        )  # 15m for earlier reaction at 8m/s
 
         # Initialize enhanced navigation components
         print("[ROS Mode] Initializing enhanced navigation components...", flush=True)
@@ -1732,30 +1872,38 @@ class DepthAvoidanceTestRunner:
             hfov_deg=160.0,
             vfov_deg=80.0,
             safety_dist=8.0,  # meters - closer safety for more responsive avoidance
-            num_sectors=36,   # Reduced for MVP (was 72)
+            num_sectors=36,  # Reduced for MVP (was 72)
         )
-        print("  [DepthNav] Depth field navigator initialized (36 sectors, 8m safety) - FALLBACK", flush=True)
+        print(
+            "  [DepthNav] Depth field navigator initialized (36 sectors, 8m safety) - FALLBACK",
+            flush=True,
+        )
 
         # Trajectory Rollout Planner - proactive path planning (PRIMARY)
         # 5-second lookahead at 8 m/s = 40m planning horizon
         self.trajectory_planner = TrajectoryRolloutPlanner(
-            horizon_seconds=5.0,        # Plan 5 seconds ahead
-            timestep=0.5,               # Evaluate every 0.5s along trajectory
-            num_candidates=21,          # 21 different turn rates to sample
-            max_turn_rate=0.5,          # Max 30°/s turn rate
-            speed=8.0,                  # Nominal flight speed
-            safety_margin=10.0,         # Prefer 10m clearance
-            collision_threshold=3.0,    # Reject trajectories < 3m clearance
-            hfov_deg=160.0,             # Match camera FOV
+            horizon_seconds=5.0,  # Plan 5 seconds ahead
+            timestep=0.5,  # Evaluate every 0.5s along trajectory
+            num_candidates=21,  # 21 different turn rates to sample
+            max_turn_rate=0.5,  # Max 30°/s turn rate
+            speed=8.0,  # Nominal flight speed
+            safety_margin=10.0,  # Prefer 10m clearance
+            collision_threshold=3.0,  # Reject trajectories < 3m clearance
+            hfov_deg=160.0,  # Match camera FOV
         )
         self.use_trajectory_planner = True  # Use proactive planning by default
-        print("  [TrajPlan] Trajectory rollout planner initialized (5s horizon, 40m lookahead) - PRIMARY", flush=True)
+        print(
+            "  [TrajPlan] Trajectory rollout planner initialized (5s horizon, 40m lookahead) - PRIMARY",
+            flush=True,
+        )
 
         # Tactical planner - simplified 2-state FSM for MVP
         self.tactical_planner = SimpleTacticalPlanner(
             clear_frames=3,  # Quick state transitions
         )
-        print("  [SimplePlanner] 2-state planner initialized (NAVIGATE/AVOID)", flush=True)
+        print(
+            "  [SimplePlanner] 2-state planner initialized (NAVIGATE/AVOID)", flush=True
+        )
 
         print("[ROS Mode] Initialization complete", flush=True)
 
@@ -1783,6 +1931,7 @@ class DepthAvoidanceTestRunner:
             # Slight downward tilt to see obstacles ahead and ground in front of drone
             # (Positive Y-euler = upward, negative = downward in camera frame)
             import isaacsim.core.utils.numpy.rotations as rot_utils
+
             initial_orient = rot_utils.euler_angles_to_quats(
                 np.array([0, -15, 0]), degrees=True
             )
@@ -1801,7 +1950,7 @@ class DepthAvoidanceTestRunner:
 
             # CRITICAL: Double initialization required for camera to work
             # Per Isaac Sim examples, first call creates resources, second finalizes
-            print(f"  [Camera] Double initialization...", flush=True)
+            print("  [Camera] Double initialization...", flush=True)
             self.camera.initialize()
             simulation_app.update()
             self.camera.initialize()
@@ -1821,11 +1970,17 @@ class DepthAvoidanceTestRunner:
                 if usd_camera:
                     # Increase aperture for wider FOV (50mm with 4mm focal ≈ 160° HFOV)
                     usd_camera.GetHorizontalApertureAttr().Set(50.0)
-                    print(f"  [Camera] Set horizontal aperture to 50.0mm (FOV ~160°)", flush=True)
+                    print(
+                        "  [Camera] Set horizontal aperture to 50.0mm (FOV ~160°)",
+                        flush=True,
+                    )
 
             # EXPLICIT REPLICATOR API - this is what works in headless mode
             # Both ground-truth and ROS mode need RGB capture for frame rendering
-            print(f"  [Camera] Setting up Replicator render product and annotators...", flush=True)
+            print(
+                "  [Camera] Setting up Replicator render product and annotators...",
+                flush=True,
+            )
 
             # Disable automatic capture on play - we want manual control
             rep.orchestrator.set_capture_on_play(False)
@@ -1834,22 +1989,33 @@ class DepthAvoidanceTestRunner:
             self._render_product = rep.create.render_product(
                 camera_path, self.camera_resolution
             )
-            print(f"  [Camera] Created render product", flush=True)
+            print("  [Camera] Created render product", flush=True)
 
             # Create and attach RGB annotator (needed for both modes)
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
             self._rgb_annotator.attach([self._render_product])
-            print(f"  [Camera] Attached RGB annotator", flush=True)
+            print("  [Camera] Attached RGB annotator", flush=True)
 
             if not self.use_ros:
                 # Ground-truth mode: also capture depth from Isaac Sim
-                self._depth_annotator = rep.AnnotatorRegistry.get_annotator("distance_to_image_plane")
+                self._depth_annotator = rep.AnnotatorRegistry.get_annotator(
+                    "distance_to_image_plane"
+                )
                 self._depth_annotator.attach([self._render_product])
-                print(f"  [Camera] Attached depth annotator (distance_to_image_plane)", flush=True)
-                print(f"  [Camera] Created with Replicator API (ground-truth mode)", flush=True)
+                print(
+                    "  [Camera] Attached depth annotator (distance_to_image_plane)",
+                    flush=True,
+                )
+                print(
+                    "  [Camera] Created with Replicator API (ground-truth mode)",
+                    flush=True,
+                )
             else:
                 # ROS mode: depth comes from Depth Anything V2
-                print(f"  [Camera] Created with Replicator API (ROS mode - depth from Depth Anything)", flush=True)
+                print(
+                    "  [Camera] Created with Replicator API (ROS mode - depth from Depth Anything)",
+                    flush=True,
+                )
 
             # Pre-fetch translate op for efficient updates (pattern from drone_functions_check.py)
             if camera_prim.IsValid():
@@ -1860,11 +2026,12 @@ class DepthAvoidanceTestRunner:
                         break
                 if self._camera_translate_op is None:
                     self._camera_translate_op = camera_xform.AddTranslateOp()
-                print(f"  [Camera] Translate op ready for position updates", flush=True)
+                print("  [Camera] Translate op ready for position updates", flush=True)
 
         except Exception as e:
             print(f"  [Camera] Warning: {e}", flush=True)
             import traceback
+
             traceback.print_exc()
             self.camera = None
 
@@ -1876,9 +2043,9 @@ class DepthAvoidanceTestRunner:
         try:
             # Camera mounted on drone nose: 0.5m forward, 0.2m down from drone center
             cam_pos = Gf.Vec3d(
-                float(self.position[0] + 0.5),   # 0.5m forward (+X)
+                float(self.position[0] + 0.5),  # 0.5m forward (+X)
                 float(self.position[1]),
-                float(self.position[2] - 0.2)   # 0.2m down (-Z)
+                float(self.position[2] - 0.2),  # 0.2m down (-Z)
             )
             self._camera_translate_op.Set(cam_pos)
         except Exception:
@@ -1920,30 +2087,47 @@ class DepthAvoidanceTestRunner:
             self.update_depth_data()
 
             # For metric models, no warmup needed - they output meters directly
-            if hasattr(self.depth_estimator, 'use_metric_model') and self.depth_estimator.use_metric_model:
+            if (
+                hasattr(self.depth_estimator, "use_metric_model")
+                and self.depth_estimator.use_metric_model
+            ):
                 # Return to initial heading immediately
                 self.heading = initial_heading
-                print(f"[Warmup] Using METRIC model - no scale calibration needed", flush=True)
+                print(
+                    "[Warmup] Using METRIC model - no scale calibration needed",
+                    flush=True,
+                )
                 return True
 
             # Check if scale frozen (for legacy scale corrector models)
-            if (self.depth_estimator.scale_corrector is not None and
-                self.depth_estimator.scale_corrector.is_frozen):
+            if (
+                self.depth_estimator.scale_corrector is not None
+                and self.depth_estimator.scale_corrector.is_frozen
+            ):
                 # Return to initial heading
                 self.heading = initial_heading
-                print(f"[Warmup] Scale calibrated at step {step} "
-                      f"(scale={self.depth_estimator.scale_corrector.scale:.3f})", flush=True)
+                print(
+                    f"[Warmup] Scale calibrated at step {step} "
+                    f"(scale={self.depth_estimator.scale_corrector.scale:.3f})",
+                    flush=True,
+                )
                 return True
 
             # Log progress (only for scale corrector models)
             if step % 30 == 0 and self.depth_estimator.scale_corrector is not None:
                 scale = self.depth_estimator.scale_corrector.scale
                 samples = self.depth_estimator.scale_corrector.sample_count
-                print(f"[Warmup] Step {step}: scale={scale:.3f}, samples={samples}", flush=True)
+                print(
+                    f"[Warmup] Step {step}: scale={scale:.3f}, samples={samples}",
+                    flush=True,
+                )
 
         # Return to initial heading
         self.heading = initial_heading
-        print("[Warmup] WARNING: Scale not frozen, continuing with EMA fallback", flush=True)
+        print(
+            "[Warmup] WARNING: Scale not frozen, continuing with EMA fallback",
+            flush=True,
+        )
         return False
 
     def spawn_obstacles_and_ground(self, stage):
@@ -1961,8 +2145,12 @@ class DepthAvoidanceTestRunner:
 
         # Create materials container and materials FIRST
         stage.DefinePrim("/World/Looks", "Scope")
-        self._create_material(stage, "obstacle_gray", Gf.Vec3f(0.5, 0.5, 0.55), roughness=0.6)
-        self._create_material(stage, "ground_green", Gf.Vec3f(0.1, 0.5, 0.1), roughness=0.8)
+        self._create_material(
+            stage, "obstacle_gray", Gf.Vec3f(0.5, 0.5, 0.55), roughness=0.6
+        )
+        self._create_material(
+            stage, "ground_green", Gf.Vec3f(0.1, 0.5, 0.1), roughness=0.8
+        )
         print("  Created materials", flush=True)
 
         # Create ground plane (matching orientation test: /World/Ground, Cube at z=-0.5)
@@ -1984,21 +2172,27 @@ class DepthAvoidanceTestRunner:
             prim_path = f"/World/Obstacles/{obstacle.name or f'obstacle_{i}'}"
 
             # Spawn cylinder or box based on type
-            prim_type = "Cylinder" if obstacle.obstacle_type.value == "cylinder" else "Cube"
+            prim_type = (
+                "Cylinder" if obstacle.obstacle_type.value == "cylinder" else "Cube"
+            )
 
             prim_utils.create_prim(
                 prim_path=prim_path,
                 prim_type=prim_type,
-                position=np.array([
-                    obstacle.position[0],
-                    obstacle.position[1],
-                    obstacle.position[2] + obstacle.size[2] / 2,
-                ]),
-                scale=np.array([
-                    obstacle.size[0] / 2,
-                    obstacle.size[1] / 2,
-                    obstacle.size[2] / 2,
-                ]),
+                position=np.array(
+                    [
+                        obstacle.position[0],
+                        obstacle.position[1],
+                        obstacle.position[2] + obstacle.size[2] / 2,
+                    ]
+                ),
+                scale=np.array(
+                    [
+                        obstacle.size[0] / 2,
+                        obstacle.size[1] / 2,
+                        obstacle.size[2] / 2,
+                    ]
+                ),
             )
 
             # Apply material IMMEDIATELY after creating prim (like orientation test)
@@ -2008,10 +2202,14 @@ class DepthAvoidanceTestRunner:
 
                 # Add collision so physics raycasts (rangefinder) can hit the obstacle
                 from pxr import UsdPhysics
+
                 UsdPhysics.CollisionAPI.Apply(prim)
 
             self.obstacle_prims.append(prim_path)
-            print(f"  Spawned {obstacle.name} at ({obstacle.position[0]:.0f}, {obstacle.position[1]:.0f})", flush=True)
+            print(
+                f"  Spawned {obstacle.name} at ({obstacle.position[0]:.0f}, {obstacle.position[1]:.0f})",
+                flush=True,
+            )
 
     def setup_lighting(self, stage):
         """Setup scene lighting for headless RGB rendering.
@@ -2041,6 +2239,7 @@ class DepthAvoidanceTestRunner:
         hdri_found = False
         for hdri_path in hdri_paths:
             import os
+
             if os.path.exists(hdri_path):
                 dome_light.CreateTextureFileAttr().Set(hdri_path)
                 dome_light.CreateTextureFormatAttr().Set("latlong")
@@ -2050,14 +2249,16 @@ class DepthAvoidanceTestRunner:
 
         if not hdri_found:
             dome_light.CreateColorAttr(Gf.Vec3f(0.6, 0.75, 1.0))
-            print(f"  Using fallback blue sky color", flush=True)
+            print("  Using fallback blue sky color", flush=True)
 
         dome_light.CreateSpecularAttr(1.0)
         print(f"  Created DomeLight (HDRI sky + sun) at {dome_path}", flush=True)
 
         print("[Lighting] Scene lights configured", flush=True)
 
-    def _create_material(self, stage, name: str, color: Gf.Vec3f, roughness: float = 0.5):
+    def _create_material(
+        self, stage, name: str, color: Gf.Vec3f, roughness: float = 0.5
+    ):
         """Create a PBR material optimized for headless rendering."""
         mat_path = f"/World/Looks/{name}_mat"
         material = UsdShade.Material.Define(stage, mat_path)
@@ -2082,7 +2283,9 @@ class DepthAvoidanceTestRunner:
         shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(1.0)
 
         # Connect shader to material surface
-        material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+        material.CreateSurfaceOutput().ConnectToSource(
+            shader.ConnectableAPI(), "surface"
+        )
 
         return material
 
@@ -2100,7 +2303,10 @@ class DepthAvoidanceTestRunner:
             prim = stage.GetPrimAtPath(prim_path)
             if prim.IsValid():
                 self._apply_material(stage, prim, "obstacle_gray")
-        print(f"  Applied gray material to {len(self.obstacle_prims)} obstacles", flush=True)
+        print(
+            f"  Applied gray material to {len(self.obstacle_prims)} obstacles",
+            flush=True,
+        )
 
     def create_visible_ground(self, stage, size: float = 2000.0):
         """Create or update ground plane with green material.
@@ -2117,7 +2323,10 @@ class DepthAvoidanceTestRunner:
         if existing_prim.IsValid():
             # Ground plane exists, just apply material
             self._apply_material(stage, existing_prim, "ground_green")
-            print(f"  [Ground] Applied green material to existing ground plane", flush=True)
+            print(
+                "  [Ground] Applied green material to existing ground plane",
+                flush=True,
+            )
             return ground_path
 
         # Create as Cube scaled flat (more reliable than Plane prim in headless)
@@ -2125,16 +2334,19 @@ class DepthAvoidanceTestRunner:
             prim_path=ground_path,
             prim_type="Cube",
             position=np.array([0.0, 0.0, -0.5]),  # Top face at Z=0
-            scale=np.array([size, size, 1.0]),     # Large flat box
+            scale=np.array([size, size, 1.0]),  # Large flat box
         )
 
         # Apply green material immediately
         ground_prim = stage.GetPrimAtPath(ground_path)
         if ground_prim.IsValid():
             self._apply_material(stage, ground_prim, "ground_green")
-            print(f"  [Ground] Created {size}x{size}m ground plane at {ground_path}", flush=True)
+            print(
+                f"  [Ground] Created {size}x{size}m ground plane at {ground_path}",
+                flush=True,
+            )
         else:
-            print(f"  [Ground] WARNING: Failed to create ground plane", flush=True)
+            print("  [Ground] WARNING: Failed to create ground plane", flush=True)
 
         return ground_path
 
@@ -2175,26 +2387,32 @@ class DepthAvoidanceTestRunner:
 
         # Ray direction = gimbal tilt (pitch) + drone heading (yaw)
         # gimbal_tilt: negative = looking down, positive = looking up
-        gimbal_tilt = getattr(self, 'gimbal_tilt', -10.0)  # Default: -10° (matching camera)
+        gimbal_tilt = getattr(
+            self, "gimbal_tilt", -10.0
+        )  # Default: -10° (matching camera)
         pitch_rad = np.radians(gimbal_tilt)
         yaw_rad = self.heading
 
         # Forward direction with pitch applied
-        direction = np.array([
-            np.cos(yaw_rad) * np.cos(pitch_rad),
-            np.sin(yaw_rad) * np.cos(pitch_rad),
-            np.sin(pitch_rad)  # Positive tilt = looking up (Z+)
-        ])
+        direction = np.array(
+            [
+                np.cos(yaw_rad) * np.cos(pitch_rad),
+                np.sin(yaw_rad) * np.cos(pitch_rad),
+                np.sin(pitch_rad),  # Positive tilt = looking up (Z+)
+            ]
+        )
 
         # Gremsy VIO rangefinder max range
         MAX_RANGE = 1200.0  # meters
-        MIN_RANGE = 0.5     # meters (minimum valid reading)
+        MIN_RANGE = 0.5  # meters (minimum valid reading)
 
         try:
             hit = get_physx_scene_query_interface().raycast_closest(
                 carb.Float3(float(cam_pos[0]), float(cam_pos[1]), float(cam_pos[2])),
-                carb.Float3(float(direction[0]), float(direction[1]), float(direction[2])),
-                MAX_RANGE
+                carb.Float3(
+                    float(direction[0]), float(direction[1]), float(direction[2])
+                ),
+                MAX_RANGE,
             )
 
             if hit["hit"]:
@@ -2204,7 +2422,7 @@ class DepthAvoidanceTestRunner:
                 valid = MIN_RANGE <= distance <= MAX_RANGE
                 return max(MIN_RANGE, min(distance, MAX_RANGE)), valid
 
-        except Exception as e:
+        except Exception:
             # Fallback to simple ground distance if raycast fails
             pass
 
@@ -2233,7 +2451,12 @@ class DepthAvoidanceTestRunner:
         if self.camera is not None:
             try:
                 depth = self.camera.get_distance_to_image_plane()
-                if depth is not None and depth.size > 0 and len(depth.shape) >= 2 and depth.max() > 0:
+                if (
+                    depth is not None
+                    and depth.size > 0
+                    and len(depth.shape) >= 2
+                    and depth.max() > 0
+                ):
                     return depth.astype(np.float32)
 
                 frame_data = self.camera.get_current_frame()
@@ -2246,7 +2469,9 @@ class DepthAvoidanceTestRunner:
 
         return None
 
-    def _save_depth_comparison(self, rgb_frame: np.ndarray, da_depth: np.ndarray, range_dist: float):
+    def _save_depth_comparison(
+        self, rgb_frame: np.ndarray, da_depth: np.ndarray, range_dist: float
+    ):
         """Save depth comparison images for debugging.
 
         Saves:
@@ -2256,7 +2481,8 @@ class DepthAvoidanceTestRunner:
         4. Side-by-side comparison with stats
         """
         import matplotlib
-        matplotlib.use('Agg')
+
+        matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
         # Get ground-truth depth for comparison
@@ -2272,15 +2498,17 @@ class DepthAvoidanceTestRunner:
         # 1. RGB frame
         axes[0, 0].imshow(rgb_frame)
         axes[0, 0].set_title(f"RGB Frame (step {self.step_count})")
-        axes[0, 0].axis('off')
+        axes[0, 0].axis("off")
 
         # 2. Depth Anything metric depth
         # Clip to reasonable range for visualization
         da_clipped = np.clip(da_depth, 0, 100)
-        im1 = axes[0, 1].imshow(da_clipped, cmap='turbo', vmin=0, vmax=100)
-        axes[0, 1].set_title(f"Depth Anything V2 (scale={self.depth_data.scale_factor:.2f})")
-        axes[0, 1].axis('off')
-        plt.colorbar(im1, ax=axes[0, 1], label='Depth (m)')
+        im1 = axes[0, 1].imshow(da_clipped, cmap="turbo", vmin=0, vmax=100)
+        axes[0, 1].set_title(
+            f"Depth Anything V2 (scale={self.depth_data.scale_factor:.2f})"
+        )
+        axes[0, 1].axis("off")
+        plt.colorbar(im1, ax=axes[0, 1], label="Depth (m)")
 
         # Add depth stats as text
         valid_da = da_depth[(da_depth > 0.5) & (da_depth < 500)]
@@ -2288,16 +2516,22 @@ class DepthAvoidanceTestRunner:
             da_stats = f"min={valid_da.min():.1f}m max={valid_da.max():.1f}m mean={valid_da.mean():.1f}m"
         else:
             da_stats = "No valid depths"
-        axes[0, 1].text(10, 30, da_stats, color='white', fontsize=10,
-                        bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
+        axes[0, 1].text(
+            10,
+            30,
+            da_stats,
+            color="white",
+            fontsize=10,
+            bbox=dict(boxstyle="round", facecolor="black", alpha=0.7),
+        )
 
         # 3. Ground-truth depth
         if gt_depth is not None:
             gt_clipped = np.clip(gt_depth, 0, 100)
-            im2 = axes[1, 0].imshow(gt_clipped, cmap='turbo', vmin=0, vmax=100)
+            im2 = axes[1, 0].imshow(gt_clipped, cmap="turbo", vmin=0, vmax=100)
             axes[1, 0].set_title("Ground Truth Depth (Isaac Sim)")
-            axes[1, 0].axis('off')
-            plt.colorbar(im2, ax=axes[1, 0], label='Depth (m)')
+            axes[1, 0].axis("off")
+            plt.colorbar(im2, ax=axes[1, 0], label="Depth (m)")
 
             # Add GT stats
             valid_gt = gt_depth[(gt_depth > 0.5) & (gt_depth < 500)]
@@ -2305,18 +2539,32 @@ class DepthAvoidanceTestRunner:
                 gt_stats = f"min={valid_gt.min():.1f}m max={valid_gt.max():.1f}m mean={valid_gt.mean():.1f}m"
             else:
                 gt_stats = "No valid depths"
-            axes[1, 0].text(10, 30, gt_stats, color='white', fontsize=10,
-                            bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
+            axes[1, 0].text(
+                10,
+                30,
+                gt_stats,
+                color="white",
+                fontsize=10,
+                bbox=dict(boxstyle="round", facecolor="black", alpha=0.7),
+            )
         else:
-            axes[1, 0].text(0.5, 0.5, "GT depth not available", transform=axes[1, 0].transAxes,
-                           ha='center', va='center', fontsize=14)
-            axes[1, 0].axis('off')
+            axes[1, 0].text(
+                0.5,
+                0.5,
+                "GT depth not available",
+                transform=axes[1, 0].transAxes,
+                ha="center",
+                va="center",
+                fontsize=14,
+            )
+            axes[1, 0].axis("off")
 
         # 4. Difference map (if GT available)
         if gt_depth is not None:
             # Resize DA depth to match GT if needed
             if da_depth.shape != gt_depth.shape:
                 from scipy.ndimage import zoom
+
                 scale_h = gt_depth.shape[0] / da_depth.shape[0]
                 scale_w = gt_depth.shape[1] / da_depth.shape[1]
                 da_resized = zoom(da_depth, (scale_h, scale_w), order=1)
@@ -2326,21 +2574,29 @@ class DepthAvoidanceTestRunner:
             # Compute difference (GT - DA)
             diff = gt_depth - da_resized
             diff_clipped = np.clip(diff, -50, 50)
-            im3 = axes[1, 1].imshow(diff_clipped, cmap='RdBu', vmin=-50, vmax=50)
+            im3 = axes[1, 1].imshow(diff_clipped, cmap="RdBu", vmin=-50, vmax=50)
             axes[1, 1].set_title("Difference (GT - DA)")
-            axes[1, 1].axis('off')
-            plt.colorbar(im3, ax=axes[1, 1], label='Depth diff (m)')
+            axes[1, 1].axis("off")
+            plt.colorbar(im3, ax=axes[1, 1], label="Depth diff (m)")
 
             # Add position and rangefinder info
             info_text = f"Pos: ({self.position[0]:.1f}, {self.position[1]:.1f}, {self.position[2]:.1f})\n"
             info_text += f"Rangefinder: {range_dist:.1f}m"
-            axes[1, 1].text(10, 30, info_text, color='white', fontsize=10,
-                           bbox=dict(boxstyle='round', facecolor='black', alpha=0.7))
+            axes[1, 1].text(
+                10,
+                30,
+                info_text,
+                color="white",
+                fontsize=10,
+                bbox=dict(boxstyle="round", facecolor="black", alpha=0.7),
+            )
         else:
-            axes[1, 1].axis('off')
+            axes[1, 1].axis("off")
 
         # Save figure
-        fig_path = os.path.join(debug_dir, f"depth_comparison_step{self.step_count:04d}.png")
+        fig_path = os.path.join(
+            debug_dir, f"depth_comparison_step{self.step_count:04d}.png"
+        )
         plt.tight_layout()
         plt.savefig(fig_path, dpi=150)
         plt.close(fig)
@@ -2368,7 +2624,9 @@ class DepthAvoidanceTestRunner:
             rangefinder_valid: Whether rangefinder reading is valid
         """
         # Create benchmark directory
-        benchmark_dir = os.path.join(self.output_dir, "benchmark", "frames", f"{self.step_count:06d}")
+        benchmark_dir = os.path.join(
+            self.output_dir, "benchmark", "frames", f"{self.step_count:06d}"
+        )
         os.makedirs(benchmark_dir, exist_ok=True)
 
         # Save RGB frame
@@ -2396,7 +2654,10 @@ class DepthAvoidanceTestRunner:
             json.dump(rf_data, f, indent=2)
 
         if self.step_count % 100 == 0:
-            print(f"[BENCHMARK] Saved frame {self.step_count} to {benchmark_dir}", flush=True)
+            print(
+                f"[BENCHMARK] Saved frame {self.step_count} to {benchmark_dir}",
+                flush=True,
+            )
 
     def update_depth_data(self):
         """Update depth data from ground-truth or ROS 2 depth estimation."""
@@ -2409,14 +2670,19 @@ class DepthAvoidanceTestRunner:
                     self.sim_time, self.depth_data.scale_confidence, self.dt
                 )
             else:
-                self.gimbal_tilt = -15.0  # Default nav tilt (negative = downward, matching camera)
+                self.gimbal_tilt = (
+                    -15.0
+                )  # Default nav tilt (negative = downward, matching camera)
 
             # Physics raycast rangefinder (uses self.gimbal_tilt)
             range_dist, range_valid = self.simulate_rangefinder()
 
             # Debug: Print rangefinder reading
             if self.step_count % 30 == 0:
-                print(f"[RANGE] step={self.step_count} range={range_dist:.1f}m valid={range_valid} tilt={self.gimbal_tilt:.1f}°", flush=True)
+                print(
+                    f"[RANGE] step={self.step_count} range={range_dist:.1f}m valid={range_valid} tilt={self.gimbal_tilt:.1f}°",
+                    flush=True,
+                )
 
             # Always use rangefinder for scale correction when valid
             # At +15° pitch, rangefinder hits ground/obstacles ahead of drone
@@ -2426,25 +2692,39 @@ class DepthAvoidanceTestRunner:
             rgb_frame = self.capture_frame()
             if rgb_frame is not None:
                 # Run Depth Anything V2 inference
-                self._current_metric_depth, self.depth_data, model_output = self.depth_estimator.estimate_depth(
-                    rgb_frame, range_dist, use_range_for_scale
+                self._current_metric_depth, self.depth_data, model_output = (
+                    self.depth_estimator.estimate_depth(
+                        rgb_frame, range_dist, use_range_for_scale
+                    )
                 )
                 self.depth_times.append(self.depth_data.inference_time_ms)
 
                 # Debug: Print scale factor
                 if self.step_count % 30 == 0:
-                    print(f"[SCALE] step={self.step_count} scale={self.depth_data.scale_factor:.2f} conf={self.depth_data.scale_confidence:.2f}", flush=True)
+                    print(
+                        f"[SCALE] step={self.step_count} scale={self.depth_data.scale_factor:.2f} conf={self.depth_data.scale_confidence:.2f}",
+                        flush=True,
+                    )
 
                 # DEBUG: Save depth comparison at specific steps
                 if self.step_count in [100, 200, 300, 400]:
-                    self._save_depth_comparison(rgb_frame, self._current_metric_depth, range_dist)
+                    self._save_depth_comparison(
+                        rgb_frame, self._current_metric_depth, range_dist
+                    )
 
                 # Save benchmark frame for offline testing
-                if self.save_benchmark and self.step_count % self.benchmark_interval == 0:
+                if (
+                    self.save_benchmark
+                    and self.step_count % self.benchmark_interval == 0
+                ):
                     gt_depth = self.get_ground_truth_depth()
                     if gt_depth is not None and model_output is not None:
                         self._save_benchmark_frame(
-                            rgb_frame, model_output, gt_depth, range_dist, use_range_for_scale
+                            rgb_frame,
+                            model_output,
+                            gt_depth,
+                            range_dist,
+                            use_range_for_scale,
                         )
             else:
                 # No frame available
@@ -2510,18 +2790,21 @@ class DepthAvoidanceTestRunner:
                 cy = h / 2.0  # Image center y
 
                 # Get camera pitch from gimbal
-                camera_pitch = self.gimbal_tilt if hasattr(self, 'gimbal_tilt') else -15.0
+                camera_pitch = (
+                    self.gimbal_tilt if hasattr(self, "gimbal_tilt") else -15.0
+                )
 
                 # Step 1: Apply ground filtering to remove ground plane from depth map
                 filtered_depth = self._current_metric_depth
                 if self.ground_filter is not None:
                     filtered_depth, plane = self.ground_filter.filter_ground(
-                        self._current_metric_depth,
-                        fx, fy, cx, cy,
-                        camera_pitch
+                        self._current_metric_depth, fx, fy, cx, cy, camera_pitch
                     )
                     if plane is not None and self.step_count % 60 == 0:
-                        print(f"[GroundFilter] Plane detected, normal=({plane[0]:.2f},{plane[1]:.2f},{plane[2]:.2f})", flush=True)
+                        print(
+                            f"[GroundFilter] Plane detected, normal=({plane[0]:.2f},{plane[1]:.2f},{plane[2]:.2f})",
+                            flush=True,
+                        )
 
                 # Step 2: Compute goal direction in CAMERA FRAME
                 goal_dir_world = self.goal[:2] - self.position[:2]
@@ -2556,23 +2839,37 @@ class DepthAvoidanceTestRunner:
                             recommendation_confidence=0.9,
                             blocked_bins=0 if traj_result.min_clearance > 10 else 10,
                             total_bins=21,
-                            candidate_directions=len([c for c in traj_result.all_candidates if c.clearances.min() > 3]),
-                            safety_level=0 if traj_result.min_clearance > 20 else (1 if traj_result.min_clearance > 10 else 2),
+                            candidate_directions=len(
+                                [
+                                    c
+                                    for c in traj_result.all_candidates
+                                    if c.clearances.min() > 3
+                                ]
+                            ),
+                            safety_level=0
+                            if traj_result.min_clearance > 20
+                            else (1 if traj_result.min_clearance > 10 else 2),
                             processing_time_ms=traj_result.planning_time_ms,
                         )
 
                         if self.step_count % 30 == 0:
                             best = traj_result.best_candidate
-                            print(f"[TrajPlan] step={self.step_count} goal_az={np.degrees(goal_azimuth):.1f}° "
-                                  f"turn_rate={best.turn_rate:.2f} rad/s "
-                                  f"min_clear={traj_result.min_clearance:.1f}m "
-                                  f"goal_prog={best.goal_progress:.1f}m "
-                                  f"heading={np.degrees(traj_result.recommended_heading):.1f}° "
-                                  f"speed={traj_result.recommended_speed:.1f}m/s "
-                                  f"time={traj_result.planning_time_ms:.1f}ms", flush=True)
+                            print(
+                                f"[TrajPlan] step={self.step_count} goal_az={np.degrees(goal_azimuth):.1f}° "
+                                f"turn_rate={best.turn_rate:.2f} rad/s "
+                                f"min_clear={traj_result.min_clearance:.1f}m "
+                                f"goal_prog={best.goal_progress:.1f}m "
+                                f"heading={np.degrees(traj_result.recommended_heading):.1f}° "
+                                f"speed={traj_result.recommended_speed:.1f}m/s "
+                                f"time={traj_result.planning_time_ms:.1f}ms",
+                                flush=True,
+                            )
                     else:
                         # Trajectory planner couldn't find safe path - fall back to VFH
-                        print(f"[TrajPlan] FALLBACK to VFH: best clearance {traj_result.min_clearance:.1f}m < 2.0m", flush=True)
+                        print(
+                            f"[TrajPlan] FALLBACK to VFH: best clearance {traj_result.min_clearance:.1f}m < 2.0m",
+                            flush=True,
+                        )
                         self.avoidance_data = self.vfh3d.compute_avoidance(
                             filtered_depth, goal_dir_3d, fx, fy, cx, cy
                         )
@@ -2588,14 +2885,21 @@ class DepthAvoidanceTestRunner:
                 # Debug: Log decisions periodically (VFH mode or fallback)
                 if self.step_count % 30 == 0 and not self.use_trajectory_planner:
                     goal_azimuth_deg = np.degrees(goal_azimuth)
-                    tactical_state = self.tactical_planner.state_name if self.tactical_planner else "N/A"
-                    print(f"[VFH3D] step={self.step_count} goal_az={goal_azimuth_deg:.1f}° "
-                          f"blocked={self.avoidance_data.path_blocked} "
-                          f"closest={self.avoidance_data.closest_obstacle_distance:.1f}m "
-                          f"blocked_bins={self.avoidance_data.blocked_bins}/{self.avoidance_data.total_bins} "
-                          f"heading={np.degrees(self.avoidance_data.recommended_heading):.1f}° "
-                          f"pitch={np.degrees(self.avoidance_data.recommended_pitch):.1f}° "
-                          f"tactical={tactical_state}", flush=True)
+                    tactical_state = (
+                        self.tactical_planner.state_name
+                        if self.tactical_planner
+                        else "N/A"
+                    )
+                    print(
+                        f"[VFH3D] step={self.step_count} goal_az={goal_azimuth_deg:.1f}° "
+                        f"blocked={self.avoidance_data.path_blocked} "
+                        f"closest={self.avoidance_data.closest_obstacle_distance:.1f}m "
+                        f"blocked_bins={self.avoidance_data.blocked_bins}/{self.avoidance_data.total_bins} "
+                        f"heading={np.degrees(self.avoidance_data.recommended_heading):.1f}° "
+                        f"pitch={np.degrees(self.avoidance_data.recommended_pitch):.1f}° "
+                        f"tactical={tactical_state}",
+                        flush=True,
+                    )
 
                 # Cache valid avoidance for use during calibration
                 self._last_valid_avoidance = self.avoidance_data
@@ -2603,8 +2907,12 @@ class DepthAvoidanceTestRunner:
                 self.vfh_times.append(processing_time)
 
                 # Update clearance metrics
-                self.min_clearance = min(self.min_clearance, self.avoidance_data.closest_obstacle_distance)
-                self.total_clearance += max(0, self.avoidance_data.closest_obstacle_distance)
+                self.min_clearance = min(
+                    self.min_clearance, self.avoidance_data.closest_obstacle_distance
+                )
+                self.total_clearance += max(
+                    0, self.avoidance_data.closest_obstacle_distance
+                )
                 self.clearance_samples += 1
                 return
             else:
@@ -2640,7 +2948,7 @@ class DepthAvoidanceTestRunner:
         if goal_distance > 0:
             goal_dir = goal_dir / goal_distance
 
-        closest_dist = float('inf')
+        closest_dist = float("inf")
         closest_obstacle = None
         path_blocked = False
         blocked_bins = 0
@@ -2697,7 +3005,9 @@ class DepthAvoidanceTestRunner:
                 # Calculate steering angle: bigger when closer, smaller when far
                 if closest_dist < 20:
                     # Aggressive steering when close
-                    steering_magnitude = np.arctan2(required_offset, max(1.0, closest_dist))
+                    steering_magnitude = np.arctan2(
+                        required_offset, max(1.0, closest_dist)
+                    )
                     # Clamp to reasonable range
                     steering_magnitude = min(steering_magnitude, np.radians(60))
                     steering_magnitude = max(steering_magnitude, np.radians(20))
@@ -2707,9 +3017,13 @@ class DepthAvoidanceTestRunner:
 
                 # Determine direction: go opposite to obstacle offset from goal line
                 if cross > 0:
-                    recommended_heading = -steering_magnitude  # Steer left (negative yaw)
+                    recommended_heading = (
+                        -steering_magnitude
+                    )  # Steer left (negative yaw)
                 else:
-                    recommended_heading = steering_magnitude   # Steer right (positive yaw)
+                    recommended_heading = (
+                        steering_magnitude  # Steer right (positive yaw)
+                    )
 
         self.avoidance_data = AvoidanceData(
             closest_obstacle_distance=closest_dist,
@@ -2736,7 +3050,10 @@ class DepthAvoidanceTestRunner:
         if closest_dist < DRONE_RADIUS:
             self.collision_count += 1
             if self.collision_count <= 5:  # Log first few collisions
-                print(f"[COLLISION] clearance={closest_dist:.2f}m < {DRONE_RADIUS}m at step {self.step_count}", flush=True)
+                print(
+                    f"[COLLISION] clearance={closest_dist:.2f}m < {DRONE_RADIUS}m at step {self.step_count}",
+                    flush=True,
+                )
 
     def update_drone(self):
         """Update drone position toward goal with avoidance."""
@@ -2780,15 +3097,15 @@ class DepthAvoidanceTestRunner:
             if cmd.vertical and abs(cmd.pitch) > 0.1:
                 # Convert pitch angle to vertical speed
                 vertical_speed = cmd.speed * np.sin(np.radians(cmd.pitch))
-                speed = cmd.speed * np.cos(np.radians(cmd.pitch))  # Horizontal component
+                speed = cmd.speed * np.cos(
+                    np.radians(cmd.pitch)
+                )  # Horizontal component
 
             # Update position
             old_pos = self.position.copy()
-            self.velocity = np.array([
-                direction[0] * speed,
-                direction[1] * speed,
-                vertical_speed
-            ])
+            self.velocity = np.array(
+                [direction[0] * speed, direction[1] * speed, vertical_speed]
+            )
             self.position = self.position + self.velocity * self.dt
 
             # Update heading (unless rotating only, which was handled above)
@@ -2803,17 +3120,22 @@ class DepthAvoidanceTestRunner:
             direction = goal_direction.copy()
 
             # Initialize persistent steering state if needed
-            if not hasattr(self, '_steering_active'):
+            if not hasattr(self, "_steering_active"):
                 self._steering_active = False
                 self._steering_heading = 0.0
                 self._steering_cooldown = 0
 
             # Update steering state
-            if self.avoidance_data.path_blocked and abs(self.avoidance_data.recommended_heading) > 0.01:
+            if (
+                self.avoidance_data.path_blocked
+                and abs(self.avoidance_data.recommended_heading) > 0.01
+            ):
                 # New steering recommendation - activate/update
                 self._steering_active = True
                 self._steering_heading = self.avoidance_data.recommended_heading
-                self._steering_cooldown = 30  # Continue steering for at least 30 steps after clear
+                self._steering_cooldown = (
+                    30  # Continue steering for at least 30 steps after clear
+                )
 
             # Apply steering if active
             if self._steering_active:
@@ -2836,10 +3158,16 @@ class DepthAvoidanceTestRunner:
 
             # Slow down near obstacles for safer maneuvering
             speed = 8.0  # m/s base speed
-            if self.avoidance_data.path_blocked and self.avoidance_data.blocked_bins >= self.avoidance_data.total_bins:
+            if (
+                self.avoidance_data.path_blocked
+                and self.avoidance_data.blocked_bins >= self.avoidance_data.total_bins
+            ):
                 # ALL directions blocked - full stop (no crawling into obstacles)
                 speed = 0.0
-                print(f"[AVOID] step={self.step_count} FULL STOP - all bins blocked", flush=True)
+                print(
+                    f"[AVOID] step={self.step_count} FULL STOP - all bins blocked",
+                    flush=True,
+                )
             elif self.avoidance_data.safety_level >= 3:  # CRITICAL
                 speed = 2.0
             elif self.avoidance_data.safety_level >= 2:  # WARNING
@@ -2849,7 +3177,10 @@ class DepthAvoidanceTestRunner:
 
             # Log when avoidance steering is applied
             if self._steering_active:
-                print(f"[AVOID] step={self.step_count} STEERING {np.degrees(self._steering_heading):.1f}° speed={speed:.1f}m/s cooldown={self._steering_cooldown}", flush=True)
+                print(
+                    f"[AVOID] step={self.step_count} STEERING {np.degrees(self._steering_heading):.1f}° speed={speed:.1f}m/s cooldown={self._steering_cooldown}",
+                    flush=True,
+                )
 
             # Update position
             old_pos = self.position.copy()
@@ -2866,15 +3197,20 @@ class DepthAvoidanceTestRunner:
         try:
             from pxr import UsdGeom
             from isaacsim.core.utils.stage import get_current_stage
+
             stage = get_current_stage()
             drone_prim = stage.GetPrimAtPath(self.drone_prim_path)
             if drone_prim.IsValid():
                 xform = UsdGeom.Xformable(drone_prim)
                 ops = xform.GetOrderedXformOps()
                 if ops:
-                    ops[0].Set(Gf.Vec3d(float(self.position[0]),
-                                        float(self.position[1]),
-                                        float(self.position[2])))
+                    ops[0].Set(
+                        Gf.Vec3d(
+                            float(self.position[0]),
+                            float(self.position[1]),
+                            float(self.position[2]),
+                        )
+                    )
         except Exception:
             pass
 
@@ -2938,7 +3274,9 @@ class DepthAvoidanceTestRunner:
 
         # Create coordinate grids
         y_coords, x_coords = np.ogrid[:h, :w]
-        center_dist = np.sqrt((x_coords - w/2)**2 + (y_coords - h/2)**2) / (w/2)
+        center_dist = np.sqrt((x_coords - w / 2) ** 2 + (y_coords - h / 2) ** 2) / (
+            w / 2
+        )
 
         # Depth increases from center (closer) to edges (farther)
         depth = self.depth_data.mean_depth * (0.5 + 0.5 * center_dist)
@@ -2977,9 +3315,19 @@ class DepthAvoidanceTestRunner:
                         "Check initialization order: camera must be created BEFORE world.reset()."
                     )
                 # During warmup, use a placeholder frame
-                bgr_frame = np.zeros((self.camera_resolution[1], self.camera_resolution[0], 3), dtype=np.uint8)
-                cv2.putText(bgr_frame, "WARMING UP...", (50, 240),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 255, 255), 2)
+                bgr_frame = np.zeros(
+                    (self.camera_resolution[1], self.camera_resolution[0], 3),
+                    dtype=np.uint8,
+                )
+                cv2.putText(
+                    bgr_frame,
+                    "WARMING UP...",
+                    (50, 240),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.0,
+                    (0, 255, 255),
+                    2,
+                )
             else:
                 # Camera returns RGB, convert to BGR for cv2-based HUD
                 bgr_frame = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2BGR)
@@ -3007,10 +3355,14 @@ class DepthAvoidanceTestRunner:
         # Logging
         if self.step_count % 60 == 0:
             goal_dist = np.linalg.norm(self.goal - self.position)
-            safety_name = ["CLEAR", "CAUTION", "WARNING", "CRITICAL"][self.avoidance_data.safety_level]
-            print(f"  [T+{self.sim_time:.1f}s] POS:({self.position[0]:.0f},{self.position[1]:.0f},{self.position[2]:.0f}) "
-                  f"GOAL:{goal_dist:.0f}m SAFETY:{safety_name} CLOSEST:{self.avoidance_data.closest_obstacle_distance:.1f}m",
-                  flush=True)
+            safety_name = ["CLEAR", "CAUTION", "WARNING", "CRITICAL"][
+                self.avoidance_data.safety_level
+            ]
+            print(
+                f"  [T+{self.sim_time:.1f}s] POS:({self.position[0]:.0f},{self.position[1]:.0f},{self.position[2]:.0f}) "
+                f"GOAL:{goal_dist:.0f}m SAFETY:{safety_name} CLOSEST:{self.avoidance_data.closest_obstacle_distance:.1f}m",
+                flush=True,
+            )
 
         # Check termination
         done = False
@@ -3033,13 +3385,15 @@ class DepthAvoidanceTestRunner:
         """Collect final metrics."""
         avg_clearance = self.total_clearance / max(1, self.clearance_samples)
 
-        depth_fps = float(1000.0 / np.mean(self.depth_times)) if self.depth_times else 0.0
+        depth_fps = (
+            float(1000.0 / np.mean(self.depth_times)) if self.depth_times else 0.0
+        )
         vfh_fps = float(1000.0 / np.mean(self.vfh_times)) if self.vfh_times else 0.0
 
         success = bool(
-            goal_reached and
-            self.collision_count == 0 and
-            self.min_clearance >= self.scenario.min_clearance_meters
+            goal_reached
+            and self.collision_count == 0
+            and self.min_clearance >= self.scenario.min_clearance_meters
         )
 
         return NavigationMetrics(
@@ -3049,7 +3403,9 @@ class DepthAvoidanceTestRunner:
             collision_count=int(self.collision_count),
             flight_time_seconds=float(self.sim_time),
             path_length_meters=float(self.path_length),
-            min_clearance_meters=float(self.min_clearance) if self.min_clearance < float('inf') else 0.0,
+            min_clearance_meters=float(self.min_clearance)
+            if self.min_clearance < float("inf")
+            else 0.0,
             avg_clearance_meters=float(avg_clearance),
             total_steps=int(self.step_count),
             depth_fps_avg=depth_fps,
@@ -3072,9 +3428,11 @@ world = World(stage_units_in_meters=1.0)
 
 # Create a large ground plane (1000m x 1000m) instead of default small one
 from isaacsim.core.utils.stage import get_current_stage
+
 stage = get_current_stage()
 
 import omni.isaac.core.utils.prims as prim_utils
+
 print("[World] Creating large ground plane (1000m x 1000m)...", flush=True)
 prim_utils.create_prim(
     prim_path="/World/GroundPlane",
@@ -3084,6 +3442,7 @@ prim_utils.create_prim(
 )
 # Add collision to ground
 from pxr import UsdPhysics as UsdPhysicsLocal
+
 ground_prim = stage.GetPrimAtPath("/World/GroundPlane")
 if ground_prim.IsValid():
     UsdPhysicsLocal.CollisionAPI.Apply(ground_prim)
@@ -3176,14 +3535,20 @@ for i in range(300):
                 valid_mask = (depth > 0.1) & (depth < 500.0)
                 if valid_mask.sum() > 0:
                     depth_info = f", depth=[{depth[valid_mask].min():.1f}, {depth[valid_mask].max():.1f}]m"
-            print(f"  Frame {i}: RGB shape={rgba.shape}, max={rgba.max()}{depth_info}", flush=True)
+            print(
+                f"  Frame {i}: RGB shape={rgba.shape}, max={rgba.max()}{depth_info}",
+                flush=True,
+            )
         else:
             print(f"  Frame {i}: Waiting for camera warmup...", flush=True)
 
 if warmup_rgb_success:
-    print(f"  Camera warmup complete: RGB={'OK' if warmup_rgb_success else 'FAILED'}, Depth={'OK' if warmup_depth_success else 'FAILED'}", flush=True)
+    print(
+        f"  Camera warmup complete: RGB={'OK' if warmup_rgb_success else 'FAILED'}, Depth={'OK' if warmup_depth_success else 'FAILED'}",
+        flush=True,
+    )
 else:
-    print(f"  WARNING: Camera may not be working properly", flush=True)
+    print("  WARNING: Camera may not be working properly", flush=True)
 
 # MVP: Run scale calibration warmup (hover and rotate)
 if args.with_ros:
@@ -3211,7 +3576,7 @@ metrics = runner.get_metrics(goal_reached)
 metrics_path = f"{OUTPUT_DIR}/metrics.json"
 metrics_temp = f"{OUTPUT_DIR}/metrics.json.tmp"
 metrics_json = json.dumps(asdict(metrics), indent=2)
-with open(metrics_temp, 'w') as f:
+with open(metrics_temp, "w") as f:
     f.write(metrics_json)
     f.flush()
     os.fsync(f.fileno())  # Force write to disk
@@ -3238,7 +3603,7 @@ print(f"  Avg Clearance: {metrics.avg_clearance_meters:.1f}m", flush=True)
 print(f"  Depth FPS: {metrics.depth_fps_avg:.1f}", flush=True)
 print(f"  VFH FPS: {metrics.vfh_fps_avg:.1f}", flush=True)
 
-print(f"\nOutput files:", flush=True)
+print("\nOutput files:", flush=True)
 print(f"  Video: {OUTPUT_DIR}/video.mp4", flush=True)
 print(f"  Metrics: {metrics_path}", flush=True)
 

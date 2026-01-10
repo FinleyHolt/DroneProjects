@@ -1,0 +1,39 @@
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for canonical_2_dynamic_nfz
+% SZS output start Proof for canonical_2_dynamic_nfz
+5. ! [X0] : (aircraft_corridor(X0) => dynamic_no_fly_zone(X0)) [input(axiom)]
+8. ! [X1,X2] : ((path_intersects_nfz(X2,X1) & follow_path(X2) & nfz_active(X1) & dynamic_no_fly_zone(X1)) => path_invalidated(X2)) [input(axiom)]
+16. aircraft_corridor(corridor_alpha) [input(axiom)]
+17. nfz_active(corridor_alpha) [input(axiom)]
+18. follow_path(current_route) [input(axiom)]
+20. path_intersects_nfz(current_route,corridor_alpha) [input(axiom)]
+22. path_invalidated(current_route) [input(conjecture)]
+23. ~path_invalidated(current_route) [negated conjecture 22]
+25. ! [X0,X1] : ((path_intersects_nfz(X1,X0) & follow_path(X1) & nfz_active(X0) & dynamic_no_fly_zone(X0)) => path_invalidated(X1)) [rectify 8]
+30. ~path_invalidated(current_route) [flattening 23]
+47. ! [X0] : (dynamic_no_fly_zone(X0) | ~aircraft_corridor(X0)) [ennf transformation 5]
+48. ! [X0,X1] : (path_invalidated(X1) | (~path_intersects_nfz(X1,X0) | ~follow_path(X1) | ~nfz_active(X0) | ~dynamic_no_fly_zone(X0))) [ennf transformation 25]
+49. ! [X0,X1] : (path_invalidated(X1) | ~path_intersects_nfz(X1,X0) | ~follow_path(X1) | ~nfz_active(X0) | ~dynamic_no_fly_zone(X0)) [flattening 48]
+50. ~aircraft_corridor(X0) | dynamic_no_fly_zone(X0) [cnf transformation 47]
+51. ~path_intersects_nfz(X1,X0) | path_invalidated(X1) | ~follow_path(X1) | ~nfz_active(X0) | ~dynamic_no_fly_zone(X0) [cnf transformation 49]
+52. aircraft_corridor(corridor_alpha) [cnf transformation 16]
+53. nfz_active(corridor_alpha) [cnf transformation 17]
+54. follow_path(current_route) [cnf transformation 18]
+55. path_intersects_nfz(current_route,corridor_alpha) [cnf transformation 20]
+56. ~path_invalidated(current_route) [cnf transformation 30]
+57. dynamic_no_fly_zone(corridor_alpha) [resolution 50,52]
+58. path_invalidated(current_route) | ~follow_path(current_route) | ~nfz_active(corridor_alpha) | ~dynamic_no_fly_zone(corridor_alpha) [resolution 51,55]
+59. ~follow_path(current_route) | ~nfz_active(corridor_alpha) | ~dynamic_no_fly_zone(corridor_alpha) [subsumption resolution 58,56]
+60. ~nfz_active(corridor_alpha) | ~dynamic_no_fly_zone(corridor_alpha) [subsumption resolution 59,54]
+61. ~dynamic_no_fly_zone(corridor_alpha) [subsumption resolution 60,53]
+62. $false [subsumption resolution 61,57]
+% SZS output end Proof for canonical_2_dynamic_nfz
+% ------------------------------
+% Version: Vampire 5.0.0 (Release build, commit 55c27f5 on 2025-09-09 16:15:20 +0100)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% Termination reason: Refutation
+
+% Time elapsed: 0.050 s
+% Peak memory usage: 13 MB
+% ------------------------------
+% ------------------------------

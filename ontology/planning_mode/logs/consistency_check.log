@@ -1,0 +1,68 @@
+% SZS status CounterSatisfiable for consistency_check
+% SZS output start Saturation.
+% SZS output end Saturation.
+% SZS output start Definitions and Model Updates.
+for all inputs,
+    define flyby_f11(X0) := $true
+for all inputs,
+    define quadcopter(X0) := $true
+for all inputs,
+    define multirotor(X0) := $true
+for all inputs,
+    define uav(X0) := $true
+for all inputs,
+    define aircraft(X0) := $true
+for all inputs,
+    define fixed_wing_uav(X0) := $false
+for all inputs,
+    define hybrid_vtol(X0) := $false
+for all inputs,
+    define hexacopter(X0) := $false
+for all inputs,
+    define waypoint_mission(X0) := $true
+for all inputs,
+    define survey_mission(X0) := $true
+for all inputs,
+    define inspection_mission(X0) := $true
+for all inputs,
+    define is_within(X0,X1) := $true
+for all inputs,
+    define is_outside(X0,X1) := $false
+for all inputs,
+    define can_hover(X0) := $true
+for all inputs,
+    define can_vertical_takeoff(X0) := $true
+for all inputs,
+    define ndaa_compliant(X0) := $true
+for all inputs,
+    define assigned_uav(X0,X1) := $true
+for all inputs,
+    define has_mission_area(X0,X1) := $true
+for all inputs,
+    define geofence(X0) := $true
+for all inputs,
+    define uav_mission(X0) := $true
+for all inputs,
+    define geofence_violation(X0) := $true
+for all inputs,
+    define no_fly_zone(X0) := $true
+for all inputs,
+    define nfz_violation(X0) := $true
+for all inputs,
+    define battery_below_reserve(X0) := $true
+for all inputs,
+    define must_return_to_launch(X0) := $true
+for all inputs,
+    define has_valid_localization(X0) := $true
+for all inputs,
+    define must_land(X0) := $true
+% SZS output end Definitions and Model Updates.
+% ------------------------------
+% Version: Vampire 5.0.0 (Release build, commit 55c27f5 on 2025-09-09 16:15:20 +0100)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% Termination reason: Satisfiable
+
+% Time elapsed: 0.041 s
+% Peak memory usage: 12 MB
+% ------------------------------
+% ------------------------------

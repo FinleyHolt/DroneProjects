@@ -1,0 +1,50 @@
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for canonical_1_comms_denied
+% SZS output start Proof for canonical_1_comms_denied
+2. ! [X0] : (multirotor(X0) => uav(X0)) [input(axiom)]
+3. ! [X0] : (flyby_f11(X0) => multirotor(X0)) [input(axiom)]
+4. ! [X0] : (surveillance_mission(X0) => uav_mission(X0)) [input(axiom)]
+5. ! [X1,X2] : ((has_mission_status(X2,mission_active) & has_comms_status(X1,comms_denied) & assigned_uav(X2,X1) & uav_mission(X2) & uav(X1)) => autonomous_mission_mode(X1,X2)) [input(axiom)]
+13. flyby_f11(drone_alpha) [input(axiom)]
+14. surveillance_mission(surveillance_1) [input(axiom)]
+15. assigned_uav(surveillance_1,drone_alpha) [input(axiom)]
+16. has_mission_status(surveillance_1,mission_active) [input(axiom)]
+17. has_comms_status(drone_alpha,comms_denied) [input(axiom)]
+20. autonomous_mission_mode(drone_alpha,surveillance_1) [input(conjecture)]
+21. ~autonomous_mission_mode(drone_alpha,surveillance_1) [negated conjecture 20]
+22. ! [X0,X1] : ((has_mission_status(X1,mission_active) & has_comms_status(X0,comms_denied) & assigned_uav(X1,X0) & uav_mission(X1) & uav(X0)) => autonomous_mission_mode(X0,X1)) [rectify 5]
+30. ~autonomous_mission_mode(drone_alpha,surveillance_1) [flattening 21]
+42. ! [X0] : (uav(X0) | ~multirotor(X0)) [ennf transformation 2]
+43. ! [X0] : (multirotor(X0) | ~flyby_f11(X0)) [ennf transformation 3]
+44. ! [X0] : (uav_mission(X0) | ~surveillance_mission(X0)) [ennf transformation 4]
+45. ! [X0,X1] : (autonomous_mission_mode(X0,X1) | (~has_mission_status(X1,mission_active) | ~has_comms_status(X0,comms_denied) | ~assigned_uav(X1,X0) | ~uav_mission(X1) | ~uav(X0))) [ennf transformation 22]
+46. ! [X0,X1] : (autonomous_mission_mode(X0,X1) | ~has_mission_status(X1,mission_active) | ~has_comms_status(X0,comms_denied) | ~assigned_uav(X1,X0) | ~uav_mission(X1) | ~uav(X0)) [flattening 45]
+47. ~multirotor(X0) | uav(X0) [cnf transformation 42]
+48. ~flyby_f11(X0) | multirotor(X0) [cnf transformation 43]
+49. ~surveillance_mission(X0) | uav_mission(X0) [cnf transformation 44]
+50. ~has_mission_status(X1,mission_active) | autonomous_mission_mode(X0,X1) | ~has_comms_status(X0,comms_denied) | ~assigned_uav(X1,X0) | ~uav_mission(X1) | ~uav(X0) [cnf transformation 46]
+51. flyby_f11(drone_alpha) [cnf transformation 13]
+52. surveillance_mission(surveillance_1) [cnf transformation 14]
+53. assigned_uav(surveillance_1,drone_alpha) [cnf transformation 15]
+54. has_mission_status(surveillance_1,mission_active) [cnf transformation 16]
+55. has_comms_status(drone_alpha,comms_denied) [cnf transformation 17]
+56. ~autonomous_mission_mode(drone_alpha,surveillance_1) [cnf transformation 30]
+57. multirotor(drone_alpha) [resolution 48,51]
+58. uav(drone_alpha) [resolution 57,47]
+59. uav_mission(surveillance_1) [resolution 49,52]
+60. autonomous_mission_mode(X0,surveillance_1) | ~has_comms_status(X0,comms_denied) | ~assigned_uav(surveillance_1,X0) | ~uav_mission(surveillance_1) | ~uav(X0) [resolution 50,54]
+61. ~has_comms_status(X0,comms_denied) | autonomous_mission_mode(X0,surveillance_1) | ~assigned_uav(surveillance_1,X0) | ~uav(X0) [subsumption resolution 60,59]
+62. autonomous_mission_mode(drone_alpha,surveillance_1) | ~assigned_uav(surveillance_1,drone_alpha) | ~uav(drone_alpha) [resolution 61,55]
+63. ~assigned_uav(surveillance_1,drone_alpha) | ~uav(drone_alpha) [subsumption resolution 62,56]
+64. ~uav(drone_alpha) [subsumption resolution 63,53]
+65. $false [subsumption resolution 64,58]
+% SZS output end Proof for canonical_1_comms_denied
+% ------------------------------
+% Version: Vampire 5.0.0 (Release build, commit 55c27f5 on 2025-09-09 16:15:20 +0100)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% Termination reason: Refutation
+
+% Time elapsed: 0.042 s
+% Peak memory usage: 13 MB
+% ------------------------------
+% ------------------------------

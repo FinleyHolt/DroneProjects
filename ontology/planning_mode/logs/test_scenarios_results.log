@@ -1,0 +1,71 @@
+================================================================================
+UAV Domain Ontology - Test Scenarios Results
+Date: Thu Dec 25 09:55:09 PM EST 2025
+Prover: Vampire 5.0.0
+================================================================================
+
+TEST 1: Geofence Violation Detection
+--------------------------------------------------------------------------------
+File: test_scenarios/test_axioms.tptp
+Scenario: UAV outside assigned geofence boundary
+Expected: geofence_violation(test_drone_1) is derivable
+
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for test_axioms
+% Termination reason: Refutation
+% Time elapsed: 0.032 s
+
+TEST 2: No-Fly Zone Violation
+--------------------------------------------------------------------------------
+File: test_scenarios/test_nfz_violation.tptp
+Scenario: UAV inside no-fly zone
+Expected: nfz_violation(test_drone_nfz) is derivable
+
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for test_nfz_violation
+% Termination reason: Refutation
+% Time elapsed: 0.031 s
+
+TEST 3: Battery Reserve Constraint
+--------------------------------------------------------------------------------
+File: test_scenarios/test_battery_return.tptp
+Scenario: Battery below reserve threshold
+Expected: must_return_to_launch(test_drone_battery) is derivable
+
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for test_battery_return
+% Termination reason: Refutation
+% Time elapsed: 0.031 s
+
+TEST 4: Hover Capability Inheritance
+--------------------------------------------------------------------------------
+File: test_scenarios/test_hover_capability.tptp
+Scenario: FlybyF11 should inherit hover from Multirotor
+Expected: can_hover(flyby_test_drone) is derivable
+
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for test_hover_capability
+% Termination reason: Refutation
+% Time elapsed: 0.040 s
+
+TEST 5: Ontology Consistency
+--------------------------------------------------------------------------------
+File: test_scenarios/consistency_check.tptp
+Scenario: Verify axioms have no contradictions
+Expected: CounterSatisfiable (consistent)
+
+% SZS status CounterSatisfiable for consistency_check
+% Termination reason: Satisfiable
+% Time elapsed: 0.031 s
+
+================================================================================
+SUMMARY
+================================================================================
+
+Tests Run:    5
+Tests Passed: 5
+Tests Failed: 0
+
+All safety axioms correctly detect violations.
+Ontology is logically consistent.
+================================================================================

@@ -1,0 +1,171 @@
+================================================================================
+UAV Domain Ontology - Axiom Validation Log
+Date: Thu Dec 25 09:44:54 PM EST 2025
+Prover: Vampire
+================================================================================
+
+TEST 1: Geofence Violation Axiom (test_axioms.tptp)
+--------------------------------------------------------------------------------
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for test_axioms
+% SZS output start Proof for test_axioms
+2. ! [X0] : (multirotor(X0) => uav(X0)) [input(axiom)]
+3. ! [X0] : (quadcopter(X0) => multirotor(X0)) [input(axiom)]
+4. ! [X0] : (flyby_f11(X0) => quadcopter(X0)) [input(axiom)]
+7. ! [X2,X3,X4] : ((is_outside(X2,X4) & geofence(X4) & has_mission_area(X3,X4) & assigned_uav(X3,X2) & uav_mission(X3) & uav(X2)) => geofence_violation(X2)) [input(axiom)]
+19. flyby_f11(test_drone_1) [input(axiom)]
+20. uav_mission(test_mission_1) [input(axiom)]
+21. geofence(test_geofence_1) [input(axiom)]
+22. assigned_uav(test_mission_1,test_drone_1) [input(axiom)]
+23. has_mission_area(test_mission_1,test_geofence_1) [input(axiom)]
+24. is_outside(test_drone_1,test_geofence_1) [input(axiom)]
+25. geofence_violation(test_drone_1) [input(conjecture)]
+26. ~geofence_violation(test_drone_1) [negated conjecture 25]
+27. ! [X0,X1,X2] : ((is_outside(X0,X2) & geofence(X2) & has_mission_area(X1,X2) & assigned_uav(X1,X0) & uav_mission(X1) & uav(X0)) => geofence_violation(X0)) [rectify 7]
+39. ~geofence_violation(test_drone_1) [flattening 26]
+55. ! [X0] : (uav(X0) | ~multirotor(X0)) [ennf transformation 2]
+56. ! [X0] : (multirotor(X0) | ~quadcopter(X0)) [ennf transformation 3]
+57. ! [X0] : (quadcopter(X0) | ~flyby_f11(X0)) [ennf transformation 4]
+58. ! [X0,X1,X2] : (geofence_violation(X0) | (~is_outside(X0,X2) | ~geofence(X2) | ~has_mission_area(X1,X2) | ~assigned_uav(X1,X0) | ~uav_mission(X1) | ~uav(X0))) [ennf transformation 27]
+59. ! [X0,X1,X2] : (geofence_violation(X0) | ~is_outside(X0,X2) | ~geofence(X2) | ~has_mission_area(X1,X2) | ~assigned_uav(X1,X0) | ~uav_mission(X1) | ~uav(X0)) [flattening 58]
+60. ~multirotor(X0) | uav(X0) [cnf transformation 55]
+61. ~quadcopter(X0) | multirotor(X0) [cnf transformation 56]
+62. ~flyby_f11(X0) | quadcopter(X0) [cnf transformation 57]
+63. ~has_mission_area(X1,X2) | ~is_outside(X0,X2) | ~geofence(X2) | geofence_violation(X0) | ~assigned_uav(X1,X0) | ~uav_mission(X1) | ~uav(X0) [cnf transformation 59]
+64. flyby_f11(test_drone_1) [cnf transformation 19]
+65. uav_mission(test_mission_1) [cnf transformation 20]
+66. geofence(test_geofence_1) [cnf transformation 21]
+67. assigned_uav(test_mission_1,test_drone_1) [cnf transformation 22]
+68. has_mission_area(test_mission_1,test_geofence_1) [cnf transformation 23]
+69. is_outside(test_drone_1,test_geofence_1) [cnf transformation 24]
+70. ~geofence_violation(test_drone_1) [cnf transformation 39]
+71. quadcopter(test_drone_1) [resolution 62,64]
+72. multirotor(test_drone_1) [resolution 71,61]
+73. ~is_outside(X0,test_geofence_1) | ~geofence(test_geofence_1) | geofence_violation(X0) | ~assigned_uav(test_mission_1,X0) | ~uav_mission(test_mission_1) | ~uav(X0) [resolution 63,68]
+74. ~is_outside(X0,test_geofence_1) | geofence_violation(X0) | ~assigned_uav(test_mission_1,X0) | ~uav_mission(test_mission_1) | ~uav(X0) [subsumption resolution 73,66]
+75. ~assigned_uav(test_mission_1,X0) | geofence_violation(X0) | ~is_outside(X0,test_geofence_1) | ~uav(X0) [subsumption resolution 74,65]
+76. uav(test_drone_1) [resolution 72,60]
+77. geofence_violation(test_drone_1) | ~is_outside(test_drone_1,test_geofence_1) | ~uav(test_drone_1) [resolution 75,67]
+78. ~is_outside(test_drone_1,test_geofence_1) | ~uav(test_drone_1) [subsumption resolution 77,70]
+79. ~uav(test_drone_1) [subsumption resolution 78,69]
+80. $false [subsumption resolution 79,76]
+% SZS output end Proof for test_axioms
+% ------------------------------
+% Version: Vampire 5.0.0 (Release build, commit 55c27f5 on 2025-09-09 16:15:20 +0100)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% Termination reason: Refutation
+
+% Time elapsed: 0.035 s
+% Peak memory usage: 13 MB
+% ------------------------------
+% ------------------------------
+
+TEST 2: No-Fly Zone Violation (test_nfz_violation.tptp)
+--------------------------------------------------------------------------------
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for test_nfz_violation
+% SZS output start Proof for test_nfz_violation
+2. ! [X0] : (flyby_f11(X0) => uav(X0)) [input(axiom)]
+3. ! [X1,X2] : ((is_within(X1,X2) & no_fly_zone(X2) & uav(X1)) => nfz_violation(X1)) [input(axiom)]
+5. flyby_f11(test_drone_nfz) [input(axiom)]
+6. no_fly_zone(airport_nfz) [input(axiom)]
+7. is_within(test_drone_nfz,airport_nfz) [input(axiom)]
+8. nfz_violation(test_drone_nfz) [input(conjecture)]
+9. ~nfz_violation(test_drone_nfz) [negated conjecture 8]
+10. ! [X0,X1] : ((is_within(X0,X1) & no_fly_zone(X1) & uav(X0)) => nfz_violation(X0)) [rectify 3]
+12. ~nfz_violation(test_drone_nfz) [flattening 9]
+15. ! [X0] : (uav(X0) | ~flyby_f11(X0)) [ennf transformation 2]
+16. ! [X0,X1] : (nfz_violation(X0) | (~is_within(X0,X1) | ~no_fly_zone(X1) | ~uav(X0))) [ennf transformation 10]
+17. ! [X0,X1] : (nfz_violation(X0) | ~is_within(X0,X1) | ~no_fly_zone(X1) | ~uav(X0)) [flattening 16]
+18. ~flyby_f11(X0) | uav(X0) [cnf transformation 15]
+19. ~is_within(X0,X1) | nfz_violation(X0) | ~no_fly_zone(X1) | ~uav(X0) [cnf transformation 17]
+20. flyby_f11(test_drone_nfz) [cnf transformation 5]
+21. no_fly_zone(airport_nfz) [cnf transformation 6]
+22. is_within(test_drone_nfz,airport_nfz) [cnf transformation 7]
+23. ~nfz_violation(test_drone_nfz) [cnf transformation 12]
+24. uav(test_drone_nfz) [resolution 18,20]
+25. nfz_violation(test_drone_nfz) | ~no_fly_zone(airport_nfz) | ~uav(test_drone_nfz) [resolution 19,22]
+26. ~no_fly_zone(airport_nfz) | ~uav(test_drone_nfz) [subsumption resolution 25,23]
+27. ~uav(test_drone_nfz) [subsumption resolution 26,21]
+28. $false [subsumption resolution 27,24]
+% SZS output end Proof for test_nfz_violation
+% ------------------------------
+% Version: Vampire 5.0.0 (Release build, commit 55c27f5 on 2025-09-09 16:15:20 +0100)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% Termination reason: Refutation
+
+% Time elapsed: 0.030 s
+% Peak memory usage: 14 MB
+% ------------------------------
+% ------------------------------
+
+TEST 3: Battery Reserve Return (test_battery_return.tptp)
+--------------------------------------------------------------------------------
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for test_battery_return
+% SZS output start Proof for test_battery_return
+2. ! [X0] : (flyby_f11(X0) => uav(X0)) [input(axiom)]
+3. ! [X1] : ((battery_below_reserve(X1) & uav(X1)) => must_return_to_launch(X1)) [input(axiom)]
+4. flyby_f11(test_drone_battery) [input(axiom)]
+5. battery_below_reserve(test_drone_battery) [input(axiom)]
+6. must_return_to_launch(test_drone_battery) [input(conjecture)]
+7. ~must_return_to_launch(test_drone_battery) [negated conjecture 6]
+8. ! [X0] : ((battery_below_reserve(X0) & uav(X0)) => must_return_to_launch(X0)) [rectify 3]
+9. ~must_return_to_launch(test_drone_battery) [flattening 7]
+11. ! [X0] : (uav(X0) | ~flyby_f11(X0)) [ennf transformation 2]
+12. ! [X0] : (must_return_to_launch(X0) | (~battery_below_reserve(X0) | ~uav(X0))) [ennf transformation 8]
+13. ! [X0] : (must_return_to_launch(X0) | ~battery_below_reserve(X0) | ~uav(X0)) [flattening 12]
+14. ~flyby_f11(X0) | uav(X0) [cnf transformation 11]
+15. ~battery_below_reserve(X0) | must_return_to_launch(X0) | ~uav(X0) [cnf transformation 13]
+16. flyby_f11(test_drone_battery) [cnf transformation 4]
+17. battery_below_reserve(test_drone_battery) [cnf transformation 5]
+18. ~must_return_to_launch(test_drone_battery) [cnf transformation 9]
+19. uav(test_drone_battery) [resolution 14,16]
+20. must_return_to_launch(test_drone_battery) | ~uav(test_drone_battery) [resolution 15,17]
+21. ~uav(test_drone_battery) [subsumption resolution 20,18]
+22. $false [subsumption resolution 21,19]
+% SZS output end Proof for test_battery_return
+% ------------------------------
+% Version: Vampire 5.0.0 (Release build, commit 55c27f5 on 2025-09-09 16:15:20 +0100)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% Termination reason: Refutation
+
+% Time elapsed: 0.041 s
+% Peak memory usage: 14 MB
+% ------------------------------
+% ------------------------------
+
+TEST 4: Hover Capability Inheritance (test_hover_capability.tptp)
+--------------------------------------------------------------------------------
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for test_hover_capability
+% SZS output start Proof for test_hover_capability
+2. ! [X0] : (quadcopter(X0) => multirotor(X0)) [input(axiom)]
+3. ! [X0] : (flyby_f11(X0) => quadcopter(X0)) [input(axiom)]
+4. ! [X0] : (multirotor(X0) => can_hover(X0)) [input(axiom)]
+5. flyby_f11(flyby_test_drone) [input(axiom)]
+6. can_hover(flyby_test_drone) [input(conjecture)]
+7. ~can_hover(flyby_test_drone) [negated conjecture 6]
+8. ~can_hover(flyby_test_drone) [flattening 7]
+10. ! [X0] : (multirotor(X0) | ~quadcopter(X0)) [ennf transformation 2]
+11. ! [X0] : (quadcopter(X0) | ~flyby_f11(X0)) [ennf transformation 3]
+12. ! [X0] : (can_hover(X0) | ~multirotor(X0)) [ennf transformation 4]
+13. ~quadcopter(X0) | multirotor(X0) [cnf transformation 10]
+14. ~flyby_f11(X0) | quadcopter(X0) [cnf transformation 11]
+15. ~multirotor(X0) | can_hover(X0) [cnf transformation 12]
+16. flyby_f11(flyby_test_drone) [cnf transformation 5]
+17. ~can_hover(flyby_test_drone) [cnf transformation 8]
+18. quadcopter(flyby_test_drone) [resolution 14,16]
+19. multirotor(flyby_test_drone) [resolution 18,13]
+20. can_hover(flyby_test_drone) [resolution 19,15]
+21. $false [subsumption resolution 20,17]
+% SZS output end Proof for test_hover_capability
+% ------------------------------
+% Version: Vampire 5.0.0 (Release build, commit 55c27f5 on 2025-09-09 16:15:20 +0100)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% Termination reason: Refutation
+
+% Time elapsed: 0.038 s
+% Peak memory usage: 14 MB
+% ------------------------------
+% ------------------------------

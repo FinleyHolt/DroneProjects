@@ -1,0 +1,52 @@
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for canonical_3_multi_objective
+% SZS output start Proof for canonical_3_multi_objective
+2. ! [X0] : (flyby_f11(X0) => uav(X0)) [input(axiom)]
+6. ! [X1,X2] : ((~target_observed(X1) & target_reachable(X1,X2) & is_critical_priority(X1) & target_of_interest(X1)) => should_prioritize(X2,X1)) [input(axiom)]
+8. ! [X1,X2] : ((~target_in_high_threat(X1) & has_sufficient_battery(X2,X1) & uav(X2) & target_of_interest(X1)) => target_reachable(X1,X2)) [input(axiom)]
+12. flyby_f11(drone_isr) [input(axiom)]
+15. target_of_interest(toi_1) [input(axiom)]
+16. is_critical_priority(toi_1) [input(axiom)]
+17. ~target_in_high_threat(toi_1) [input(axiom)]
+18. has_sufficient_battery(drone_isr,toi_1) [input(axiom)]
+19. ~target_observed(toi_1) [input(axiom)]
+31. should_prioritize(drone_isr,toi_1) [input(conjecture)]
+32. ~should_prioritize(drone_isr,toi_1) [negated conjecture 31]
+33. ! [X0,X1] : ((~target_observed(X0) & target_reachable(X0,X1) & is_critical_priority(X0) & target_of_interest(X0)) => should_prioritize(X1,X0)) [rectify 6]
+35. ! [X0,X1] : ((~target_in_high_threat(X0) & has_sufficient_battery(X1,X0) & uav(X1) & target_of_interest(X0)) => target_reachable(X0,X1)) [rectify 8]
+39. ~should_prioritize(drone_isr,toi_1) [flattening 32]
+52. ! [X0] : (uav(X0) | ~flyby_f11(X0)) [ennf transformation 2]
+53. ! [X0,X1] : (should_prioritize(X1,X0) | (target_observed(X0) | ~target_reachable(X0,X1) | ~is_critical_priority(X0) | ~target_of_interest(X0))) [ennf transformation 33]
+54. ! [X0,X1] : (should_prioritize(X1,X0) | target_observed(X0) | ~target_reachable(X0,X1) | ~is_critical_priority(X0) | ~target_of_interest(X0)) [flattening 53]
+55. ! [X0,X1] : (target_reachable(X0,X1) | (target_in_high_threat(X0) | ~has_sufficient_battery(X1,X0) | ~uav(X1) | ~target_of_interest(X0))) [ennf transformation 35]
+56. ! [X0,X1] : (target_reachable(X0,X1) | target_in_high_threat(X0) | ~has_sufficient_battery(X1,X0) | ~uav(X1) | ~target_of_interest(X0)) [flattening 55]
+59. ~flyby_f11(X0) | uav(X0) [cnf transformation 52]
+60. ~target_reachable(X0,X1) | target_observed(X0) | should_prioritize(X1,X0) | ~is_critical_priority(X0) | ~target_of_interest(X0) [cnf transformation 54]
+61. ~has_sufficient_battery(X1,X0) | target_in_high_threat(X0) | target_reachable(X0,X1) | ~uav(X1) | ~target_of_interest(X0) [cnf transformation 56]
+63. flyby_f11(drone_isr) [cnf transformation 12]
+64. target_of_interest(toi_1) [cnf transformation 15]
+65. is_critical_priority(toi_1) [cnf transformation 16]
+66. ~target_in_high_threat(toi_1) [cnf transformation 17]
+67. has_sufficient_battery(drone_isr,toi_1) [cnf transformation 18]
+68. ~target_observed(toi_1) [cnf transformation 19]
+78. ~should_prioritize(drone_isr,toi_1) [cnf transformation 39]
+79. uav(drone_isr) [resolution 59,63]
+80. target_in_high_threat(toi_1) | target_reachable(toi_1,drone_isr) | ~uav(drone_isr) | ~target_of_interest(toi_1) [resolution 61,67]
+83. target_reachable(toi_1,drone_isr) | ~uav(drone_isr) | ~target_of_interest(toi_1) [subsumption resolution 80,66]
+85. target_reachable(toi_1,drone_isr) | ~target_of_interest(toi_1) [subsumption resolution 83,79]
+87. target_reachable(toi_1,drone_isr) [subsumption resolution 85,64]
+93. target_observed(toi_1) | should_prioritize(drone_isr,toi_1) | ~is_critical_priority(toi_1) | ~target_of_interest(toi_1) [resolution 87,60]
+95. should_prioritize(drone_isr,toi_1) | ~is_critical_priority(toi_1) | ~target_of_interest(toi_1) [subsumption resolution 93,68]
+96. ~is_critical_priority(toi_1) | ~target_of_interest(toi_1) [subsumption resolution 95,78]
+97. ~target_of_interest(toi_1) [subsumption resolution 96,65]
+98. $false [subsumption resolution 97,64]
+% SZS output end Proof for canonical_3_multi_objective
+% ------------------------------
+% Version: Vampire 5.0.0 (Release build, commit 55c27f5 on 2025-09-09 16:15:20 +0100)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% Termination reason: Refutation
+
+% Time elapsed: 0.036 s
+% Peak memory usage: 12 MB
+% ------------------------------
+% ------------------------------

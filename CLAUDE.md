@@ -2,46 +2,40 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Session Coordination (Automatic)
+## Session Coordination (Automatic via Hooks)
 
-**IMPORTANT**: This repository uses multi-session coordination. At the START of every conversation, BEFORE doing any work, you MUST:
+This repository uses automatic multi-session coordination via Claude Code hooks. No manual steps required.
 
-1. **Generate your session ID**: Format `{adjective}-{noun}-{4-hex}` using random values
-   - Adjectives: swift, bold, calm, keen, bright, quick, steady, sharp, clear, prime
-   - Nouns: falcon, vector, horizon, pulse, cipher, beacon, spark, drift, nexus, forge
+### What Happens Automatically
 
-2. **Read coordination state**:
-   - `.claude/tasks/registry.json` - see who has claimed what
-   - `.claude/sessions/active/*.json` - see active sessions
+- **On session start**: Session manifest created in `.claude/sessions/active/`, open GitHub issues shown
+- **Before file edits**: Path conflicts checked against registry, warnings shown if another session has claimed the path
+- **Path tracking**: Edited file paths are auto-tracked in your session manifest
 
-3. **Report to user** (brief summary):
-   ```
-   Session: {your-id} | Active: {N sessions} | Claimed paths: {list or "none"}
-   ```
+### Commands Available
 
-4. **Before editing ANY file**, check if the path is claimed by another session in registry.json. If claimed:
-   - Do NOT edit that file
-   - Inform the user of the conflict
-   - Suggest alternatives or waiting
+| Command | Purpose |
+|---------|---------|
+| `/session-status` | View all active sessions and claimed paths |
+| `/claim-task` | Explicitly claim a task with GitHub issue integration |
+| `/handoff` | Hand off incomplete work to another session |
+| `/complete-task` | Mark task done, create PR, move issue to Done |
+| `/whats-next` | Check GitHub project board for available tasks |
 
-5. **When user specifies a task**:
-   - Create branch: `git checkout -b {session-id}/{task-slug}`
-   - Update `.claude/tasks/registry.json` with your claim
-   - Create session manifest in `.claude/sessions/active/{session-id}.json`
-   - Log to `.claude/coordination.log`
+### Commit Prefix Convention
 
-6. **Commit prefix convention**:
-   - `WIP:` - work in progress
-   - `CHECKPOINT:` - stable, can be picked up by others
-   - `HANDOFF:` - releasing for another session
-   - `COMPLETE:` - ready for PR
+Use these prefixes when committing:
+- `WIP:` - work in progress
+- `CHECKPOINT:` - stable state, can be picked up by others
+- `HANDOFF:` - explicitly releasing for another session
+- `COMPLETE:` - task finished, ready for PR
 
-7. **When ending work** (user says done/stopping/etc.):
-   - Commit with `CHECKPOINT:` or `HANDOFF:` prefix
-   - Push branch
-   - Update session manifest status
+### How It Works
 
-This automation ensures multiple Claude Code chats can work on the codebase simultaneously without conflicts.
+1. **SessionStart hook** (`.claude/hooks/session-init.sh`) creates session manifest and shows coordination context
+2. **PreToolUse hook** (`.claude/hooks/check-path-conflicts.sh`) checks for conflicts before Edit/Write operations
+3. Conflicts show warnings but don't block - you can proceed if needed
+4. Run `/claim-task` to formally claim paths and integrate with GitHub Issues/Projects
 
 ---
 
@@ -365,24 +359,16 @@ Key environment variables:
 
 ## Multi-Session Coordination
 
-Session coordination is **automatic** - see "Session Coordination (Automatic)" at the top of this file. Each new chat will automatically:
-- Generate a session ID
-- Check for conflicts before editing
-- Claim paths when you start a task
-- Use proper commit prefixes
-
-### Manual Commands (if needed)
-
-| Command | Purpose |
-|---------|---------|
-| `/session-status` | View all active sessions and claims |
-| `/handoff` | Explicitly hand off work to another session |
+See "Session Coordination (Automatic via Hooks)" at the top of this file for details.
 
 ### Coordination Files
 
 ```
 .claude/
-├── tasks/registry.json      # Active task claims (check before editing)
+├── hooks/                   # Claude Code hooks for auto-coordination
+│   ├── session-init.sh      # SessionStart hook
+│   └── check-path-conflicts.sh  # PreToolUse hook for Edit/Write
+├── tasks/registry.json      # Task claims (path -> session mapping)
 ├── sessions/active/         # Session manifests
 ├── handoffs/                # Handoff documents
 └── coordination.log         # Event log
@@ -390,4 +376,4 @@ Session coordination is **automatic** - see "Session Coordination (Automatic)" a
 
 ### Stale Session Recovery
 
-Sessions inactive >2 hours (no commits) can be recovered by other sessions. The new session takes over the branch and updates the registry.
+Sessions inactive >2 hours can be recovered. Use `/claim-task --recover <task-slug>` to take over.

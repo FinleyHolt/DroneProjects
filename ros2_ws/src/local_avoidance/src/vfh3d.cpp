@@ -15,7 +15,11 @@ namespace local_avoidance
 VFH3D::VFH3D(
   std::shared_ptr<OctomapManager> octomap_manager,
   const VFH3DConfig & config)
-: octomap_(octomap_manager), config_(config)
+: octomap_(octomap_manager),
+  config_(config),
+  safety_buffer_(config.velocity_scaling),
+  current_safety_buffer_(config.safety_radius),
+  current_critical_buffer_(config.critical_radius)
 {
   // Initialize histogram with correct size
   const int total_bins = config_.azimuth_bins * config_.elevation_bins;
@@ -28,6 +32,9 @@ VFH3D::VFH3D(
     histogram_[i].azimuth = az;
     histogram_[i].elevation = el;
   }
+
+  // Initialize corridor detector
+  corridor_detector_ = std::make_unique<CorridorDetector>(octomap_, config_.corridor);
 }
 
 VFHResult VFH3D::computeAvoidance(
@@ -35,7 +42,30 @@ VFHResult VFH3D::computeAvoidance(
   double current_heading,
   const geometry_msgs::msg::Point & goal_position)
 {
+  // Backward compatible version: use zero velocity (static buffers)
+  return computeAvoidance(current_position, current_heading, goal_position, 0.0);
+}
+
+VFHResult VFH3D::computeAvoidance(
+  const geometry_msgs::msg::Point & current_position,
+  double current_heading,
+  const geometry_msgs::msg::Point & goal_position,
+  double current_velocity)
+{
   VFHResult result;
+
+  // Compute velocity-scaled safety buffers
+  if (config_.velocity_scaling_enabled) {
+    safety_buffer_.computeBuffers(
+      current_velocity, current_safety_buffer_, current_critical_buffer_);
+  } else {
+    current_safety_buffer_ = config_.safety_radius;
+    current_critical_buffer_ = config_.critical_radius;
+  }
+
+  // Store active buffers in result for diagnostics
+  result.active_safety_buffer = current_safety_buffer_;
+  result.active_critical_buffer = current_critical_buffer_;
 
   // Compute goal direction
   double dx = goal_position.x - current_position.x;
@@ -60,7 +90,7 @@ VFHResult VFH3D::computeAvoidance(
   // Build and process histogram
   buildHistogram(current_position);
   smoothHistogram();
-  applyThreshold();
+  applyThreshold(current_safety_buffer_);
 
   // Count blocked bins
   result.blocked_bins = std::count_if(
@@ -74,11 +104,32 @@ VFHResult VFH3D::computeAvoidance(
     }
   }
 
-  // Check for emergency stop
-  if (result.closest_obstacle < config_.critical_radius) {
+  // Check for emergency stop (using velocity-scaled critical buffer)
+  if (result.closest_obstacle < current_critical_buffer_) {
     result.emergency_stop = true;
     result.confidence = 1.0;
     return result;
+  }
+
+  // Detect corridor situation
+  CorridorInfo corridor;
+  if (corridor_detector_ && config_.corridor.enabled) {
+    corridor = corridor_detector_->detectCorridor(
+      current_position,
+      current_heading,
+      current_safety_buffer_,
+      current_critical_buffer_,
+      config_.lookahead_distance);
+    result.corridor = corridor;
+
+    // Check if corridor is too narrow to pass
+    if (corridor.is_corridor && !corridor.passable) {
+      result.corridor_too_narrow = true;
+      result.path_blocked = true;
+      result.confidence = 0.8;
+      // Don't emergency stop - let global planner find alternate route
+      return result;
+    }
   }
 
   // Check if goal direction is blocked
@@ -98,12 +149,13 @@ VFHResult VFH3D::computeAvoidance(
     return result;
   }
 
-  // Score candidates and find best
+  // Score candidates and find best (now with corridor centering)
   double best_score = -std::numeric_limits<double>::max();
   int best_idx = candidates[0];
 
   for (int idx : candidates) {
-    double score = scoreCandidate(idx, goal_azimuth, goal_elevation, current_heading);
+    double score = scoreCandidate(
+      idx, goal_azimuth, goal_elevation, current_heading, corridor, current_position);
     if (score > best_score) {
       best_score = score;
       best_idx = idx;
@@ -127,7 +179,7 @@ VFHResult VFH3D::computeAvoidance(
   result.recommended_pitch = std::clamp(recommended_el, -config_.max_pitch, config_.max_pitch);
 
   // Confidence based on clearance and candidate quality
-  double clearance_factor = std::min(1.0, result.closest_obstacle / config_.safety_radius);
+  double clearance_factor = std::min(1.0, result.closest_obstacle / current_safety_buffer_);
   double candidate_factor = std::min(1.0, result.candidate_directions / 10.0);
   result.confidence = 0.5 * clearance_factor + 0.5 * candidate_factor;
 
@@ -241,11 +293,11 @@ void VFH3D::smoothHistogram()
   }
 }
 
-void VFH3D::applyThreshold()
+void VFH3D::applyThreshold(double safety_buffer)
 {
   for (auto & bin : histogram_) {
     bin.blocked = bin.density > config_.obstacle_density_threshold ||
-      bin.min_distance < config_.safety_radius;
+      bin.min_distance < safety_buffer;
   }
 }
 
@@ -292,7 +344,9 @@ double VFH3D::scoreCandidate(
   int bin_idx,
   double goal_azimuth,
   double goal_elevation,
-  double current_heading)
+  double current_heading,
+  const CorridorInfo & corridor,
+  const geometry_msgs::msg::Point & current_position)
 {
   const auto & bin = histogram_[bin_idx];
 
@@ -315,7 +369,22 @@ double VFH3D::scoreCandidate(
   // Elevation penalty (prefer horizontal movement)
   double elevation_penalty = config_.elevation_weight * std::abs(bin.elevation) / config_.max_pitch;
 
-  return goal_score + heading_score + clearance_score - elevation_penalty;
+  // Centering score for corridor situations
+  double centering_score = 0.0;
+  if (corridor.is_corridor && corridor_detector_) {
+    centering_score = config_.centering_weight *
+      corridor_detector_->computeCenteringScore(bin.azimuth, corridor, current_position);
+
+    // Boost centering importance based on corridor narrowness
+    // Narrower corridor = more important to stay centered
+    if (corridor.gap_width > 0 && current_safety_buffer_ > 0) {
+      double narrowness = 1.0 - (corridor.gap_width / (2.0 * current_safety_buffer_));
+      narrowness = std::clamp(narrowness, 0.0, 1.0);
+      centering_score *= (1.0 + narrowness);
+    }
+  }
+
+  return goal_score + heading_score + clearance_score + centering_score - elevation_penalty;
 }
 
 int VFH3D::toBinIndex(double azimuth, double elevation) const

@@ -351,6 +351,12 @@ Key environment variables:
 - T265 visual odometry + D455 depth camera
 - Custom 7-inch FPV quadcopter
 
+## Developer Preferences
+
+- **Shell Scripts over Compose**: Prefer standalone shell scripts (like `run_depth_avoidance_test.sh`) over podman-compose for container orchestration. Shell scripts provide better visibility and control.
+- **Container Execution**: Use `podman run` with explicit flags rather than compose files.
+- **Container Dependencies**: When installing packages into the container at runtime (e.g., `apt-get install`), always update the Containerfile (`isaac-sim/Containerfile`) so fresh builds include all dependencies. Keep the container self-contained.
+
 ## Git Workflow
 
 - **Commit Style**: Imperative mood ("Add obstacle avoidance", "Fix depth correction")

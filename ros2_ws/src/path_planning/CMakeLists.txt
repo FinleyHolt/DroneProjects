@@ -23,9 +23,13 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(flyby_msgs REQUIRED)
+find_package(local_avoidance REQUIRED)
 
 # Find OMPL
 find_package(ompl REQUIRED)
+
+# Find OctoMap (needed for obstacle inflation)
+find_package(octomap REQUIRED)
 
 set(DEPENDENCIES
   rclcpp
@@ -39,12 +43,15 @@ set(DEPENDENCIES
   tf2_ros
   tf2_geometry_msgs
   flyby_msgs
+  local_avoidance
 )
 
 # Include directories
 include_directories(
   include
   ${OMPL_INCLUDE_DIRS}
+  ${OCTOMAP_INCLUDE_DIRS}
+  ${local_avoidance_INCLUDE_DIRS}
 )
 
 # ==============================================================================
@@ -64,6 +71,8 @@ add_library(global_planner SHARED
 target_link_libraries(global_planner
   nfz_manager
   ${OMPL_LIBRARIES}
+  ${OCTOMAP_LIBRARIES}
+  ${local_avoidance_LIBRARIES}
 )
 ament_target_dependencies(global_planner ${DEPENDENCIES})
 

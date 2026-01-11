@@ -67,12 +67,23 @@ target_link_libraries(octomap_manager
 )
 ament_target_dependencies(octomap_manager ${DEPENDENCIES})
 
+# Corridor detector library
+add_library(corridor_detector SHARED
+  src/corridor_detector.cpp
+)
+target_link_libraries(corridor_detector
+  octomap_manager
+  ${OCTOMAP_LIBRARIES}
+)
+ament_target_dependencies(corridor_detector ${DEPENDENCIES})
+
 # 3D-VFH+ library
 add_library(vfh3d SHARED
   src/vfh3d.cpp
 )
 target_link_libraries(vfh3d
   octomap_manager
+  corridor_detector
   ${OCTOMAP_LIBRARIES}
 )
 ament_target_dependencies(vfh3d ${DEPENDENCIES})
@@ -100,6 +111,7 @@ ament_target_dependencies(local_avoidance_node ${DEPENDENCIES})
 # Install libraries
 install(TARGETS
   octomap_manager
+  corridor_detector
   vfh3d
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -126,6 +138,14 @@ install(DIRECTORY config/
 install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
 )
+
+# ==============================================================================
+# Export for downstream packages
+# ==============================================================================
+
+ament_export_include_directories(include)
+ament_export_libraries(octomap_manager corridor_detector vfh3d)
+ament_export_dependencies(${DEPENDENCIES} octomap)
 
 # ==============================================================================
 # Testing

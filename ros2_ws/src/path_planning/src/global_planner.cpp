@@ -7,9 +7,12 @@
 
 #include <cmath>
 #include <chrono>
+#include <algorithm>
 
 #include <ompl/base/goals/GoalState.h>
 #include <ompl/base/terminationconditions/IterationTerminationCondition.h>
+
+#include "local_avoidance/octomap_manager.hpp"
 
 namespace path_planning
 {
@@ -27,6 +30,24 @@ void GlobalPlanner::setNFZManager(std::shared_ptr<NFZManager> nfz_manager)
   if (nfz_manager_) {
     config_.z_min = nfz_manager_->getMinAltitude();
     config_.z_max = nfz_manager_->getMaxAltitude();
+  }
+
+  // Re-initialize OMPL with new validity checker
+  initialized_ = false;
+}
+
+void GlobalPlanner::setOctomapManager(
+  std::shared_ptr<local_avoidance::OctomapManager> octomap_manager)
+{
+  octomap_manager_ = octomap_manager;
+
+  // Compute obstacle buffer based on planning velocity
+  const auto & cfg = config_.obstacle_inflation;
+  if (cfg.enabled) {
+    obstacle_buffer_ = cfg.base_buffer + cfg.planning_velocity * cfg.reaction_time;
+    obstacle_buffer_ = std::clamp(obstacle_buffer_, cfg.base_buffer, cfg.max_buffer);
+  } else {
+    obstacle_buffer_ = 0.0;  // No inflation
   }
 
   // Re-initialize OMPL with new validity checker
@@ -98,17 +119,32 @@ void GlobalPlanner::initializeOMPL()
 
 bool GlobalPlanner::isStateValid(const ompl::base::State * state) const
 {
-  if (!nfz_manager_) {
-    return true;  // No NFZ manager, all states valid
-  }
-
   const auto * real_state = state->as<ompl::base::RealVectorStateSpace::StateType>();
   double x = real_state->values[0];
   double y = real_state->values[1];
   double z = real_state->values[2];
 
-  // Check if in NFZ
-  return !nfz_manager_->isInNFZ(x, y, z);
+  // Check if in NFZ (hard constraint)
+  if (nfz_manager_ && nfz_manager_->isInNFZ(x, y, z)) {
+    return false;
+  }
+
+  // Check obstacle inflation (soft constraint based on OctoMap)
+  if (octomap_manager_ && config_.obstacle_inflation.enabled && obstacle_buffer_ > 0.0) {
+    geometry_msgs::msg::Point point;
+    point.x = x;
+    point.y = y;
+    point.z = z;
+
+    // Query nearest obstacle
+    auto query = octomap_manager_->findNearestObstacle(point, obstacle_buffer_);
+    if (query.occupied && query.distance < obstacle_buffer_) {
+      // Too close to obstacle - state is invalid
+      return false;
+    }
+  }
+
+  return true;
 }
 
 PlanningResult GlobalPlanner::plan(

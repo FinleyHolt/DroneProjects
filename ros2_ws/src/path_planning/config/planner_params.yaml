@@ -23,6 +23,15 @@ global_planner:
     # Threat zone cost weight
     threat_cost_weight: 1.0
 
+    # Obstacle inflation for state validity checking
+    # Uses OctoMap to inflate detected obstacles by a buffer distance
+    obstacle_inflation:
+      enabled: true
+      base_buffer: 3.0            # Minimum buffer around obstacles (meters)
+      planning_velocity: 8.0      # Assumed cruise velocity for planning (m/s)
+      reaction_time: 1.0          # buffer = base_buffer + velocity * reaction_time
+      max_buffer: 15.0            # Maximum buffer cap (meters)
+
 trajectory_controller:
   ros__parameters:
     # Control rate

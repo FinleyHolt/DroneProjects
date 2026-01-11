@@ -23,6 +23,8 @@
 #include "geometry_msgs/msg/vector3.hpp"
 
 #include "local_avoidance/octomap_manager.hpp"
+#include "local_avoidance/safety_buffer.hpp"
+#include "local_avoidance/corridor_detector.hpp"
 
 namespace local_avoidance
 {
@@ -36,16 +38,24 @@ struct VFH3DConfig
   int azimuth_bins{36};             // Number of horizontal bins (10 deg each)
   int elevation_bins{18};           // Number of vertical bins (10 deg each)
 
-  // Safety parameters
+  // Safety parameters (static fallback when velocity scaling disabled)
   double safety_radius{5.0};        // Minimum clearance from obstacles (meters)
   double critical_radius{2.0};      // Emergency stop distance (meters)
   double lookahead_distance{20.0};  // How far ahead to check for obstacles (meters)
+
+  // Velocity-scaled safety buffer configuration
+  SafetyBufferConfig velocity_scaling;
+  bool velocity_scaling_enabled{true};  // Enable velocity-scaled buffers
+
+  // Corridor detection and centering configuration
+  CorridorConfig corridor;
 
   // Cost function weights
   double goal_weight{5.0};          // Weight for goal direction alignment
   double heading_weight{2.0};       // Weight for current heading continuity
   double clearance_weight{1.0};     // Weight for obstacle clearance
   double elevation_weight{1.0};     // Penalty for vertical movement
+  double centering_weight{3.0};     // Weight for corridor centering
 
   // Histogram thresholds
   double obstacle_density_threshold{0.3};  // Density above this = blocked
@@ -73,6 +83,14 @@ struct VFHResult
   double confidence{0.0};           // Confidence in recommendation [0-1]
   bool path_blocked{false};         // True if goal direction is blocked
   bool emergency_stop{false};       // True if obstacle within critical radius
+  bool corridor_too_narrow{false};  // True if corridor gap < minimum required
+
+  // Velocity-scaled buffers used
+  double active_safety_buffer{0.0};    // Current velocity-scaled safety buffer
+  double active_critical_buffer{0.0};  // Current velocity-scaled critical buffer
+
+  // Corridor info
+  CorridorInfo corridor;            // Corridor detection results
 
   // Diagnostics
   int candidate_directions{0};      // Number of viable directions found
@@ -120,7 +138,21 @@ public:
     const VFH3DConfig & config = VFH3DConfig());
 
   /**
-   * @brief Compute avoidance direction
+   * @brief Compute avoidance direction with velocity-scaled buffers
+   * @param current_position Current UAV position (body frame origin)
+   * @param current_heading Current UAV heading (radians)
+   * @param goal_position Goal position (same frame as current_position)
+   * @param current_velocity Current velocity in m/s (for velocity-scaled buffers)
+   * @return VFHResult with recommended heading change
+   */
+  VFHResult computeAvoidance(
+    const geometry_msgs::msg::Point & current_position,
+    double current_heading,
+    const geometry_msgs::msg::Point & goal_position,
+    double current_velocity);
+
+  /**
+   * @brief Compute avoidance direction (backward compatible, uses default velocity)
    * @param current_position Current UAV position (body frame origin)
    * @param current_heading Current UAV heading (radians)
    * @param goal_position Goal position (same frame as current_position)
@@ -166,8 +198,9 @@ private:
 
   /**
    * @brief Apply threshold to mark blocked bins
+   * @param safety_buffer Current safety buffer distance
    */
-  void applyThreshold();
+  void applyThreshold(double safety_buffer);
 
   /**
    * @brief Find candidate directions toward goal
@@ -183,13 +216,17 @@ private:
    * @param goal_azimuth Azimuth to goal
    * @param goal_elevation Elevation to goal
    * @param current_heading Current heading
+   * @param corridor Corridor detection info (for centering)
+   * @param current_position Current UAV position (for centering)
    * @return Score (higher = better)
    */
   double scoreCandidate(
     int bin_idx,
     double goal_azimuth,
     double goal_elevation,
-    double current_heading);
+    double current_heading,
+    const CorridorInfo & corridor,
+    const geometry_msgs::msg::Point & current_position);
 
   /**
    * @brief Convert (azimuth, elevation) to bin index
@@ -215,9 +252,19 @@ private:
   VFH3DConfig config_;
   std::vector<HistogramBin> histogram_;
 
+  // Velocity-scaled safety buffer calculator
+  SafetyBuffer safety_buffer_;
+
+  // Corridor detector for path centering
+  std::unique_ptr<CorridorDetector> corridor_detector_;
+
   // State for hysteresis
   std::optional<double> last_recommended_azimuth_;
   std::optional<double> last_recommended_elevation_;
+
+  // Current buffer values (updated each frame)
+  double current_safety_buffer_{5.0};
+  double current_critical_buffer_{2.0};
 };
 
 }  // namespace local_avoidance

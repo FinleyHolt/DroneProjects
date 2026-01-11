@@ -22,7 +22,7 @@ local_avoidance_node:
       azimuth_bins: 36  # 10 degrees per bin
       elevation_bins: 18  # 10 degrees per bin
 
-      # Safety distances
+      # Safety distances (static fallback when velocity scaling disabled)
       safety_radius: 5.0  # meters - minimum clearance
       critical_radius: 2.0  # meters - emergency stop
       lookahead_distance: 20.0  # meters - how far ahead to check
@@ -31,3 +31,23 @@ local_avoidance_node:
       goal_weight: 5.0  # Weight for goal direction alignment
       heading_weight: 2.0  # Weight for maintaining current heading
       clearance_weight: 1.0  # Weight for obstacle clearance
+      centering_weight: 3.0  # Weight for corridor centering
+
+      # Velocity-scaled safety buffer
+      # buffer = base_buffer + velocity * reaction_time
+      # Example: at 8 m/s, buffer = 2.0 + 8*1.0 = 10.0m
+      velocity_scaling:
+        enabled: true
+        base_buffer: 2.0  # Minimum buffer at zero velocity (meters)
+        reaction_time: 1.0  # Scaling factor (seconds) - buffer grows with speed
+        max_buffer: 15.0  # Maximum buffer cap (meters)
+        critical_ratio: 0.5  # Critical buffer = safety buffer * ratio
+
+      # Corridor detection and centering
+      # Detects when flying between obstacles and centers the path
+      corridor:
+        enabled: true
+        min_gap_ratio: 1.5  # Gap must be > ratio * 2 * critical_buffer to pass
+        scan_width_rad: 1.047  # Angular scan width (~60 degrees)
+        num_samples: 5  # Number of samples along path
+        sample_interval: 2.0  # Distance between samples (meters)

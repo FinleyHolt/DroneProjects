@@ -115,12 +115,20 @@ public:
     RCLCPP_INFO(this->get_logger(),
       "Local Avoidance Node initialized:\n"
       "  Update rate: %.1f Hz\n"
-      "  Safety radius: %.1f m\n"
-      "  Critical radius: %.1f m\n"
+      "  Static safety radius: %.1f m (fallback)\n"
+      "  Velocity scaling: %s\n"
+      "    Base buffer: %.1f m\n"
+      "    Reaction time: %.1f s\n"
+      "    Max buffer: %.1f m\n"
+      "  Corridor centering: %s\n"
       "  Lookahead: %.1f m",
       update_rate_,
       vfh_config.safety_radius,
-      vfh_config.critical_radius,
+      vfh_config.velocity_scaling_enabled ? "enabled" : "disabled",
+      vfh_config.velocity_scaling.base_buffer,
+      vfh_config.velocity_scaling.reaction_time,
+      vfh_config.velocity_scaling.max_buffer,
+      vfh_config.corridor.enabled ? "enabled" : "disabled",
       vfh_config.lookahead_distance);
   }
 
@@ -151,6 +159,21 @@ private:
     this->declare_parameter("vfh.goal_weight", 5.0);
     this->declare_parameter("vfh.heading_weight", 2.0);
     this->declare_parameter("vfh.clearance_weight", 1.0);
+    this->declare_parameter("vfh.centering_weight", 3.0);
+
+    // Velocity-scaled safety buffer parameters
+    this->declare_parameter("vfh.velocity_scaling.enabled", true);
+    this->declare_parameter("vfh.velocity_scaling.base_buffer", 2.0);
+    this->declare_parameter("vfh.velocity_scaling.reaction_time", 1.0);
+    this->declare_parameter("vfh.velocity_scaling.max_buffer", 15.0);
+    this->declare_parameter("vfh.velocity_scaling.critical_ratio", 0.5);
+
+    // Corridor detection and centering parameters
+    this->declare_parameter("vfh.corridor.enabled", true);
+    this->declare_parameter("vfh.corridor.min_gap_ratio", 1.5);
+    this->declare_parameter("vfh.corridor.scan_width_rad", 1.047);  // ~60 degrees
+    this->declare_parameter("vfh.corridor.num_samples", 5);
+    this->declare_parameter("vfh.corridor.sample_interval", 2.0);
   }
 
   OctomapConfig get_octomap_config()
@@ -174,6 +197,30 @@ private:
     config.goal_weight = this->get_parameter("vfh.goal_weight").as_double();
     config.heading_weight = this->get_parameter("vfh.heading_weight").as_double();
     config.clearance_weight = this->get_parameter("vfh.clearance_weight").as_double();
+    config.centering_weight = this->get_parameter("vfh.centering_weight").as_double();
+
+    // Velocity scaling config
+    config.velocity_scaling_enabled =
+      this->get_parameter("vfh.velocity_scaling.enabled").as_bool();
+    config.velocity_scaling.base_buffer =
+      this->get_parameter("vfh.velocity_scaling.base_buffer").as_double();
+    config.velocity_scaling.reaction_time =
+      this->get_parameter("vfh.velocity_scaling.reaction_time").as_double();
+    config.velocity_scaling.max_buffer =
+      this->get_parameter("vfh.velocity_scaling.max_buffer").as_double();
+    config.velocity_scaling.critical_ratio =
+      this->get_parameter("vfh.velocity_scaling.critical_ratio").as_double();
+
+    // Corridor config
+    config.corridor.enabled = this->get_parameter("vfh.corridor.enabled").as_bool();
+    config.corridor.min_gap_ratio =
+      this->get_parameter("vfh.corridor.min_gap_ratio").as_double();
+    config.corridor.scan_width_rad =
+      this->get_parameter("vfh.corridor.scan_width_rad").as_double();
+    config.corridor.num_samples = this->get_parameter("vfh.corridor.num_samples").as_int();
+    config.corridor.sample_interval =
+      this->get_parameter("vfh.corridor.sample_interval").as_double();
+
     return config;
   }
 
@@ -197,6 +244,7 @@ private:
     current_position_ = msg->position;
     current_orientation_ = msg->orientation;
     current_heading_ = get_yaw_from_quaternion(msg->orientation);
+    current_velocity_ = msg->ground_speed;  // m/s
     has_uav_state_ = true;
   }
 
@@ -214,8 +262,9 @@ private:
 
     auto start = this->now();
 
-    // Run VFH+ algorithm
-    auto result = vfh_->computeAvoidance(current_position_, current_heading_, current_goal_);
+    // Run VFH+ algorithm with velocity-scaled buffers
+    auto result = vfh_->computeAvoidance(
+      current_position_, current_heading_, current_goal_, current_velocity_);
 
     auto processing_time = (this->now() - start).seconds() * 1000;
 
@@ -225,8 +274,15 @@ private:
     // Handle result
     if (result.emergency_stop) {
       RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
-        "Emergency stop! Closest obstacle: %.2f m", result.closest_obstacle);
+        "Emergency stop! Closest obstacle: %.2f m (buffer: %.2f m)",
+        result.closest_obstacle, result.active_critical_buffer);
       publish_stop_override();
+    } else if (result.corridor_too_narrow) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+        "Corridor too narrow! Gap: %.2f m, required: %.2f m - requesting replan",
+        result.corridor.gap_width, result.active_critical_buffer * 2.0);
+      // Don't stop, but signal path blocked for global planner to replan
+      publish_stop_override();  // Hold position while replanning
     } else if (result.path_blocked) {
       // Publish modified waypoint
       publish_avoidance_waypoint(result);
@@ -427,6 +483,7 @@ private:
   geometry_msgs::msg::Point current_position_;
   geometry_msgs::msg::Quaternion current_orientation_;
   double current_heading_{0.0};
+  double current_velocity_{0.0};  // Ground speed (m/s) for velocity-scaled buffers
   geometry_msgs::msg::Point current_goal_;
   bool has_uav_state_{false};
   bool has_goal_{false};

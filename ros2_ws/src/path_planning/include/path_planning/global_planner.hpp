@@ -25,6 +25,13 @@
 
 #include "path_planning/nfz_manager.hpp"
 
+// Forward declarations for obstacle inflation
+namespace local_avoidance
+{
+class OctomapManager;
+struct ObstacleQuery;
+}  // namespace local_avoidance
+
 namespace path_planning
 {
 
@@ -39,6 +46,18 @@ struct PlanningResult
   double planning_time_sec{0.0};
   int iterations{0};
   std::string error_message;
+};
+
+/**
+ * @brief Configuration for obstacle inflation in planning
+ */
+struct ObstacleInflationConfig
+{
+  bool enabled{true};           // Enable obstacle inflation
+  double base_buffer{3.0};      // Minimum buffer around obstacles (meters)
+  double planning_velocity{8.0}; // Assumed cruise velocity for planning (m/s)
+  double reaction_time{1.0};    // buffer = base_buffer + velocity * reaction_time
+  double max_buffer{15.0};      // Maximum buffer cap (meters)
 };
 
 /**
@@ -65,6 +84,9 @@ struct PlannerConfig
 
   // Threat cost weight
   double threat_cost_weight{1.0};
+
+  // Obstacle inflation for state validity checking
+  ObstacleInflationConfig obstacle_inflation;
 };
 
 /**
@@ -87,6 +109,17 @@ public:
    * @param nfz_manager Shared pointer to NFZ manager
    */
   void setNFZManager(std::shared_ptr<NFZManager> nfz_manager);
+
+  /**
+   * @brief Set OctoMap manager for obstacle inflation
+   * @param octomap_manager Shared pointer to OctoMap manager
+   *
+   * When set, the planner will check obstacle distances and inflate
+   * obstacles by the configured buffer distance during state validity
+   * checking. This provides safer paths that maintain clearance from
+   * detected obstacles.
+   */
+  void setOctomapManager(std::shared_ptr<local_avoidance::OctomapManager> octomap_manager);
 
   /**
    * @brief Update planning state space bounds
@@ -146,6 +179,10 @@ private:
 
   PlannerConfig config_;
   std::shared_ptr<NFZManager> nfz_manager_;
+  std::shared_ptr<local_avoidance::OctomapManager> octomap_manager_;
+
+  // Computed obstacle buffer (based on planning velocity)
+  double obstacle_buffer_{3.0};
 
   // OMPL components
   std::shared_ptr<ompl::base::RealVectorStateSpace> state_space_;

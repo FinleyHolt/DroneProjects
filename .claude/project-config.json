@@ -1,0 +1,17 @@
+{
+  "project_number": 1,
+  "project_id": "PVT_kwHOCPfoCc4BMVJy",
+  "owner": "FinleyHolt",
+  "repo": "DroneProjects",
+  "status_field": {
+    "id": "PVTSSF_lAHOCPfoCc4BMVJyzg7pOKE",
+    "name": "Status",
+    "options": {
+      "Todo": "f75ad846",
+      "In Progress": "47fc9ee4",
+      "Done": "98236657"
+    }
+  },
+  "note": "GITHUB_TOKEN env var lacks project scope. Use 'GITHUB_TOKEN=' prefix for gh project commands.",
+  "cached_at": "2026-01-11T12:00:00Z"
+}

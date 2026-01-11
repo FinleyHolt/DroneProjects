@@ -1,5 +1,5 @@
 ---
-allowed-tools: Read, Write, Bash, Glob
+allowed-tools: Read, Write, Bash, Glob, mcp__github__search_issues, mcp__github__issue_write, mcp__github__add_issue_comment
 ---
 
 # Claim Task
@@ -29,7 +29,42 @@ Claim a task and its associated paths for the current session.
    git checkout -b {session-id}/{task-slug}
    ```
 
-5. **Update Registry**
+5. **GitHub Issue Integration**
+
+   Read project config from `.claude/project-config.json` for IDs.
+
+   a. **Search for Existing Issue**
+      - Search GitHub issues for one matching the task-slug or description
+      - Use `mcp__github__search_issues` with query like task description
+      - If found, use that issue number
+
+   b. **If No Issue Exists, Create One**
+      - Use `mcp__github__issue_write` with method "create":
+        - title: task description
+        - body: Include session ID, task slug, claimed paths
+        - labels: ["claude-task"] (optional)
+      - Capture the issue number from the response
+
+   c. **Add Issue to Project Board**
+      ```bash
+      GITHUB_TOKEN= gh project item-add 1 --owner FinleyHolt \
+        --url "https://github.com/FinleyHolt/DroneProjects/issues/{issue-number}"
+      ```
+      - Capture the item ID from the output
+
+   d. **Move to "In Progress" Column**
+      - Read IDs from `.claude/project-config.json`
+      ```bash
+      GITHUB_TOKEN= gh project item-edit --id {item-id} \
+        --project-id "PVT_kwHOCPfoCc4BMVJy" \
+        --field-id "PVTSSF_lAHOCPfoCc4BMVJyzg7pOKE" \
+        --single-select-option-id "47fc9ee4"
+      ```
+
+   e. **Store GitHub References**
+      - Save `github_issue` (issue number) and `github_project_item_id` in registry
+
+6. **Update Registry**
    - Add task to `.claude/tasks/registry.json`:
    ```json
    {
@@ -38,28 +73,31 @@ Claim a task and its associated paths for the current session.
        "claimed_at": "ISO-timestamp",
        "description": "Task description",
        "paths": ["path/pattern/**"],
-       "status": "in_progress"
+       "status": "in_progress",
+       "github_issue": 42,
+       "github_project_item_id": "PVTI_xxx..."
      }
    }
    ```
 
-6. **Update Session Manifest**
+7. **Update Session Manifest**
    - Set branch, task_description, claimed_paths
    - Update status to "active"
    - Update last_heartbeat
 
-7. **Log Claim**
+8. **Log Claim**
    - Append to `.claude/coordination.log`:
    ```
    {timestamp} {session-id} CLAIM {task-slug}
    ```
 
-8. **Confirm**
+9. **Confirm**
    ```
    # Task Claimed
 
    - Task: {task-slug}
    - Branch: {session-id}/{task-slug}
+   - Issue: #{github_issue} (moved to "In Progress")
    - Paths Claimed:
      - {path-pattern}
 

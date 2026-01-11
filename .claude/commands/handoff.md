@@ -1,5 +1,5 @@
 ---
-allowed-tools: Read, Write, Bash
+allowed-tools: Read, Write, Bash, mcp__github__add_issue_comment
 ---
 
 # Handoff Task
@@ -63,22 +63,43 @@ Hand off the current task to another session or make it available for pickup.
    - Set task status to "handoff_pending"
    - Add "handoff_to" field (session-id or "any")
 
-5. **Update Session Manifest**
+5. **Update GitHub Project Board**
+
+   If task has `github_issue` and `github_project_item_id` in registry:
+
+   a. **Move to "Todo" Column**
+      - Read IDs from `.claude/project-config.json`
+      ```bash
+      GITHUB_TOKEN= gh project item-edit --id {github_project_item_id} \
+        --project-id "PVT_kwHOCPfoCc4BMVJy" \
+        --field-id "PVTSSF_lAHOCPfoCc4BMVJyzg7pOKE" \
+        --single-select-option-id "f75ad846"
+      ```
+
+   b. **Add Handoff Comment to Issue**
+      - Use `mcp__github__add_issue_comment`:
+        - issue_number: {github_issue}
+        - owner: "FinleyHolt"
+        - repo: "DroneProjects"
+        - body: "Handed off by session {session-id}.\n\nSee handoff document: `.claude/handoffs/{task-slug}.md`\n\nBranch: {branch} (pushed)\nAvailable to: {target or 'any'}"
+
+6. **Update Session Manifest**
    - Set status to "handed_off"
    - Clear claimed_paths (release the paths)
 
-6. **Log Handoff**
+7. **Log Handoff**
    - Append to `.claude/coordination.log`:
    ```
    {timestamp} {session-id} HANDOFF {task-slug} -> {target or "any"}
    ```
 
-7. **Confirm**
+8. **Confirm**
    ```
    # Task Handed Off
 
    - Task: {task-slug}
    - Branch: {branch} (pushed)
+   - Issue: #{github_issue} (moved to "Todo")
    - Handoff doc: .claude/handoffs/{task-slug}.md
    - Available to: {target-session or "any session"}
 
